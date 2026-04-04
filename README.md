@@ -14,7 +14,7 @@ SnippetBox 是一款本地优先的代码片段管理工具，帮助开发者高
 - 付佳腾 - 前端开发
 - 赵祐晟 - 全栈/测试
 
-**开发周期**：2026年1月-2月（4周）
+**开发周期**：4周
 
 ## 功能特性
 
@@ -114,10 +114,10 @@ SnippetBox/
 
 ## 开发文档
 
-- [开发指南](docs/DEVELOPMENT.md) - 详细的开发环境搭建和团队协作指南
-- [需求规范](../.kiro/specs/snippet-box/requirements.md) - 完整的功能需求和验收标准
-- [设计文档](../.kiro/specs/snippet-box/design.md) - 系统架构和技术设计
-- [任务列表](../.kiro/specs/snippet-box/tasks.md) - 详细的开发任务分解
+- [开发指南](docs/development.md) - 详细的开发环境搭建和团队协作指南
+- [需求规范](docs/requirements.md) - 完整的功能需求和验收标准
+- [设计文档](docs/design.md) - 系统架构和技术设计
+- [任务列表](docs/tasks.md) - 详细的开发任务分解
 
 ## 开发进度
 
