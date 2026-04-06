@@ -1,38 +1,36 @@
-import { Link, useLocation } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
+import Button from '../Button';
 import './Sidebar.css';
 
-function Sidebar() {
-  const location = useLocation();
+interface SidebarProps {
+  onNewSnippet?: () => void;
+}
 
-  const isActive = (path: string) => {
-    return location.pathname === path ? 'active' : '';
-  };
-
+function Sidebar({ onNewSnippet }: SidebarProps) {
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
-        <h1 className="sidebar-title">SnippetBox</h1>
+        <h2 className="sidebar-title">SnippetBox</h2>
       </div>
 
-      <nav className="sidebar-nav">
-        <Link to="/" className={`sidebar-link ${isActive('/')}`}>
-          <span className="sidebar-icon">📝</span>
-          <span>所有片段</span>
-        </Link>
-        <Link to="/editor" className={`sidebar-link ${isActive('/editor')}`}>
-          <span className="sidebar-icon">➕</span>
-          <span>新建片段</span>
-        </Link>
-        <Link to="/settings" className={`sidebar-link ${isActive('/settings')}`}>
-          <span className="sidebar-icon">⚙️</span>
-          <span>设置</span>
-        </Link>
-      </nav>
+      <div className="sidebar-content">
+        <Button onClick={onNewSnippet} className="new-snippet-btn">
+          ➕ 新建片段
+        </Button>
 
-      <div className="sidebar-footer">
-        <div className="sidebar-stats">
-          <span>0 个片段</span>
-        </div>
+        <nav className="sidebar-nav">
+          <NavLink to="/" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <span className="nav-icon">📚</span>
+            <span>所有片段</span>
+          </NavLink>
+          <NavLink
+            to="/settings"
+            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+          >
+            <span className="nav-icon">⚙️</span>
+            <span>设置</span>
+          </NavLink>
+        </nav>
       </div>
     </aside>
   );

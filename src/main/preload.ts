@@ -1,22 +1,16 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import { Snippet, CreateSnippetDTO, UpdateSnippetDTO, SnippetFilter } from '../shared/types';
 
-// 定义回调函数类型
-type IpcCallback = (...args: unknown[]) => void;
-
-// 暴露安全的 API 给渲染进程
 contextBridge.exposeInMainWorld('electronAPI', {
-  // 示例：发送消息到主进程
-  send: (channel: string, data: unknown) => {
-    const validChannels = ['snippet:create', 'snippet:update', 'snippet:delete'];
-    if (validChannels.includes(channel)) {
-      ipcRenderer.send(channel, data);
-    }
-  },
-  // 示例：接收主进程消息
-  on: (channel: string, callback: IpcCallback) => {
-    const validChannels = ['snippet:created', 'snippet:updated', 'snippet:deleted'];
-    if (validChannels.includes(channel)) {
-      ipcRenderer.on(channel, (_event, ...args) => callback(...args));
-    }
+  snippet: {
+    create: (data: CreateSnippetDTO): Promise<Snippet> =>
+      ipcRenderer.invoke('snippet:create', data),
+    list: (filter?: SnippetFilter): Promise<Snippet[]> =>
+      ipcRenderer.invoke('snippet:list', filter),
+    get: (id: string): Promise<Snippet> => ipcRenderer.invoke('snippet:get', id),
+    update: (id: string, data: UpdateSnippetDTO): Promise<Snippet> =>
+      ipcRenderer.invoke('snippet:update', id, data),
+    delete: (id: string): Promise<void> => ipcRenderer.invoke('snippet:delete', id),
+    search: (query: string): Promise<Snippet[]> => ipcRenderer.invoke('snippet:search', query),
   },
 });
