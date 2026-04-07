@@ -10,13 +10,21 @@ import * as fs from 'fs';
 import { INIT_SCRIPTS, DEFAULT_CATEGORIES, DEFAULT_SETTINGS, SCHEMA_VERSION } from './schema';
 
 export class DatabaseManager {
+  private static instance: DatabaseManager;
   private db: Database.Database | null = null;
   private dbPath: string;
 
-  constructor(dbPath?: string) {
+  private constructor(dbPath?: string) {
     // 使用用户数据目录存储数据库
     const userDataPath = app.getPath('userData');
     this.dbPath = dbPath || path.join(userDataPath, 'snippetbox.db');
+  }
+
+  static getInstance(dbPath?: string): DatabaseManager {
+    if (!DatabaseManager.instance) {
+      DatabaseManager.instance = new DatabaseManager(dbPath);
+    }
+    return DatabaseManager.instance;
   }
 
   /**
