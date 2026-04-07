@@ -295,13 +295,13 @@ export class SnippetManager {
       if (!tag) {
         const tagId = randomUUID();
         this.db
-          .prepare('INSERT INTO tags (id, name, created_at) VALUES (?, ?, ?)')
-          .run(tagId, tagName, now);
+          .prepare('INSERT INTO tags (id, name, usage_count, created_at) VALUES (?, ?, ?, ?)')
+          .run(tagId, tagName, 0, now);
         tag = { id: tagId };
       }
 
       // 添加关联
-      this.db
+      const result = this.db
         .prepare(
           `
         INSERT OR IGNORE INTO snippet_tags (snippet_id, tag_id, created_at)
@@ -309,6 +309,13 @@ export class SnippetManager {
       `
         )
         .run(snippetId, tag.id, now);
+
+      // 如果成功插入了新关联，更新 usage_count
+      if (result.changes > 0) {
+        this.db
+          .prepare('UPDATE tags SET usage_count = usage_count + 1 WHERE id = ?')
+          .run(tag.id);
+      }
     });
   }
 

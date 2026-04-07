@@ -1,7 +1,5 @@
 import crypto from 'crypto';
-import { DatabaseManager } from '../database';
-
-const dbInstance = DatabaseManager.getInstance();
+import Database from 'better-sqlite3';
 
 export interface Tag {
   id: string;
@@ -15,15 +13,10 @@ export interface CreateTagDto {
 }
 
 export class TagManager {
-  private db: any;
+  private db: Database.Database;
 
-  constructor(db?: any) {
-    if (db) {
-      this.db = db;
-    } else {
-      dbInstance.connect();
-      this.db = dbInstance.getDB();
-    }
+  constructor(db: Database.Database) {
+    this.db = db;
   }
 
   async createTag(dto: CreateTagDto): Promise<Tag> {
@@ -32,10 +25,9 @@ export class TagManager {
     }
 
     const normalizedName = dto.name.trim().toLowerCase();
-    const existingTag = await this.db.get(
-      'SELECT id FROM tags WHERE LOWER(name) = ?',
-      [normalizedName]
-    );
+    const existingTag = this.db
+      .prepare('SELECT id FROM tags WHERE LOWER(name) = ?')
+      .get(normalizedName) as { id: string } | undefined;
 
     if (existingTag) {
       throw new Error(`Tag with name "${dto.name}" already exists`);
@@ -43,23 +35,24 @@ export class TagManager {
 
     const id = crypto.randomUUID();
     const name = dto.name.trim();
-    const createdAt = new Date();
+    const createdAt = Date.now();
 
-    await this.db.run(
-      'INSERT INTO tags (id, name, usage_count, created_at) VALUES (?, ?, ?, ?)',
-      [id, name, 0, createdAt.toISOString()]
-    );
+    this.db
+      .prepare('INSERT INTO tags (id, name, usage_count, created_at) VALUES (?, ?, ?, ?)')
+      .run(id, name, 0, createdAt);
 
     return {
       id,
       name,
       usageCount: 0,
-      createdAt,
+      createdAt: new Date(createdAt),
     };
   }
 
   async getTags(): Promise<Tag[]> {
-    const tags = await this.db.all('SELECT * FROM tags ORDER BY usage_count DESC, name ASC');
+    const tags = this.db
+      .prepare('SELECT * FROM tags ORDER BY usage_count DESC, name ASC')
+      .all() as any[];
 
     return tags.map((tag: any) => ({
       id: tag.id,
@@ -70,7 +63,7 @@ export class TagManager {
   }
 
   async getTagById(id: string): Promise<Tag | undefined> {
-    const tag = await this.db.get('SELECT * FROM tags WHERE id = ?', [id]);
+    const tag = this.db.prepare('SELECT * FROM tags WHERE id = ?').get(id) as any | undefined;
 
     if (!tag) {
       return undefined;
@@ -86,7 +79,9 @@ export class TagManager {
 
   async getTagByName(name: string): Promise<Tag | undefined> {
     const normalizedName = name.trim().toLowerCase();
-    const tag = await this.db.get('SELECT * FROM tags WHERE LOWER(name) = ?', [normalizedName]);
+    const tag = this.db
+      .prepare('SELECT * FROM tags WHERE LOWER(name) = ?')
+      .get(normalizedName) as any | undefined;
 
     if (!tag) {
       return undefined;
@@ -100,10 +95,13 @@ export class TagManager {
     };
   }
 
-  async getTagSuggestions(query: string, options?: {
-    exclude?: string[];
-    limit?: number;
-  }): Promise<Tag[]> {
+  async getTagSuggestions(
+    query: string,
+    options?: {
+      exclude?: string[];
+      limit?: number;
+    }
+  ): Promise<Tag[]> {
     const normalizedQuery = query.trim().toLowerCase();
     const limit = options?.limit || 10;
 
@@ -119,7 +117,7 @@ export class TagManager {
     sql += ' ORDER BY usage_count DESC, name ASC LIMIT ?';
     params.push(limit);
 
-    const tags = await this.db.all(sql, params);
+    const tags = this.db.prepare(sql).all(...params) as any[];
 
     return tags.map((tag: any) => ({
       id: tag.id,
@@ -130,10 +128,9 @@ export class TagManager {
   }
 
   async getTagUsageCount(tagId: string): Promise<number> {
-    const result = await this.db.get(
-      'SELECT COUNT(*) as count FROM snippet_tags WHERE tag_id = ?',
-      [tagId]
-    );
+    const result = this.db
+      .prepare('SELECT COUNT(*) as count FROM snippet_tags WHERE tag_id = ?')
+      .get(tagId) as { count: number } | undefined;
 
     return result?.count || 0;
   }
@@ -144,10 +141,12 @@ export class TagManager {
       throw new Error(`Tag with id "${id}" not found`);
     }
 
-    await this.db.transaction(async () => {
-      await this.db.run('DELETE FROM snippet_tags WHERE tag_id = ?', [id]);
-      await this.db.run('DELETE FROM tags WHERE id = ?', [id]);
+    const transaction = this.db.transaction(() => {
+      this.db.prepare('DELETE FROM snippet_tags WHERE tag_id = ?').run(id);
+      this.db.prepare('DELETE FROM tags WHERE id = ?').run(id);
     });
+
+    transaction();
   }
 
   async mergeTags(sourceId: string, targetId: string): Promise<void> {
@@ -166,21 +165,19 @@ export class TagManager {
       throw new Error(`Target tag with id "${targetId}" not found`);
     }
 
-    await this.db.transaction(async () => {
-      await this.db.run(
-        'UPDATE snippet_tags SET tag_id = ? WHERE tag_id = ?',
-        [targetId, sourceId]
-      );
+    const transaction = this.db.transaction(() => {
+      this.db
+        .prepare('UPDATE snippet_tags SET tag_id = ? WHERE tag_id = ?')
+        .run(targetId, sourceId);
 
-      await this.db.run('DELETE FROM snippet_tags WHERE tag_id = ?', [sourceId]);
-      await this.db.run('DELETE FROM tags WHERE id = ?', [sourceId]);
+      this.db.prepare('DELETE FROM snippet_tags WHERE tag_id = ?').run(sourceId);
+      this.db.prepare('DELETE FROM tags WHERE id = ?').run(sourceId);
 
-      const usageCount = await this.getTagUsageCount(targetId);
-      await this.db.run(
-        'UPDATE tags SET usage_count = ? WHERE id = ?',
-        [usageCount, targetId]
-      );
+      const usageCount = this.getTagUsageCount(targetId);
+      this.db.prepare('UPDATE tags SET usage_count = ? WHERE id = ?').run(usageCount, targetId);
     });
+
+    transaction();
   }
 
   async renameTag(id: string, newName: string): Promise<Tag> {
@@ -194,16 +191,15 @@ export class TagManager {
       throw new Error('Tag name cannot be empty');
     }
 
-    const duplicateTag = await this.db.get(
-      'SELECT id FROM tags WHERE LOWER(name) = ? AND id != ?',
-      [normalizedName, id]
-    );
+    const duplicateTag = this.db
+      .prepare('SELECT id FROM tags WHERE LOWER(name) = ? AND id != ?')
+      .get(normalizedName, id) as { id: string } | undefined;
 
     if (duplicateTag) {
       throw new Error(`Tag "${newName}" already exists`);
     }
 
-    await this.db.run('UPDATE tags SET name = ? WHERE id = ?', [newName.trim(), id]);
+    this.db.prepare('UPDATE tags SET name = ? WHERE id = ?').run(newName.trim(), id);
 
     return {
       ...existingTag,
@@ -221,12 +217,16 @@ export class TagManager {
   }
 
   async getTagsForSnippet(snippetId: string): Promise<Tag[]> {
-    const tags = await this.db.all(`
+    const tags = this.db
+      .prepare(
+        `
       SELECT t.* FROM tags t
       JOIN snippet_tags st ON t.id = st.tag_id
       WHERE st.snippet_id = ?
       ORDER BY t.usage_count DESC, t.name ASC
-    `, [snippetId]);
+    `
+      )
+      .all(snippetId) as any[];
 
     return tags.map((tag: any) => ({
       id: tag.id,
@@ -237,28 +237,40 @@ export class TagManager {
   }
 
   async updateTagsForSnippet(snippetId: string, tagNames: string[]): Promise<Tag[]> {
-    const normalizedTagNames = tagNames.map(name => name.trim().toLowerCase()).filter(Boolean);
+    const normalizedTagNames = tagNames
+      .map((name) => name.trim().toLowerCase())
+      .filter(Boolean);
 
-    await this.db.transaction(async () => {
-      await this.db.run('DELETE FROM snippet_tags WHERE snippet_id = ?', [snippetId]);
+    const transaction = this.db.transaction(() => {
+      this.db.prepare('DELETE FROM snippet_tags WHERE snippet_id = ?').run(snippetId);
 
       for (const tagName of normalizedTagNames) {
-        let tag = await this.getTagByName(tagName);
+        // 同步查找或创建标签
+        let tag = this.db
+          .prepare('SELECT * FROM tags WHERE LOWER(name) = ?')
+          .get(tagName.toLowerCase()) as any | undefined;
+
         if (!tag) {
-          tag = await this.createTag({ name: tagName });
+          // 创建新标签
+          const id = crypto.randomUUID();
+          const createdAt = Date.now();
+          this.db
+            .prepare('INSERT INTO tags (id, name, usage_count, created_at) VALUES (?, ?, ?, ?)')
+            .run(id, tagName, 0, createdAt);
+          tag = { id, name: tagName, usage_count: 0, created_at: createdAt };
         }
 
-        await this.db.run(
-          'INSERT INTO snippet_tags (snippet_id, tag_id) VALUES (?, ?)',
-          [snippetId, tag.id]
-        );
+        this.db
+          .prepare('INSERT INTO snippet_tags (snippet_id, tag_id, created_at) VALUES (?, ?, ?)')
+          .run(snippetId, tag.id, Date.now());
 
-        await this.db.run(
-          'UPDATE tags SET usage_count = usage_count + 1 WHERE id = ?',
-          [tag.id]
-        );
+        this.db
+          .prepare('UPDATE tags SET usage_count = usage_count + 1 WHERE id = ?')
+          .run(tag.id);
       }
     });
+
+    transaction();
 
     return this.getTagsForSnippet(snippetId);
   }

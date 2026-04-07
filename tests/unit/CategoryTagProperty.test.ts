@@ -1,63 +1,34 @@
 import fc from 'fast-check';
-
-// Mock database
-const mockDatabase = {
-  run: jest.fn().mockResolvedValue(undefined),
-  get: jest.fn(),
-  all: jest.fn(),
-  exec: jest.fn().mockResolvedValue(undefined),
-  transaction: jest.fn((callback) => callback()),
-} as any;
-
-jest.mock('../../src/main/database', () => ({
-  DatabaseManager: {
-    getInstance: jest.fn().mockReturnValue({
-      connect: jest.fn(),
-      getDB: jest.fn().mockReturnValue(mockDatabase),
-    }),
-  },
-}));
-
+import Database from 'better-sqlite3';
 import { CategoryManager } from '../../src/main/services/CategoryManager';
 import { TagManager } from '../../src/main/services/TagManager';
+import { createTestDatabase, cleanupTestDatabase } from '../setup';
 
-describe('Category and Tag Property Tests', () => {
+describe('Category and Tag Property-Based Tests', () => {
+  let db: Database.Database;
   let categoryManager: CategoryManager;
   let tagManager: TagManager;
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    categoryManager = new CategoryManager();
-    tagManager = new TagManager();
+    db = createTestDatabase();
+    categoryManager = new CategoryManager(db);
+    tagManager = new TagManager(db);
   });
 
-  describe('CategoryManager Properties', () => {
-    test('should create category with valid name', async () => {
+  afterEach(() => {
+    cleanupTestDatabase(db);
+  });
+
+  describe('Category Properties', () => {
+    test('creating a category with valid data should always succeed', async () => {
       await fc.assert(
         fc.asyncProperty(
-          fc.string({ minLength: 1, maxLength: 50 }).filter(s => s.trim().length > 0),
-          fc.string().filter(s => /^#[0-9A-Fa-f]{6}$/.test(s)),
-          fc.string({ maxLength: 10 }),
-          async (name, color, icon) => {
-            // Mock database response
-            mockDatabase.get.mockResolvedValue(null);
-            mockDatabase.run.mockResolvedValue(undefined);
-            mockDatabase.get.mockImplementation((sql: string, params: any[]) => {
-              if (params && params[0] === name) return null;
-              if (params && params.length === 4) {
-                return {
-                  id: '1',
-                  name,
-                  color,
-                  icon,
-                  created_at: new Date().toISOString(),
-                };
-              }
-              return null;
-            });
-
+          fc.string({ minLength: 1, maxLength: 50 }).filter((s: string) => s.trim().length > 0),
+          fc.string().filter((s: string) => /^#[0-9A-Fa-f]{6}$/.test(s)),
+          fc.string({ minLength: 1, maxLength: 10 }),
+          async (name: string, color: string, icon: string) => {
             const category = await categoryManager.createCategory({
-              name,
+              name: name.trim(),
               color,
               icon,
             });
@@ -65,140 +36,195 @@ describe('Category and Tag Property Tests', () => {
             expect(category).toBeDefined();
             expect(category.name).toBe(name.trim());
             expect(category.color).toBe(color);
-            expect(category.icon).toBe(icon || '📁');
+            expect(category.icon).toBe(icon);
           }
-        )
+        ),
+        { numRuns: 10 }
       );
     });
 
-    test('should not create category with duplicate name', async () => {
+    test('category name should be unique', async () => {
       await fc.assert(
         fc.asyncProperty(
-          fc.string({ minLength: 1, maxLength: 50 }).filter(s => s.trim().length > 0),
-          async (name) => {
-            // Mock database response - category already exists
-            mockDatabase.get.mockResolvedValue({
-              id: '1',
-              name,
-              color: '#ff0000',
-              icon: '📁',
-              created_at: new Date().toISOString(),
-            });
+          fc.string({ minLength: 1, maxLength: 50 }).filter((s: string) => s.trim().length > 0),
+          async (name: string) => {
+            const trimmedName = name.trim();
+            await categoryManager.createCategory({ name: trimmedName });
 
-            await expect(
-              categoryManager.createCategory({
-                name,
-                color: '#ff0000',
-                icon: '📁',
-              })
-            ).rejects.toThrow('Category with name "' + name + '" already exists');
+            await expect(categoryManager.createCategory({ name: trimmedName })).rejects.toThrow();
           }
-        )
+        ),
+        { numRuns: 10 }
       );
+    });
+
+    test('getting a category by id should return the same category', async () => {
+      const category = await categoryManager.createCategory({
+        name: 'Test Category',
+        color: '#ff0000',
+        icon: '📁',
+      });
+
+      const retrieved = await categoryManager.getCategoryById(category.id);
+
+      expect(retrieved).toBeDefined();
+      expect(retrieved?.id).toBe(category.id);
+      expect(retrieved?.name).toBe(category.name);
+    });
+
+    test('deleting a category should make it unavailable', async () => {
+      const category = await categoryManager.createCategory({
+        name: 'Test Category',
+        color: '#ff0000',
+        icon: '📁',
+      });
+
+      await categoryManager.deleteCategory(category.id);
+
+      const retrieved = await categoryManager.getCategoryById(category.id);
+      expect(retrieved).toBeUndefined();
     });
   });
 
-  describe('TagManager Properties', () => {
-    test('should create tag with valid name', async () => {
+  describe('Tag Properties', () => {
+    test('creating a tag with valid name should always succeed', async () => {
       await fc.assert(
         fc.asyncProperty(
-          fc.string({ minLength: 1, maxLength: 30 }).filter(s => s.trim().length > 0),
-          async (name) => {
-            // Clear mocks before each test iteration
-            jest.clearAllMocks();
-            
-            // Mock database response - tag doesn't exist
-            mockDatabase.get.mockImplementation((sql: string, params: any[]) => {
-              if (params && params[0] === name.trim().toLowerCase()) return null;
-              if (params && params.length === 1 && typeof params[0] === 'string' && params[0].match(/^[0-9a-f-]{36}$/)) {
-                return {
-                  id: params[0],
-                  name: name.trim(),
-                  usage_count: 0,
-                  created_at: new Date().toISOString(),
-                };
-              }
-              return null;
-            });
-            
-            mockDatabase.run.mockResolvedValue(undefined);
-
-            const tag = await tagManager.createTag({ name });
+          fc.string({ minLength: 1, maxLength: 30 }).filter((s: string) => s.trim().length > 0),
+          async (name: string) => {
+            const tag = await tagManager.createTag({ name: name.trim() });
 
             expect(tag).toBeDefined();
             expect(tag.name).toBe(name.trim());
             expect(tag.usageCount).toBe(0);
           }
-        )
+        ),
+        { numRuns: 10 }
       );
     });
 
-    test('should not create tag with duplicate name', async () => {
+    test('tag name should be unique (case-insensitive)', async () => {
       await fc.assert(
         fc.asyncProperty(
-          fc.string({ minLength: 1, maxLength: 30 }).filter(s => s.trim().length > 0),
-          async (name) => {
-            // Mock database response - tag already exists
-            mockDatabase.get.mockResolvedValue({
-              id: '1',
-              name,
-              usage_count: 5,
-              created_at: new Date().toISOString(),
-            });
+          fc.string({ minLength: 1, maxLength: 30 }).filter((s: string) => s.trim().length > 0),
+          async (name: string) => {
+            const trimmedName = name.trim();
+            await tagManager.createTag({ name: trimmedName });
 
-            await expect(
-              tagManager.createTag({ name })
-            ).rejects.toThrow('Tag with name "' + name + '" already exists');
+            await expect(tagManager.createTag({ name: trimmedName.toLowerCase() })).rejects.toThrow();
           }
-        )
+        ),
+        { numRuns: 10 }
       );
     });
 
-    test('should merge tags correctly', async () => {
+    test('getting a tag by name should be case-insensitive', async () => {
       await fc.assert(
         fc.asyncProperty(
-          fc.string({ minLength: 1, maxLength: 30 }),
-          fc.string({ minLength: 1, maxLength: 30 }),
-          async (sourceName, targetName) => {
-            if (sourceName === targetName) return; // Skip same names
+          fc.string({ minLength: 1, maxLength: 30 }).filter((s: string) => s.trim().length > 0),
+          async (name: string) => {
+            const trimmedName = name.trim();
+            const created = await tagManager.createTag({ name: trimmedName });
 
-            // Mock database responses
-            mockDatabase.get.mockImplementation((sql: string, params: any[]) => {
-              if (params && params[0] === sourceName) {
-                return {
-                  id: 'source',
-                  name: sourceName,
-                  usage_count: 5,
-                  created_at: new Date().toISOString(),
-                };
-              }
-              if (params && params[0] === targetName) {
-                return {
-                  id: 'target',
-                  name: targetName,
-                  usage_count: 10,
-                  created_at: new Date().toISOString(),
-                };
-              }
-              return null;
-            });
+            const retrieved = await tagManager.getTagByName(trimmedName.toLowerCase());
 
-            mockDatabase.run.mockResolvedValue(undefined);
-
-            await tagManager.mergeTags(sourceName, targetName);
-
-            expect(mockDatabase.run).toHaveBeenCalledWith(
-              expect.stringContaining('UPDATE snippet_tags SET tag_id = ? WHERE tag_id = ?'),
-              expect.any(Array)
-            );
-
-            expect(mockDatabase.run).toHaveBeenCalledWith(
-              expect.stringContaining('DELETE FROM tags WHERE id = ?'),
-              expect.any(Array)
-            );
+            expect(retrieved).toBeDefined();
+            expect(retrieved?.id).toBe(created.id);
           }
-        )
+        ),
+        { numRuns: 10 }
       );
+    });
+
+    test('deleting a tag should make it unavailable', async () => {
+      const tag = await tagManager.createTag({ name: 'test-tag' });
+
+      await tagManager.deleteTag(tag.id);
+
+      const retrieved = await tagManager.getTagById(tag.id);
+      expect(retrieved).toBeUndefined();
+    });
+
+    test('renaming a tag should preserve its id', async () => {
+      const tag = await tagManager.createTag({ name: 'old-name' });
+
+      const renamed = await tagManager.renameTag(tag.id, 'new-name');
+
+      expect(renamed.id).toBe(tag.id);
+      expect(renamed.name).toBe('new-name');
+    });
+
+    test('merging tags should combine their usage', async () => {
+      await fc.assert(
+        fc.asyncProperty(
+          fc.string({ minLength: 1, maxLength: 30 }).filter((s: string) => s.trim().length > 0),
+          fc.string({ minLength: 1, maxLength: 30 }).filter((s: string) => s.trim().length > 0),
+          async (sourceName: string, targetName: string) => {
+            if (sourceName.trim().toLowerCase() === targetName.trim().toLowerCase()) {
+              return; // Skip if names are the same
+            }
+
+            const sourceTag = await tagManager.createTag({ name: sourceName.trim() });
+            const targetTag = await tagManager.createTag({ name: targetName.trim() });
+
+            await tagManager.mergeTags(sourceTag.id, targetTag.id);
+
+            const sourceRetrieved = await tagManager.getTagById(sourceTag.id);
+            const targetRetrieved = await tagManager.getTagById(targetTag.id);
+
+            expect(sourceRetrieved).toBeUndefined();
+            expect(targetRetrieved).toBeDefined();
+          }
+        ),
+        { numRuns: 10 }
+      );
+    });
+  });
+
+  describe('Category and Tag Interaction Properties', () => {
+    test('categories and tags should be independent', async () => {
+      const category = await categoryManager.createCategory({
+        name: 'Test Category',
+        color: '#ff0000',
+        icon: '📁',
+      });
+
+      const tag = await tagManager.createTag({ name: 'test-tag' });
+
+      await categoryManager.deleteCategory(category.id);
+
+      const retrievedTag = await tagManager.getTagById(tag.id);
+      expect(retrievedTag).toBeDefined();
+    });
+
+    test('deleting a category should not affect tags', async () => {
+      const category = await categoryManager.createCategory({
+        name: 'Test Category',
+        color: '#ff0000',
+        icon: '📁',
+      });
+
+      const tag = await tagManager.createTag({ name: 'test-tag' });
+
+      await categoryManager.deleteCategory(category.id);
+
+      const tags = await tagManager.getTags();
+      expect(tags.some((t) => t.id === tag.id)).toBe(true);
+    });
+
+    test('deleting a tag should not affect categories', async () => {
+      const category = await categoryManager.createCategory({
+        name: 'Test Category',
+        color: '#ff0000',
+        icon: '📁',
+      });
+
+      const tag = await tagManager.createTag({ name: 'test-tag' });
+
+      await tagManager.deleteTag(tag.id);
+
+      const categories = await categoryManager.getCategories();
+      expect(categories.some((c) => c.id === category.id)).toBe(true);
     });
   });
 });

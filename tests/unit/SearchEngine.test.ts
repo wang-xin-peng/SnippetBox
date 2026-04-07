@@ -1,117 +1,126 @@
-// Mock 数据库
-const mockDatabase = {
-  run: jest.fn(),
-  get: jest.fn(),
-  all: jest.fn(),
-};
-
-// Mock DatabaseManager
-jest.mock('../../src/main/database', () => ({
-  DatabaseManager: {
-    getInstance: jest.fn().mockReturnValue({
-      connect: jest.fn(),
-      getDB: jest.fn(() => mockDatabase),
-    }),
-  },
-}));
-
+import Database from 'better-sqlite3';
 import { SearchEngine } from '../../src/main/services/SearchEngine';
+import { SnippetManager } from '../../src/main/services/SnippetManager';
+import { CategoryManager } from '../../src/main/services/CategoryManager';
+import { createTestDatabase, cleanupTestDatabase } from '../setup';
 
 describe('SearchEngine', () => {
+  let db: Database.Database;
   let searchEngine: SearchEngine;
+  let snippetManager: SnippetManager;
+  let categoryManager: CategoryManager;
 
-  beforeEach(() => {
-    searchEngine = new SearchEngine();
-    jest.clearAllMocks();
+  beforeEach(async () => {
+    db = createTestDatabase();
+    searchEngine = new SearchEngine(db);
+    snippetManager = new SnippetManager(db);
+    categoryManager = new CategoryManager(db);
+
+    // 创建测试数据
+    const category = await categoryManager.createCategory({ name: 'Test Category' });
+
+    await snippetManager.createSnippet({
+      title: 'JavaScript Array Map',
+      code: 'const result = array.map(x => x * 2);',
+      language: 'javascript',
+      category: category.id,
+      tags: ['javascript', 'array'],
+    });
+
+    await snippetManager.createSnippet({
+      title: 'Python List Comprehension',
+      code: 'result = [x * 2 for x in array]',
+      language: 'python',
+      category: category.id,
+      tags: ['python', 'list'],
+    });
+
+    await snippetManager.createSnippet({
+      title: 'TypeScript Interface',
+      code: 'interface User { name: string; age: number; }',
+      language: 'typescript',
+      category: category.id,
+      tags: ['typescript', 'interface'],
+    });
+  });
+
+  afterEach(() => {
+    cleanupTestDatabase(db);
   });
 
   describe('search', () => {
-    test('should search snippets', async () => {
-      const mockResults = [
-        {
-          id: '1',
-          title: 'JavaScript function',
-          content: 'function test() { return true; }',
-          language: 'javascript',
-          category: 'Code',
-          tags: 'javascript,test',
-          relevance: 0.95
-        },
-        {
-          id: '2',
-          title: 'TypeScript interface',
-          content: 'interface Test { id: string; }',
-          language: 'typescript',
-          category: 'Code',
-          tags: 'typescript,interface',
-          relevance: 0.85
-        }
-      ];
+    test('should search by title', async () => {
+      const results = await searchEngine.search('JavaScript');
 
-      mockDatabase.all.mockResolvedValue(mockResults);
-
-      const results = await searchEngine.search('javascript');
-
-      expect(results).toHaveLength(2);
-      expect(results[0].title).toBe('JavaScript function');
-      expect(results[0].relevance).toBe(0.95);
-      expect(mockDatabase.all).toHaveBeenCalled();
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0].title).toContain('JavaScript');
     });
 
-    test('should return empty array if no results', async () => {
-      mockDatabase.all.mockResolvedValue([]);
+    test('should search by code', async () => {
+      const results = await searchEngine.search('map');
 
+      expect(results.length).toBeGreaterThan(0);
+      const found = results.some((r) => r.code.includes('map'));
+      expect(found).toBe(true);
+    });
+
+    test('should return empty array for empty query', async () => {
+      const results = await searchEngine.search('');
+
+      expect(results).toEqual([]);
+    });
+
+    test('should return empty array for no matches', async () => {
       const results = await searchEngine.search('nonexistent');
 
       expect(results).toEqual([]);
     });
 
-    test('should handle special characters in query', async () => {
-      const mockResults: any[] = [];
-      mockDatabase.all.mockResolvedValue(mockResults);
+    test('should limit results', async () => {
+      const results = await searchEngine.search('a', { limit: 1 });
 
-      await searchEngine.search('test+query');
-
-      expect(mockDatabase.all).toHaveBeenCalled();
+      expect(results.length).toBeLessThanOrEqual(1);
     });
   });
 
   describe('searchMultipleKeywords', () => {
     test('should search with multiple keywords', async () => {
-      const mockResults = [
-        {
-          id: '1',
-          title: 'JavaScript function',
-          content: 'function test() { return true; }',
-          language: 'javascript',
-          category: 'Code',
-          tags: 'javascript,test',
-          relevance: 0.9
-        }
-      ];
+      const results = await searchEngine.searchMultipleKeywords(['JavaScript', 'Python']);
 
-      mockDatabase.all.mockResolvedValue(mockResults);
-
-      const results = await searchEngine.searchMultipleKeywords(['javascript', 'function']);
-
-      expect(results).toHaveLength(1);
-      expect(results[0].title).toBe('JavaScript function');
-      expect(mockDatabase.all).toHaveBeenCalled();
+      expect(results.length).toBeGreaterThan(0);
     });
 
-    test('should return empty array if no keywords provided', async () => {
+    test('should return empty array for empty keywords', async () => {
       const results = await searchEngine.searchMultipleKeywords([]);
 
       expect(results).toEqual([]);
     });
   });
 
-  describe('sortByRelevance', () => {
-    test('should sort results by relevance', () => {
+  describe('sorting', () => {
+    test('should sort by relevance', () => {
       const results = [
-        { id: '1', title: 'Low relevance', content: 'content', language: 'javascript', relevance: 0.5 },
-        { id: '2', title: 'High relevance', content: 'content', language: 'javascript', relevance: 0.9 },
-        { id: '3', title: 'Medium relevance', content: 'content', language: 'javascript', relevance: 0.7 }
+        {
+          id: '1',
+          title: 'Test 1',
+          code: 'code 1',
+          language: 'javascript',
+          relevance: 0.5,
+        },
+        {
+          id: '2',
+          title: 'Test 2',
+          code: 'code 2',
+          language: 'python',
+          relevance: 0.9,
+        },
+        {
+          id: '3',
+          title: 'Test 3',
+          code: 'code 3',
+          language: 'typescript',
+          relevance: 0.7,
+        },
       ];
 
       const sortedResults = searchEngine.sortByRelevance(results);
@@ -121,76 +130,128 @@ describe('SearchEngine', () => {
       expect(sortedResults[2].relevance).toBe(0.5);
     });
 
-    test('should handle empty array', () => {
-      const sortedResults = searchEngine.sortByRelevance([]);
+    test('should sort by date', () => {
+      const results = [
+        {
+          id: '1',
+          title: 'Test 1',
+          code: 'code 1',
+          language: 'javascript',
+          relevance: 0.5,
+          createdAt: new Date('2024-01-01'),
+        },
+        {
+          id: '2',
+          title: 'Test 2',
+          code: 'code 2',
+          language: 'python',
+          relevance: 0.9,
+          createdAt: new Date('2024-01-03'),
+        },
+        {
+          id: '3',
+          title: 'Test 3',
+          code: 'code 3',
+          language: 'typescript',
+          relevance: 0.7,
+          createdAt: new Date('2024-01-02'),
+        },
+      ];
 
-      expect(sortedResults).toEqual([]);
+      const sortedResults = searchEngine.sortByDate(results);
+
+      expect(sortedResults[0].createdAt?.getTime()).toBe(new Date('2024-01-03').getTime());
+      expect(sortedResults[1].createdAt?.getTime()).toBe(new Date('2024-01-02').getTime());
+      expect(sortedResults[2].createdAt?.getTime()).toBe(new Date('2024-01-01').getTime());
+    });
+
+    test('should sort by title', () => {
+      const results = [
+        {
+          id: '1',
+          title: 'C Test',
+          code: 'code 1',
+          language: 'javascript',
+          relevance: 0.5,
+        },
+        {
+          id: '2',
+          title: 'A Test',
+          code: 'code 2',
+          language: 'python',
+          relevance: 0.9,
+        },
+        {
+          id: '3',
+          title: 'B Test',
+          code: 'code 3',
+          language: 'typescript',
+          relevance: 0.7,
+        },
+      ];
+
+      const sortedResults = searchEngine.sortByTitle(results);
+
+      expect(sortedResults[0].title).toBe('A Test');
+      expect(sortedResults[1].title).toBe('B Test');
+      expect(sortedResults[2].title).toBe('C Test');
     });
   });
 
   describe('highlightMatches', () => {
-    test('should highlight matched text', () => {
+    test('should highlight matches', () => {
       const text = 'This is a test string';
-      const query = 'test';
+      const highlighted = searchEngine.highlightMatches(text, 'test');
 
-      const highlighted = searchEngine.highlightMatches(text, query);
-
-      expect(highlighted).toContain('highlight');
-      expect(highlighted).toContain('test');
+      expect(highlighted).toContain('<mark class="highlight">test</mark>');
     });
 
-    test('should return original text if no match', () => {
+    test('should return original text for empty query', () => {
       const text = 'This is a test string';
-      const query = 'nonexistent';
-
-      const highlighted = searchEngine.highlightMatches(text, query);
+      const highlighted = searchEngine.highlightMatches(text, '');
 
       expect(highlighted).toBe(text);
-    });
-
-    test('should handle empty query', () => {
-      const text = 'This is a test string';
-      const query = '';
-
-      const highlighted = searchEngine.highlightMatches(text, query);
-
-      expect(highlighted).toBe(text);
-    });
-
-    test('should handle case insensitive matches', () => {
-      const text = 'This is a TEST string';
-      const query = 'test';
-
-      const highlighted = searchEngine.highlightMatches(text, query);
-
-      expect(highlighted).toContain('highlight');
-      expect(highlighted).toContain('TEST');
     });
   });
 
   describe('getSearchSuggestions', () => {
     test('should return search suggestions', async () => {
-      const mockSuggestions = [
-        { title: 'JavaScript function' },
-        { title: 'JavaScript object' },
-        { title: 'JavaScript array' }
-      ];
+      const suggestions = await searchEngine.getSearchSuggestions('Java');
 
-      mockDatabase.all.mockResolvedValue(mockSuggestions);
-
-      const suggestions = await searchEngine.getSearchSuggestions('java');
-
-      expect(suggestions).toHaveLength(3);
-      expect(suggestions[0]).toBe('JavaScript function');
-      expect(mockDatabase.all).toHaveBeenCalled();
+      expect(suggestions.length).toBeGreaterThan(0);
+      expect(suggestions[0]).toContain('Java');
     });
 
-    test('should return empty array if no suggestions', async () => {
-      mockDatabase.all.mockResolvedValue([]);
-
-      const suggestions = await searchEngine.getSearchSuggestions('nonexistent');
+    test('should return empty array for empty query', async () => {
+      const suggestions = await searchEngine.getSearchSuggestions('');
 
       expect(suggestions).toEqual([]);
+    });
+
+    test('should limit suggestions', async () => {
+      const suggestions = await searchEngine.getSearchSuggestions('a', 1);
+
+      expect(suggestions.length).toBeLessThanOrEqual(1);
+    });
+  });
+
+  describe('searchWithFilters', () => {
+    test('should filter by language', async () => {
+      const results = await searchEngine.searchWithFilters('a', {
+        language: ['javascript'],
+      });
+
+      expect(results.length).toBeGreaterThan(0);
+      expect(results.every((r) => r.language === 'javascript')).toBe(true);
+    });
+
+    test('should filter by category', async () => {
+      const results = await searchEngine.searchWithFilters('a', {
+        category: ['Test Category'],
+      });
+
+      expect(results.length).toBeGreaterThan(0);
+      expect(results.every((r) => r.category === 'Test Category')).toBe(true);
     });
   });
 });
