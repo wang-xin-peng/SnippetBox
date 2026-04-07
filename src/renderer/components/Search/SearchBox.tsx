@@ -196,7 +196,7 @@ const SearchBox: React.FC<SearchBoxProps> = ({
 
       {isFocused && query && !isSearching && results.length === 0 && (
         <div className="search-no-results">
-          <p>未找到匹配 "{query}" 的结果</p>
+          <p>未找到匹配 &quot;{query}&quot; 的结果</p>
         </div>
       )}
     </div>

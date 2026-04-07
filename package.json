@@ -18,6 +18,9 @@
     "developer-tools"
   ],
   "scripts": {
+    "postinstall": "electron-rebuild -f -w better-sqlite3",
+    "rebuild": "electron-rebuild",
+    "clean": "rimraf dist node_modules/.cache",
     "dev": "concurrently -k \"npm run dev:renderer\" \"npm run dev:main\"",
     "dev:renderer": "vite",
     "dev:main": "npm run build:main && wait-on http://localhost:3000 && cross-env NODE_ENV=development electron . --watch",
@@ -44,6 +47,7 @@
     "react-router-dom": "^6.20.0"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.3",
     "@testing-library/jest-dom": "^6.1.5",
     "@testing-library/react": "^14.1.2",
     "@testing-library/user-event": "^14.5.1",
@@ -64,6 +68,7 @@
     "eslint": "^8.55.0",
     "eslint-plugin-react": "^7.33.0",
     "eslint-plugin-react-hooks": "^4.6.0",
+    "fast-check": "^4.6.0",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "prettier": "^3.1.0",

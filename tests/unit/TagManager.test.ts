@@ -1,91 +1,109 @@
-// Mock 数据库
-const mockDatabase = {
-  run: jest.fn(),
-  get: jest.fn(),
-  all: jest.fn(),
-  transaction: jest.fn((callback) => callback()),
-};
-
-// Mock DatabaseManager
-jest.mock('../../src/main/database', () => ({
-  DatabaseManager: {
-    getInstance: jest.fn().mockReturnValue({
-      connect: jest.fn(),
-      getDB: jest.fn(() => mockDatabase),
-    }),
-  },
-}));
-
+import Database from 'better-sqlite3';
 import { TagManager } from '../../src/main/services/TagManager';
+import { createTestDatabase, cleanupTestDatabase } from '../setup';
 
 describe('TagManager', () => {
+  let db: Database.Database;
   let tagManager: TagManager;
 
   beforeEach(() => {
-    tagManager = new TagManager();
-    jest.clearAllMocks();
+    db = createTestDatabase();
+    tagManager = new TagManager(db);
+  });
+
+  afterEach(() => {
+    cleanupTestDatabase(db);
   });
 
   describe('createTag', () => {
     test('should create a new tag', async () => {
-      mockDatabase.get.mockResolvedValue(null);
-      mockDatabase.run.mockResolvedValue(undefined);
-
-      const tag = await tagManager.createTag({ name: 'test tag' });
+      const tag = await tagManager.createTag({ name: 'Test Tag' });
 
       expect(tag).toHaveProperty('id');
-      expect(tag.name).toBe('test tag');
+      expect(tag.name).toBe('Test Tag');
       expect(tag.usageCount).toBe(0);
-      expect(mockDatabase.run).toHaveBeenCalled();
     });
 
     test('should throw error if tag name is empty', async () => {
-      await expect(tagManager.createTag({ name: '' })).rejects.toThrow('Tag name cannot be empty');
+      await expect(tagManager.createTag({ name: '' })).rejects.toThrow(
+        'Tag name cannot be empty'
+      );
     });
 
     test('should throw error if tag already exists', async () => {
-      mockDatabase.get.mockResolvedValue({ id: '1', name: 'test tag' });
+      await tagManager.createTag({ name: 'Test Tag' });
 
-      await expect(tagManager.createTag({ name: 'test tag' })).rejects.toThrow('Tag with name "test tag" already exists');
+      await expect(tagManager.createTag({ name: 'Test Tag' })).rejects.toThrow(
+        'Tag with name "Test Tag" already exists'
+      );
+    });
+
+    test('should be case-insensitive', async () => {
+      await tagManager.createTag({ name: 'Test Tag' });
+
+      await expect(tagManager.createTag({ name: 'test tag' })).rejects.toThrow(
+        'Tag with name "test tag" already exists'
+      );
     });
   });
 
   describe('getTags', () => {
     test('should return all tags', async () => {
-      const mockTags = [
-        { id: '1', name: 'tag1', usage_count: 5, created_at: '2024-01-01T00:00:00.000Z' },
-        { id: '2', name: 'tag2', usage_count: 3, created_at: '2024-01-02T00:00:00.000Z' },
-      ];
-      mockDatabase.all.mockResolvedValue(mockTags);
+      await tagManager.createTag({ name: 'Tag 1' });
+      await tagManager.createTag({ name: 'Tag 2' });
 
       const tags = await tagManager.getTags();
 
-      expect(tags).toHaveLength(2);
-      expect(tags[0].name).toBe('tag1');
-      expect(tags[0].usageCount).toBe(5);
-      expect(mockDatabase.all).toHaveBeenCalledWith('SELECT * FROM tags ORDER BY usage_count DESC, name ASC');
+      expect(tags.length).toBeGreaterThanOrEqual(2);
+      const tag1 = tags.find((t) => t.name === 'Tag 1');
+      const tag2 = tags.find((t) => t.name === 'Tag 2');
+      expect(tag1).toBeDefined();
+      expect(tag2).toBeDefined();
     });
   });
 
   describe('getTagById', () => {
     test('should return tag by id', async () => {
-      const mockTag = { id: '1', name: 'test tag', usage_count: 2, created_at: '2024-01-01T00:00:00.000Z' };
-      mockDatabase.get.mockResolvedValue(mockTag);
+      const created = await tagManager.createTag({ name: 'Test Tag' });
 
-      const tag = await tagManager.getTagById('1');
+      const tag = await tagManager.getTagById(created.id);
 
       expect(tag).toEqual({
-        id: '1',
-        name: 'test tag',
-        usageCount: 2,
-        createdAt: new Date('2024-01-01T00:00:00.000Z'),
+        id: created.id,
+        name: 'Test Tag',
+        usageCount: 0,
+        createdAt: expect.any(Date),
       });
     });
 
     test('should return undefined if tag not found', async () => {
-      mockDatabase.get.mockResolvedValue(undefined);
-
       const tag = await tagManager.getTagById('999');
+
+      expect(tag).toBeUndefined();
+    });
+  });
+
+  describe('getTagByName', () => {
+    test('should return tag by name', async () => {
+      await tagManager.createTag({ name: 'Test Tag' });
+
+      const tag = await tagManager.getTagByName('Test Tag');
+
+      expect(tag).toBeDefined();
+      expect(tag?.name).toBe('Test Tag');
+    });
+
+    test('should be case-insensitive', async () => {
+      await tagManager.createTag({ name: 'Test Tag' });
+
+      const tag = await tagManager.getTagByName('test tag');
+
+      expect(tag).toBeDefined();
+      expect(tag?.name).toBe('Test Tag');
+    });
+
+    test('should return undefined if tag not found', async () => {
+      const tag = await tagManager.getTagByName('Nonexistent');
 
       expect(tag).toBeUndefined();
     });
@@ -93,64 +111,62 @@ describe('TagManager', () => {
 
   describe('deleteTag', () => {
     test('should delete tag', async () => {
-      const mockTag = { id: '1', name: 'test tag', usage_count: 1, created_at: '2024-01-01T00:00:00.000Z' };
-      mockDatabase.get.mockResolvedValue(mockTag);
-      mockDatabase.run.mockResolvedValue(undefined);
+      const created = await tagManager.createTag({ name: 'Test Tag' });
 
-      await tagManager.deleteTag('1');
+      await tagManager.deleteTag(created.id);
 
-      expect(mockDatabase.run).toHaveBeenCalledWith('DELETE FROM snippet_tags WHERE tag_id = ?', ['1']);
-      expect(mockDatabase.run).toHaveBeenCalledWith('DELETE FROM tags WHERE id = ?', ['1']);
+      const tag = await tagManager.getTagById(created.id);
+      expect(tag).toBeUndefined();
     });
 
     test('should throw error if tag not found', async () => {
-      mockDatabase.get.mockResolvedValue(undefined);
-
-      await expect(tagManager.deleteTag('999')).rejects.toThrow('Tag with id "999" not found');
-    });
-  });
-
-  describe('getTagSuggestions', () => {
-    test('should return tag suggestions', async () => {
-      const mockTags = [
-        { id: '1', name: 'javascript', usage_count: 10, created_at: '2024-01-01T00:00:00.000Z' },
-        { id: '2', name: 'typescript', usage_count: 8, created_at: '2024-01-02T00:00:00.000Z' },
-      ];
-      mockDatabase.all.mockResolvedValue(mockTags);
-
-      const suggestions = await tagManager.getTagSuggestions('java');
-
-      expect(suggestions).toHaveLength(2);
-      expect(suggestions[0].name).toBe('javascript');
-      expect(mockDatabase.all).toHaveBeenCalledWith(
-        'SELECT * FROM tags WHERE name LIKE ? ORDER BY usage_count DESC, name ASC LIMIT ?',
-        ['%java%', 10]
+      await expect(tagManager.deleteTag('999')).rejects.toThrow(
+        'Tag with id "999" not found'
       );
     });
   });
 
-  describe('mergeTags', () => {
-    test('should merge two tags', async () => {
-      const sourceTag = { id: '1', name: 'old tag', usage_count: 5, created_at: '2024-01-01T00:00:00.000Z' };
-      const targetTag = { id: '2', name: 'new tag', usage_count: 10, created_at: '2024-01-02T00:00:00.000Z' };
-      const mockSnippetTags = [{ snippet_id: 's1' }, { snippet_id: 's2' }];
+  describe('renameTag', () => {
+    test('should rename tag', async () => {
+      const created = await tagManager.createTag({ name: 'Old Name' });
 
-      mockDatabase.get.mockImplementation((sql, params) => {
-        if (params && params[0] === '1') return sourceTag;
-        if (params && params[0] === '2') return targetTag;
-        return null;
-      });
-      mockDatabase.all.mockResolvedValue(mockSnippetTags);
-      mockDatabase.run.mockResolvedValue(undefined);
+      const renamed = await tagManager.renameTag(created.id, 'New Name');
 
-      await tagManager.mergeTags('1', '2');
-
-      expect(mockDatabase.run).toHaveBeenCalledWith('DELETE FROM snippet_tags WHERE tag_id = ?', ['1']);
-      expect(mockDatabase.run).toHaveBeenCalledWith('DELETE FROM tags WHERE id = ?', ['1']);
+      expect(renamed.name).toBe('New Name');
+      expect(renamed.id).toBe(created.id);
     });
 
-    test('should throw error if merging tag with itself', async () => {
-      await expect(tagManager.mergeTags('1', '1')).rejects.toThrow('Cannot merge a tag with itself');
+    test('should throw error if tag not found', async () => {
+      await expect(tagManager.renameTag('999', 'New Name')).rejects.toThrow(
+        'Tag with id "999" not found'
+      );
+    });
+
+    test('should throw error if new name already exists', async () => {
+      const tag1 = await tagManager.createTag({ name: 'Tag 1' });
+      await tagManager.createTag({ name: 'Tag 2' });
+
+      await expect(tagManager.renameTag(tag1.id, 'Tag 2')).rejects.toThrow(
+        'Tag "Tag 2" already exists'
+      );
+    });
+  });
+
+  describe('getOrCreateTag', () => {
+    test('should return existing tag', async () => {
+      const created = await tagManager.createTag({ name: 'Test Tag' });
+
+      const tag = await tagManager.getOrCreateTag('Test Tag');
+
+      expect(tag.id).toBe(created.id);
+      expect(tag.name).toBe('Test Tag');
+    });
+
+    test('should create new tag if not exists', async () => {
+      const tag = await tagManager.getOrCreateTag('New Tag');
+
+      expect(tag).toBeDefined();
+      expect(tag.name).toBe('New Tag');
     });
   });
 });

@@ -113,12 +113,12 @@ export class DatabaseManager {
       if (categoryCount.count === 0) {
         // 插入默认分类
         const insertCategory = db.prepare(
-          'INSERT INTO categories (id, name, description, color, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
+          'INSERT INTO categories (id, name, description, color, icon, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
         );
 
         const now = Date.now();
         for (const cat of DEFAULT_CATEGORIES) {
-          insertCategory.run(cat.id, cat.name, cat.description, cat.color, now, now);
+          insertCategory.run(cat.id, cat.name, cat.description, cat.color, cat.icon, now, now);
         }
       }
 
@@ -231,5 +231,5 @@ export class DatabaseManager {
   }
 }
 
-// 导出单例实例
-export const databaseManager = new DatabaseManager();
+// 导出获取单例实例的函数
+export const getDatabaseManager = () => DatabaseManager.getInstance();

@@ -169,7 +169,7 @@ export class FullTextSearch {
    */
   private formatQuery(query: string): string {
     // 移除特殊字符
-    let formatted = query.trim().replace(/[^\w\s-]/g, ' ');
+    const formatted = query.trim().replace(/[^\w\s-]/g, ' ');
 
     // 分词
     const terms = formatted.split(/\s+/).filter((term) => term.length > 0);

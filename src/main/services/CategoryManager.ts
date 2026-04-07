@@ -1,7 +1,5 @@
 import crypto from 'crypto';
-import { DatabaseManager } from '../database';
-
-const dbInstance = DatabaseManager.getInstance();
+import Database from 'better-sqlite3';
 
 export interface Category {
   id: string;
@@ -25,15 +23,10 @@ export interface UpdateCategoryDto {
 }
 
 export class CategoryManager {
-  private db: any;
+  private db: Database.Database;
 
-  constructor(db?: any) {
-    if (db) {
-      this.db = db;
-    } else {
-      dbInstance.connect();
-      this.db = dbInstance.getDB();
-    }
+  constructor(db: Database.Database) {
+    this.db = db;
   }
 
   async createCategory(dto: CreateCategoryDto): Promise<Category> {
@@ -41,10 +34,9 @@ export class CategoryManager {
       throw new Error('Category name cannot be empty');
     }
 
-    const existingCategory = await this.db.get(
-      'SELECT id FROM categories WHERE name = ?',
-      [dto.name.trim()]
-    );
+    const existingCategory = this.db
+      .prepare('SELECT id FROM categories WHERE name = ?')
+      .get(dto.name.trim()) as { id: string } | undefined;
 
     if (existingCategory) {
       throw new Error(`Category with name "${dto.name}" already exists`);
@@ -54,24 +46,27 @@ export class CategoryManager {
     const name = dto.name.trim();
     const color = dto.color || '#6c757d';
     const icon = dto.icon || '📁';
-    const createdAt = new Date();
+    const createdAt = Date.now();
 
-    await this.db.run(
-      'INSERT INTO categories (id, name, color, icon, created_at) VALUES (?, ?, ?, ?, ?)',
-      [id, name, color, icon, createdAt.toISOString()]
-    );
+    this.db
+      .prepare(
+        'INSERT INTO categories (id, name, color, icon, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
+      )
+      .run(id, name, color, icon, createdAt, createdAt);
 
     return {
       id,
       name,
       color,
       icon,
-      createdAt,
+      createdAt: new Date(createdAt),
     };
   }
 
   async getCategories(): Promise<Category[]> {
-    const categories = await this.db.all(`
+    const categories = this.db
+      .prepare(
+        `
       SELECT 
         c.*, 
         COUNT(s.id) as snippet_count
@@ -79,7 +74,9 @@ export class CategoryManager {
       LEFT JOIN snippets s ON c.id = s.category_id
       GROUP BY c.id
       ORDER BY c.created_at DESC
-    `);
+    `
+      )
+      .all() as any[];
 
     return categories.map((cat: any) => ({
       id: cat.id,
@@ -92,7 +89,9 @@ export class CategoryManager {
   }
 
   async getCategoryById(id: string): Promise<Category | undefined> {
-    const category = await this.db.get('SELECT * FROM categories WHERE id = ?', [id]);
+    const category = this.db
+      .prepare('SELECT * FROM categories WHERE id = ?')
+      .get(id) as any | undefined;
 
     if (!category) {
       return undefined;
@@ -119,10 +118,9 @@ export class CategoryManager {
         throw new Error('Category name cannot be empty');
       }
 
-      const duplicateCategory = await this.db.get(
-        'SELECT id FROM categories WHERE name = ? AND id != ?',
-        [trimmedName, id]
-      );
+      const duplicateCategory = this.db
+        .prepare('SELECT id FROM categories WHERE name = ? AND id != ?')
+        .get(trimmedName, id) as { id: string } | undefined;
 
       if (duplicateCategory) {
         throw new Error(`Category "${trimmedName}" already exists`);
@@ -146,11 +144,10 @@ export class CategoryManager {
     }
 
     if (updates.length > 0) {
+      updates.push('updated_at = ?');
+      params.push(Date.now());
       params.push(id);
-      await this.db.run(
-        `UPDATE categories SET ${updates.join(', ')} WHERE id = ?`,
-        params
-      );
+      this.db.prepare(`UPDATE categories SET ${updates.join(', ')} WHERE id = ?`).run(...params);
     }
 
     const updatedCategory = await this.getCategoryById(id);
@@ -167,14 +164,12 @@ export class CategoryManager {
       throw new Error(`Category with id "${id}" not found`);
     }
 
-    await this.db.transaction(async () => {
-      await this.db.run(
-        'UPDATE snippets SET category_id = NULL WHERE category_id = ?',
-        [id]
-      );
-
-      await this.db.run('DELETE FROM categories WHERE id = ?', [id]);
+    const transaction = this.db.transaction(() => {
+      this.db.prepare('UPDATE snippets SET category_id = NULL WHERE category_id = ?').run(id);
+      this.db.prepare('DELETE FROM categories WHERE id = ?').run(id);
     });
+
+    transaction();
   }
 
   async setCategoryColor(id: string, color: string): Promise<void> {
@@ -183,7 +178,9 @@ export class CategoryManager {
       throw new Error(`Category with id "${id}" not found`);
     }
 
-    await this.db.run('UPDATE categories SET color = ? WHERE id = ?', [color, id]);
+    this.db
+      .prepare('UPDATE categories SET color = ?, updated_at = ? WHERE id = ?')
+      .run(color, Date.now(), id);
   }
 
   async setCategoryIcon(id: string, icon: string): Promise<void> {
@@ -192,7 +189,9 @@ export class CategoryManager {
       throw new Error(`Category with id "${id}" not found`);
     }
 
-    await this.db.run('UPDATE categories SET icon = ? WHERE id = ?', [icon, id]);
+    this.db
+      .prepare('UPDATE categories SET icon = ?, updated_at = ? WHERE id = ?')
+      .run(icon, Date.now(), id);
   }
 
   async getCategoriesWithSnippetCount(): Promise<Category[]> {
@@ -200,7 +199,9 @@ export class CategoryManager {
   }
 
   async getOrCreateDefaultCategory(): Promise<Category> {
-    const defaultCategory = await this.db.get('SELECT * FROM categories WHERE name = ?', ['默认分类']);
+    const defaultCategory = this.db
+      .prepare('SELECT * FROM categories WHERE name = ?')
+      .get('默认分类') as any | undefined;
 
     if (defaultCategory) {
       return {

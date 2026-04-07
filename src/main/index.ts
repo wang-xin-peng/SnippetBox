@@ -1,5 +1,7 @@
 import { app, BrowserWindow } from 'electron';
 import * as path from 'path';
+import { registerAllHandlers } from './ipc';
+import { getDatabaseManager } from './database';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -33,7 +35,17 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(async () => {
+  // 初始化数据库
+  const dbManager = getDatabaseManager();
+  await dbManager.connect();
+  
+  // 注册所有 IPC 处理器
+  registerAllHandlers();
+  
+  // 创建窗口
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

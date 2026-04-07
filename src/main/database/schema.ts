@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS categories (
   name TEXT NOT NULL UNIQUE,
   description TEXT,
   color TEXT,
+  icon TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
@@ -40,6 +41,7 @@ export const CREATE_TAGS_TABLE = `
 CREATE TABLE IF NOT EXISTS tags (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL UNIQUE,
+  usage_count INTEGER DEFAULT 0,
   created_at INTEGER NOT NULL
 );
 `;
@@ -144,10 +146,10 @@ export const INIT_SCRIPTS = [
 
 // 默认数据
 export const DEFAULT_CATEGORIES = [
-  { id: 'cat_1', name: 'Uncategorized', description: 'Default category', color: '#6B7280' },
-  { id: 'cat_2', name: 'Algorithm', description: 'Algorithm snippets', color: '#3B82F6' },
-  { id: 'cat_3', name: 'UI Components', description: 'UI component snippets', color: '#8B5CF6' },
-  { id: 'cat_4', name: 'Utils', description: 'Utility functions', color: '#10B981' },
+  { id: 'cat_1', name: 'Uncategorized', description: 'Default category', color: '#6B7280', icon: '📁' },
+  { id: 'cat_2', name: 'Algorithm', description: 'Algorithm snippets', color: '#3B82F6', icon: '🧮' },
+  { id: 'cat_3', name: 'UI Components', description: 'UI component snippets', color: '#8B5CF6', icon: '🎨' },
+  { id: 'cat_4', name: 'Utils', description: 'Utility functions', color: '#10B981', icon: '🔧' },
 ];
 
 // 初始化默认设置
