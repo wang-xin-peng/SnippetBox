@@ -286,9 +286,9 @@ class CategoryManager {
 - [X] 实现分类更新和删除
 - [X] 实现分类颜色和图标配置
 - [X] 通过 IPC 暴露给渲染进程
-- [X] 
-- [ ] 
-- [ ] 
+- [X]
+- [ ]
+- [ ]
 - [ ] 编写单元测试
 
 ---
@@ -634,24 +634,6 @@ export interface Tag {
 - 完成任务 7（所有测试）
 - 创建 PR：`feature/week1-tests`
 - 整理本周工作总结
-
-## 📚 参考资源
-
-### 技术文档
-
-- [better-sqlite3 文档](https://github.com/WiseLibs/better-sqlite3/wiki)
-- [SQLite FTS5 文档](https://www.sqlite.org/fts5.html)
-- [Monaco Editor 文档](https://microsoft.github.io/monaco-editor/)
-- [React Testing Library](https://testing-library.com/docs/react-testing-library/intro/)
-- [fast-check 文档](https://fast-check.dev/)
-
-### 项目文档
-
-- [需求规范](../.kiro/specs/snippet-box/requirements.md)
-- [设计文档](../.kiro/specs/snippet-box/design.md)
-- [完整任务列表](../.kiro/specs/snippet-box/tasks.md)
-
----
 
 ## 🎯 本周成功标准
 
