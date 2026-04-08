@@ -126,11 +126,11 @@ SnippetBox/
 - [X] 项目初始化（Electron + React + TypeScript）
 - [X] 开发环境配置（热重载、调试、测试）
 - [X] 基础 UI 框架（布局、路由、组件库、主题系统）
-- [ ] SQLite 数据库设计和实现
-- [ ] 片段管理核心功能
-- [ ] 分类和标签系统
-- [ ] Monaco Editor 集成
-- [ ] 全文搜索功能
+- [X] SQLite 数据库设计和实现
+- [X] 片段管理核心功能
+- [X] 分类和标签系统
+- [X] Monaco Editor 集成
+- [X] 全文搜索功能
 
 ### 第 2 周：智能搜索和导出功能
 
@@ -150,18 +150,6 @@ SnippetBox/
 - [ ] 性能优化和安全加固
 - [ ] 完整测试
 - [ ] 打包和发布
-
-## 贡献指南
-
-我们欢迎所有形式的贡献！
-
-### 提交 Pull Request
-
-1. Fork 本仓库
-2. 创建功能分支：`git checkout -b feature/your-feature`
-3. 提交更改：`git commit -m "feat: 添加新功能"`
-4. 推送到分支：`git push origin feature/your-feature`
-5. 创建 Pull Request
 
 ### Commit 规范
 

@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  # PostgreSQL 数据库
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: snippetbox-postgres
+    environment:
+      POSTGRES_USER: snippetbox
+      POSTGRES_PASSWORD: snippetbox
+      POSTGRES_DB: snippetbox
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U snippetbox"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: snippetbox-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI 应用（可选，用于开发）
+  api:
+    build: .
+    container_name: snippetbox-api
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://snippetbox:snippetbox@postgres:5432/snippetbox
+      - REDIS_URL=redis://redis:6379/0
+      - DEBUG=True
+    volumes:
+      - .:/app
+      - models_cache:/app/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  postgres_data:
+  redis_data:
+  models_cache:
