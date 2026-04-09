@@ -3,6 +3,7 @@
 使用 sentence-transformers 模型生成文本嵌入向量
 """
 import logging
+import os
 from typing import List, Optional
 import numpy as np
 from sentence_transformers import SentenceTransformer
@@ -11,6 +12,9 @@ import torch
 from config import settings
 
 logger = logging.getLogger(__name__)
+
+# 配置 ModelScope 镜像（国内访问）
+os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
 
 
 class EmbeddingService:
