@@ -2,8 +2,10 @@
 配置管理
 """
 from pydantic_settings import BaseSettings
-from typing import List
+from pydantic import field_validator
+from typing import List, Union
 import os
+import json
 
 
 class Settings(BaseSettings):
@@ -17,7 +19,18 @@ class Settings(BaseSettings):
     PORT: int = 8000
     
     # CORS 配置
-    CORS_ORIGINS: List[str] = ["*"]
+    CORS_ORIGINS: Union[List[str], str] = ["*"]
+    
+    @field_validator('CORS_ORIGINS', mode='before')
+    @classmethod
+    def parse_cors_origins(cls, v):
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                # 如果不是 JSON，按逗号分割
+                return [origin.strip() for origin in v.split(',')]
+        return v
     
     # 数据库配置
     DATABASE_URL: str = "postgresql://snippetbox:snippetbox@localhost:5432/snippetbox"
