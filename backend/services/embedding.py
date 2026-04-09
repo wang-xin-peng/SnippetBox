@@ -3,6 +3,7 @@
 使用 sentence-transformers 模型生成文本嵌入向量
 """
 import logging
+import os
 from typing import List, Optional
 import numpy as np
 from sentence_transformers import SentenceTransformer
@@ -11,6 +12,17 @@ import torch
 from config import settings
 
 logger = logging.getLogger(__name__)
+
+# 配置 Hugging Face 镜像（国内访问）
+# sentence-transformers 使用 HF_ENDPOINT 环境变量
+if settings.HF_ENDPOINT:
+    os.environ['HF_ENDPOINT'] = settings.HF_ENDPOINT
+    # 同时设置 huggingface_hub 使用的环境变量
+    os.environ['HUGGINGFACE_HUB_ENDPOINT'] = settings.HF_ENDPOINT
+    logger.info(f"Using HF mirror: {settings.HF_ENDPOINT}")
+
+# 配置 ModelScope 镜像作为备选
+os.environ['MODELSCOPE_CACHE'] = settings.MODEL_CACHE_DIR
 
 
 class EmbeddingService:

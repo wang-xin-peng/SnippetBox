@@ -43,6 +43,7 @@ services:
       - DATABASE_URL=postgresql://snippetbox:snippetbox@postgres:5432/snippetbox
       - REDIS_URL=redis://redis:6379/0
       - DEBUG=True
+      - HF_ENDPOINT=https://hf-mirror.com
     volumes:
       - .:/app
       - models_cache:/app/models
