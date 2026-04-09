@@ -50,11 +50,11 @@ async def root():
 
 **验收标准**：
 
-- [x] 创建 FastAPI 项目结构
-- [x] 配置 CORS 中间件
-- [x] 配置日志系统
-- [x] 实现健康检查端点（/health）
-- [x] 编写 README 和环境配置说明
+- [X] 创建 FastAPI 项目结构
+- [X] 配置 CORS 中间件
+- [X] 配置日志系统
+- [X] 实现健康检查端点（/health）
+- [X] 编写 README 和环境配置说明
 
 ---
 
@@ -64,11 +64,11 @@ async def root():
 
 **验收标准**：
 
-- [x] 设计云端数据库模式（users, snippets, categories, tags）
-- [x] 安装 pgvector 扩展
-- [x] 配置 SQLAlchemy ORM
-- [x] 实现数据库迁移（Alembic）
-- [x] 编写数据库初始化脚本
+- [X] 设计云端数据库模式（users, snippets, categories, tags）
+- [X] 安装 pgvector 扩展
+- [X] 配置 SQLAlchemy ORM
+- [X] 实现数据库迁移（Alembic）
+- [X] 编写数据库初始化脚本
 
 ---
 
@@ -78,11 +78,11 @@ async def root():
 
 **验收标准**：
 
-- [x] 安装和配置 Redis
-- [x] 实现 Redis 连接管理
-- [x] 实现缓存装饰器
-- [x] 实现缓存失效策略
-- [x] 编写缓存使用文档
+- [X] 安装和配置 Redis
+- [X] 实现 Redis 连接管理
+- [X] 实现缓存装饰器
+- [X] 实现缓存失效策略
+- [X] 编写缓存使用文档
 
 ---
 
@@ -105,11 +105,11 @@ pip install onnxruntime-gpu
 
 **验收标准**：
 
-- [x] 下载 all-MiniLM-L6-v2 模型
-- [x] 转换为 ONNX 格式（可选，优化性能）
-- [x] 实现模型加载和初始化
-- [x] 实现模型懒加载
-- [x] 配置 GPU 加速（如果可用）
+- [X] 下载 all-MiniLM-L6-v2 模型
+- [X] 转换为 ONNX 格式（可选，优化性能）
+- [X] 实现模型加载和初始化
+- [X] 实现模型懒加载
+- [X] 配置 GPU 加速（如果可用）
 
 ---
 
@@ -138,11 +138,11 @@ async def embed_text(request: EmbedRequest):
 
 **验收标准**：
 
-- [x] 实现单个文本向量化端点（POST /api/v1/embed）
-- [x] 实现批量文本向量化端点（POST /api/v1/embed/batch）
-- [x] 实现输入验证和错误处理
-- [x] 添加速率限制
-- [x] 编写 API 文档
+- [X] 实现单个文本向量化端点（POST /api/v1/embed）
+- [X] 实现批量文本向量化端点（POST /api/v1/embed/batch）
+- [X] 实现输入验证和错误处理
+- [X] 添加速率限制
+- [X] 编写 API 文档
 
 ---
 
@@ -152,11 +152,11 @@ async def embed_text(request: EmbedRequest):
 
 **验收标准**：
 
-- [x] 实现批量推理优化
-- [x] 实现模型预热
-- [x] 配置推理线程池
-- [x] 实现推理结果缓存
-- [x] 性能目标：单次推理 < 100ms（✅ 实际 < 50ms）
+- [X] 实现批量推理优化
+- [X] 实现模型预热
+- [X] 配置推理线程池
+- [X] 实现推理结果缓存
+- [X] 性能目标：单次推理 < 100ms（✅ 实际 < 50ms）
 
 ---
 
@@ -178,11 +178,11 @@ async def search_similar(query_vector: list[float], limit: int = 10):
 
 **验收标准**：
 
-- [x] 创建 snippet_vectors 表（使用 pgvector）
-- [x] 配置 HNSW 索引
-- [x] 实现向量存储端点
-- [x] 实现向量相似度搜索端点
-- [x] 编写单元测试
+- [X] 创建 snippet_vectors 表（使用 pgvector）
+- [X] 配置 HNSW 索引
+- [X] 实现向量存储端点
+- [X] 实现向量相似度搜索端点
+- [X] 编写单元测试
 
 ---
 
@@ -194,11 +194,11 @@ async def search_similar(query_vector: list[float], limit: int = 10):
 
 **验收标准**：
 
-- [x] 编写 docker-compose.yml（PostgreSQL + Redis）
-- [x] 配置环境变量管理（.env）
-- [x] 编写开发环境启动脚本
-- [x] 配置代码格式化工具（black, isort）
-- [x] 配置代码检查工具（pylint, mypy）
+- [X] 编写 docker-compose.yml（PostgreSQL + Redis）
+- [X] 配置环境变量管理（.env）
+- [X] 编写开发环境启动脚本
+- [X] 配置代码格式化工具（black, isort）
+- [X] 配置代码检查工具（pylint, mypy）
 
 ---
 
@@ -206,10 +206,10 @@ async def search_similar(query_vector: list[float], limit: int = 10):
 
 **验收标准**：
 
-- [x] 配置 Swagger UI（FastAPI 自动生成）
-- [x] 编写 API 使用示例
-- [x] 编写认证说明文档
-- [x] 编写错误码说明文档
+- [X] 配置 Swagger UI（FastAPI 自动生成）
+- [X] 编写 API 使用示例
+- [X] 编写认证说明文档
+- [X] 编写错误码说明文档
 
 ---
 
@@ -1598,7 +1598,6 @@ export interface ImportResult {
 - [ ] 任务 14：批量操作功能
 - [ ] 任务 15：数据导入功能
 
-
 ---
 
 ## ✅ 王欣鹏第二周任务完成总结
@@ -1608,19 +1607,22 @@ export interface ImportResult {
 ### 已完成任务
 
 #### ✅ 任务 17：后端 API 基础架构准备
-- [x] 17.1 初始化 FastAPI 项目
-- [x] 17.2 配置 PostgreSQL 数据库
-- [x] 17.3 配置 Redis 缓存
+
+- [X] 17.1 初始化 FastAPI 项目
+- [X] 17.2 配置 PostgreSQL 数据库
+- [X] 17.3 配置 Redis 缓存
 
 #### ✅ 任务 18：云端嵌入模型部署
-- [x] 18.1 部署嵌入模型（all-MiniLM-L6-v2）
-- [x] 18.2 实现文本向量化 API
-- [x] 18.3 优化推理性能（实际性能超出目标）
-- [x] 18.4 实现向量存储 API
+
+- [X] 18.1 部署嵌入模型（all-MiniLM-L6-v2）
+- [X] 18.2 实现文本向量化 API
+- [X] 18.3 优化推理性能（实际性能超出目标）
+- [X] 18.4 实现向量存储 API
 
 #### ✅ 任务 19：开发环境和工具
-- [x] 19.1 配置开发环境（Docker Compose）
-- [x] 19.2 编写 API 文档
+
+- [X] 19.1 配置开发环境（Docker Compose）
+- [X] 19.2 编写 API 文档
 
 ### 额外完成
 
@@ -1633,13 +1635,13 @@ export interface ImportResult {
 
 ### 性能指标
 
-| 指标 | 目标值 | 实际值 | 状态 |
-|-----|-------|--------|------|
-| 单文本推理时间 | < 100ms | < 50ms | ✅ 超出预期 |
+| 指标                   | 目标值  | 实际值  | 状态        |
+| ---------------------- | ------- | ------- | ----------- |
+| 单文本推理时间         | < 100ms | < 50ms  | ✅ 超出预期 |
 | 批量推理时间 (3个文本) | < 200ms | < 100ms | ✅ 超出预期 |
-| 模型加载时间 | < 60s | ~40s | ✅ 达标 |
-| 向量维度 | 384 | 384 | ✅ 正确 |
-| API 可用性 | 99% | 100% | ✅ 优秀 |
+| 模型加载时间           | < 60s   | ~40s    | ✅ 达标     |
+| 向量维度               | 384     | 384     | ✅ 正确     |
+| API 可用性             | 99%     | 100%    | ✅ 优秀     |
 
 ### 部署状态
 
@@ -1681,20 +1683,11 @@ export interface ImportResult {
 ### 遇到的问题和解决方案
 
 1. **问题**: 服务器无法访问 Hugging Face
+
    - **解决**: 配置国内镜像 (hf-mirror.com)
-
 2. **问题**: CORS 配置解析错误
+
    - **解决**: 修改配置验证器，支持多种格式
-
 3. **问题**: 项目结构不清晰
+
    - **解决**: 重构为 frontend/backend 分离结构
-
-### 总结
-
-第二周任务**全部完成**，并且：
-- 性能指标**超出预期**
-- 成功部署到**生产服务器**
-- 完成了**项目结构重构**
-- 编写了**完善的文档**
-
-为第三周的前端集成和云端功能开发打下了坚实的基础！🎉

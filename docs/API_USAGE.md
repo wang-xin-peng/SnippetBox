@@ -2,6 +2,20 @@
 
 本文档提供 SnippetBox Backend API 的详细使用示例。
 
+### API 端点 (9 个)
+
+| 端点                            | 方法   | 功能           | 状态      |
+| ------------------------------- | ------ | -------------- | --------- |
+| `/`                           | GET    | 根路径         | ✅ 完成   |
+| `/health`                     | GET    | 健康检查       | ✅ 完成   |
+| `/api/v1/embed`               | POST   | 单个文本向量化 | ✅ 完成   |
+| `/api/v1/embed/batch`         | POST   | 批量文本向量化 | ✅ 完成   |
+| `/api/v1/embed/status`        | GET    | 服务状态       | ✅ 完成   |
+| `/api/v1/vectors/store`       | POST   | 存储向量       | ✅ 占位符 |
+| `/api/v1/vectors/store/batch` | POST   | 批量存储       | ✅ 占位符 |
+| `/api/v1/vectors/search`      | POST   | 相似度搜索     | ✅ 占位符 |
+| `/api/v1/vectors/{id}`        | DELETE | 删除向量       | ✅ 占位符 |
+
 ## 基础信息
 
 - **Base URL**: `http://localhost:8000`
@@ -19,11 +33,13 @@
 检查 API 服务是否正常运行。
 
 **请求**:
+
 ```http
 GET /health
 ```
 
 **响应**:
+
 ```json
 {
   "status": "healthy",
@@ -32,6 +48,7 @@ GET /health
 ```
 
 **示例**:
+
 ```bash
 curl http://localhost:8000/health
 ```
@@ -43,6 +60,7 @@ curl http://localhost:8000/health
 将单个文本转换为 384 维向量。
 
 **请求**:
+
 ```http
 POST /api/v1/embed
 Content-Type: application/json
@@ -53,6 +71,7 @@ Content-Type: application/json
 ```
 
 **响应**:
+
 ```json
 {
   "vector": [0.123, 0.456, ..., 0.789],
@@ -61,6 +80,7 @@ Content-Type: application/json
 ```
 
 **示例**:
+
 ```bash
 curl -X POST http://localhost:8000/api/v1/embed \
   -H "Content-Type: application/json" \
@@ -68,6 +88,7 @@ curl -X POST http://localhost:8000/api/v1/embed \
 ```
 
 **Python 示例**:
+
 ```python
 import requests
 
@@ -85,6 +106,7 @@ print(f"向量前5个值: {vector[:5]}")
 ```
 
 **JavaScript 示例**:
+
 ```javascript
 const response = await fetch('http://localhost:8000/api/v1/embed', {
   method: 'POST',
@@ -108,6 +130,7 @@ console.log('向量前5个值:', data.vector.slice(0, 5));
 批量将多个文本转换为向量，提高处理效率。
 
 **请求**:
+
 ```http
 POST /api/v1/embed/batch
 Content-Type: application/json
@@ -122,6 +145,7 @@ Content-Type: application/json
 ```
 
 **响应**:
+
 ```json
 {
   "vectors": [
@@ -135,6 +159,7 @@ Content-Type: application/json
 ```
 
 **示例**:
+
 ```bash
 curl -X POST http://localhost:8000/api/v1/embed/batch \
   -H "Content-Type: application/json" \
@@ -142,6 +167,7 @@ curl -X POST http://localhost:8000/api/v1/embed/batch \
 ```
 
 **Python 示例**:
+
 ```python
 import requests
 
@@ -168,11 +194,13 @@ print(f"每个向量维度: {data['dimension']}")
 查询嵌入服务的当前状态。
 
 **请求**:
+
 ```http
 GET /api/v1/embed/status
 ```
 
 **响应**:
+
 ```json
 {
   "initialized": true,
@@ -183,6 +211,7 @@ GET /api/v1/embed/status
 ```
 
 **示例**:
+
 ```bash
 curl http://localhost:8000/api/v1/embed/status
 ```
@@ -194,6 +223,7 @@ curl http://localhost:8000/api/v1/embed/status
 存储片段的向量到数据库。
 
 **请求**:
+
 ```http
 POST /api/v1/vectors/store
 Content-Type: application/json
@@ -205,6 +235,7 @@ Content-Type: application/json
 ```
 
 **响应**:
+
 ```json
 {
   "message": "Vector stored successfully",
@@ -221,6 +252,7 @@ Content-Type: application/json
 搜索与查询向量最相似的片段。
 
 **请求**:
+
 ```http
 POST /api/v1/vectors/search
 Content-Type: application/json
@@ -233,6 +265,7 @@ Content-Type: application/json
 ```
 
 **响应**:
+
 ```json
 {
   "results": [
@@ -272,6 +305,7 @@ Content-Type: application/json
 ### 示例错误
 
 **空文本**:
+
 ```bash
 curl -X POST http://localhost:8000/api/v1/embed \
   -H "Content-Type: application/json" \
@@ -279,6 +313,7 @@ curl -X POST http://localhost:8000/api/v1/embed \
 ```
 
 响应:
+
 ```json
 {
   "detail": [
@@ -317,6 +352,7 @@ vectors = response.json()["vectors"]
 ### 3. 控制文本长度
 
 模型对长文本的处理时间更长，建议：
+
 - 单个文本不超过 512 个 token（约 400 个中文字符）
 - 批量处理时每批不超过 100 个文本
 
@@ -375,6 +411,7 @@ print(f"相似度: {similarity:.4f}")
 首次启动时，模型需要从 Hugging Face 下载（约 90MB），可能需要几分钟。
 
 **解决方案**:
+
 1. 检查网络连接
 2. 使用国内镜像（配置 HF_ENDPOINT）
 3. 手动下载模型到 `models/` 目录
@@ -384,6 +421,7 @@ print(f"相似度: {similarity:.4f}")
 模型加载需要约 500MB 内存。
 
 **解决方案**:
+
 1. 确保服务器有足够内存
 2. 使用 ONNX 优化模型
 3. 考虑使用更小的模型
@@ -391,6 +429,7 @@ print(f"相似度: {similarity:.4f}")
 ### 推理速度慢
 
 **解决方案**:
+
 1. 使用批量 API
 2. 启用 GPU 加速（设置 MODEL_DEVICE=cuda）
 3. 使用 ONNX Runtime 优化
