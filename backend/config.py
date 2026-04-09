@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     MODEL_DEVICE: str = "cpu"  # cpu 或 cuda
     EMBEDDING_DIMENSION: int = 384
     
+    # Hugging Face 镜像配置（国内访问）
+    HF_ENDPOINT: str = "https://hf-mirror.com"  # 可选: https://hf-mirror.com 或 https://huggingface.co
+    
     # 向量搜索配置
     VECTOR_SEARCH_LIMIT: int = 10
     VECTOR_SIMILARITY_THRESHOLD: float = 0.7
