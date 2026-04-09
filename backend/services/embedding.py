@@ -14,8 +14,12 @@ from config import settings
 logger = logging.getLogger(__name__)
 
 # 配置 Hugging Face 镜像（国内访问）
-os.environ['HF_ENDPOINT'] = settings.HF_ENDPOINT
-logger.info(f"Using HF mirror: {os.environ['HF_ENDPOINT']}")
+# sentence-transformers 使用 HF_ENDPOINT 环境变量
+if settings.HF_ENDPOINT:
+    os.environ['HF_ENDPOINT'] = settings.HF_ENDPOINT
+    # 同时设置 huggingface_hub 使用的环境变量
+    os.environ['HUGGINGFACE_HUB_ENDPOINT'] = settings.HF_ENDPOINT
+    logger.info(f"Using HF mirror: {settings.HF_ENDPOINT}")
 
 # 配置 ModelScope 镜像作为备选
 os.environ['MODELSCOPE_CACHE'] = settings.MODEL_CACHE_DIR
