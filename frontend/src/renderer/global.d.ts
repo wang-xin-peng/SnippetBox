@@ -1,4 +1,5 @@
 import { Snippet, CreateSnippetDTO, UpdateSnippetDTO, SnippetFilter, Category, Tag } from '../shared/types';
+import { MirrorInfo, DownloadProgress } from '../shared/types/model';
 
 declare global {
   interface Window {
@@ -25,6 +26,24 @@ declare global {
         findByName: (name: string) => Promise<Tag | undefined>;
         delete: (id: string) => Promise<void>;
         merge: (sourceId: string, targetId: string) => Promise<void>;
+      };
+    };
+    electron: {
+      ipcRenderer: {
+        invoke: (channel: string, ...args: any[]) => Promise<any>;
+      };
+      model: {
+        getMirrors: () => Promise<MirrorInfo[]>;
+        startDownload: (mirrorUrl?: string) => Promise<{ success: boolean; error?: string }>;
+        pauseDownload: () => Promise<{ success: boolean; error?: string }>;
+        resumeDownload: () => Promise<{ success: boolean; error?: string }>;
+        cancelDownload: () => Promise<{ success: boolean; error?: string }>;
+        getProgress: () => Promise<DownloadProgress>;
+        verifyModel: (filePath: string) => Promise<boolean>;
+        deleteModel: () => Promise<{ success: boolean; error?: string }>;
+        isDownloaded: () => Promise<boolean>;
+        getPath: () => Promise<string>;
+        onProgress: (callback: (progress: DownloadProgress) => void) => () => void;
       };
     };
   }

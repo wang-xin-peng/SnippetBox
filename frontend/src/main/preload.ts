@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { Snippet, CreateSnippetDTO, UpdateSnippetDTO, SnippetFilter, Category, Tag } from '../shared/types';
+import { MirrorInfo, DownloadProgress } from '../shared/types/model';
 
+// 暴露 Electron API
 contextBridge.exposeInMainWorld('electronAPI', {
   snippet: {
     create: (data: CreateSnippetDTO): Promise<Snippet> =>
@@ -31,6 +33,50 @@ contextBridge.exposeInMainWorld('electronAPI', {
     delete: (id: string): Promise<void> => ipcRenderer.invoke('tag:delete', id),
     merge: (sourceId: string, targetId: string): Promise<void> =>
       ipcRenderer.invoke('tag:merge', sourceId, targetId),
+  },
+});
+
+// 暴露 IPC Renderer（用于直接调用）
+contextBridge.exposeInMainWorld('electron', {
+  ipcRenderer: {
+    invoke: (channel: string, ...args: any[]) => ipcRenderer.invoke(channel, ...args),
+  },
+  model: {
+    getMirrors: (): Promise<MirrorInfo[]> => ipcRenderer.invoke('model:getMirrors'),
+    startDownload: (mirrorUrl?: string): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('model:startDownload', mirrorUrl),
+    pauseDownload: (): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('model:pauseDownload'),
+    resumeDownload: (): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('model:resumeDownload'),
+    cancelDownload: (): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('model:cancelDownload'),
+    getProgress: (): Promise<DownloadProgress> => ipcRenderer.invoke('model:getProgress'),
+    verifyModel: (filePath: string): Promise<boolean> =>
+      ipcRenderer.invoke('model:verifyModel', filePath),
+    deleteModel: (): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('model:deleteModel'),
+    isDownloaded: (): Promise<boolean> => ipcRenderer.invoke('model:isDownloaded'),
+    getPath: (): Promise<string> => ipcRenderer.invoke('model:getPath'),
+    onProgress: (callback: (progress: DownloadProgress) => void) => {
+      const listener = (_event: any, progress: DownloadProgress) => callback(progress);
+      ipcRenderer.on('model:progress', listener);
+      return () => ipcRenderer.removeListener('model:progress', listener);
+    },
+  },
+  embedding: {
+    initialize: (useWorker?: boolean): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('embedding:initialize', useWorker),
+    isLoaded: (useWorker?: boolean): Promise<{ loaded: boolean; error?: string }> =>
+      ipcRenderer.invoke('embedding:isLoaded', useWorker),
+    embed: (text: string, useWorker?: boolean): Promise<{ success: boolean; embedding?: number[]; error?: string }> =>
+      ipcRenderer.invoke('embedding:embed', text, useWorker),
+    batchEmbed: (texts: string[], useWorker?: boolean): Promise<{ success: boolean; embeddings?: number[][]; error?: string }> =>
+      ipcRenderer.invoke('embedding:batchEmbed', texts, useWorker),
+    unload: (useWorker?: boolean): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('embedding:unload', useWorker),
+    getInfo: (): Promise<{ success: boolean; info?: any; error?: string }> =>
+      ipcRenderer.invoke('embedding:getInfo'),
   },
 });
 

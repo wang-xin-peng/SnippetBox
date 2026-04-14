@@ -165,6 +165,9 @@ export class TagManager {
       throw new Error(`Target tag with id "${targetId}" not found`);
     }
 
+    // 先获取使用计数，因为它是异步的
+    const usageCount = await this.getTagUsageCount(targetId);
+
     const transaction = this.db.transaction(() => {
       this.db
         .prepare('UPDATE snippet_tags SET tag_id = ? WHERE tag_id = ?')
@@ -173,7 +176,6 @@ export class TagManager {
       this.db.prepare('DELETE FROM snippet_tags WHERE tag_id = ?').run(sourceId);
       this.db.prepare('DELETE FROM tags WHERE id = ?').run(sourceId);
 
-      const usageCount = this.getTagUsageCount(targetId);
       this.db.prepare('UPDATE tags SET usage_count = ? WHERE id = ?').run(usageCount, targetId);
     });
 
