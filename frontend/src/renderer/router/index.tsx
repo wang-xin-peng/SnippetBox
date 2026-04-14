@@ -3,6 +3,7 @@ import Layout from '../components/Layout';
 import HomePage from '../pages/HomePage';
 import EditorPage from '../pages/EditorPage';
 import SettingsPage from '../pages/SettingsPage';
+import { EmbeddingTest } from '../components/EmbeddingTest';
 
 const router = createBrowserRouter([
   {
@@ -20,6 +21,10 @@ const router = createBrowserRouter([
       {
         path: 'settings',
         element: <SettingsPage />,
+      },
+      {
+        path: 'embedding-test',
+        element: <EmbeddingTest />,
       },
     ],
   },

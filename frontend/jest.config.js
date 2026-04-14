@@ -8,7 +8,7 @@ module.exports = {
     '^@main/(.*)$': '<rootDir>/src/main/$1',
     '^@renderer/(.*)$': '<rootDir>/src/renderer/$1',
     '^@shared/(.*)$': '<rootDir>/src/shared/$1',
-    '\\.(css|less|scss|sass)$': 'identity-obj-proxy',
+    '\\.(css|less|scss|sass)$': '<rootDir>/tests/__mocks__/styleMock.js',
   },
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
   collectCoverageFrom: [
