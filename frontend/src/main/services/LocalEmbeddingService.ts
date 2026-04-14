@@ -1,5 +1,4 @@
 import * as ort from 'onnxruntime-node';
-import { AutoTokenizer } from '@xenova/transformers';
 import * as path from 'path';
 import * as fs from 'fs';
 import { app } from 'electron';
@@ -14,6 +13,7 @@ export class LocalEmbeddingService {
   private modelPath: string;
   private isInitialized = false;
   private initializationPromise: Promise<void> | null = null;
+  private transformers: any = null;
 
   constructor() {
     // 模型存储路径
@@ -52,6 +52,11 @@ export class LocalEmbeddingService {
    */
   private async _doInitialize(): Promise<void> {
     try {
+      // 动态导入 @xenova/transformers (ES Module)
+      if (!this.transformers) {
+        this.transformers = await import('@xenova/transformers');
+      }
+
       // 检查模型文件是否存在
       const modelFile = path.join(this.modelPath, 'model.onnx');
       if (!fs.existsSync(modelFile)) {
@@ -60,7 +65,7 @@ export class LocalEmbeddingService {
 
       // 加载 tokenizer
       console.log('Loading tokenizer...');
-      this.tokenizer = await AutoTokenizer.from_pretrained(this.modelPath, {
+      this.tokenizer = await this.transformers.AutoTokenizer.from_pretrained(this.modelPath, {
         local_files_only: true,
       });
 
