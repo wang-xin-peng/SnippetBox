@@ -4,6 +4,7 @@ import HomePage from '../pages/HomePage';
 import EditorPage from '../pages/EditorPage';
 import SettingsPage from '../pages/SettingsPage';
 
+
 const router = createBrowserRouter([
   {
     path: '/',

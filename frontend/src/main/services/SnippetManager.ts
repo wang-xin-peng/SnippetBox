@@ -325,7 +325,7 @@ export class SnippetManager {
         .run(snippetId, tag.id, now);
 
       // 如果成功插入了新关联，更新 usage_count
-      if (result.changes > 0) {
+      if (result && result.changes && result.changes > 0) {
         this.db
           .prepare('UPDATE tags SET usage_count = usage_count + 1 WHERE id = ?')
           .run(tag.id);

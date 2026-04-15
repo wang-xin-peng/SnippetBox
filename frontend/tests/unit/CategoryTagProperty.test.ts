@@ -160,12 +160,26 @@ describe('Category and Tag Property-Based Tests', () => {
           fc.string({ minLength: 1, maxLength: 30 }).filter((s: string) => s.trim().length > 0),
           fc.string({ minLength: 1, maxLength: 30 }).filter((s: string) => s.trim().length > 0),
           async (sourceName: string, targetName: string) => {
-            if (sourceName.trim().toLowerCase() === targetName.trim().toLowerCase()) {
+            const trimmedSource = sourceName.trim();
+            const trimmedTarget = targetName.trim();
+            
+            if (trimmedSource.toLowerCase() === trimmedTarget.toLowerCase()) {
               return; // Skip if names are the same
             }
 
-            const sourceTag = await tagManager.createTag({ name: sourceName.trim() });
-            const targetTag = await tagManager.createTag({ name: targetName.trim() });
+            // 清理可能存在的标签
+            const existingSource = await tagManager.getTagByName(trimmedSource);
+            if (existingSource) {
+              await tagManager.deleteTag(existingSource.id);
+            }
+            
+            const existingTarget = await tagManager.getTagByName(trimmedTarget);
+            if (existingTarget) {
+              await tagManager.deleteTag(existingTarget.id);
+            }
+
+            const sourceTag = await tagManager.createTag({ name: trimmedSource });
+            const targetTag = await tagManager.createTag({ name: trimmedTarget });
 
             await tagManager.mergeTags(sourceTag.id, targetTag.id);
 

@@ -36,12 +36,28 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  // 初始化数据库
-  const dbManager = getDatabaseManager();
-  await dbManager.connect();
+  let dbConnected = false;
   
-  // 注册所有 IPC 处理器
-  registerAllHandlers();
+  try {
+    // 初始化数据库
+    const dbManager = getDatabaseManager();
+    await dbManager.connect();
+    dbConnected = true;
+    console.log('Database initialized successfully');
+    
+    // 注册所有 IPC 处理器（需要数据库的）
+    registerAllHandlers();
+  } catch (error) {
+    console.error('Failed to initialize database:', error);
+    console.warn('Application will start without database functionality');
+    console.warn('Please install Visual Studio Build Tools to compile better-sqlite3');
+    
+    // 即使数据库失败，也注册不依赖数据库的处理器
+    const { registerSettingsHandlers } = require('./ipc/settingsHandlers');
+    const { registerModelHandlers } = require('./ipc/modelHandlers');
+    registerSettingsHandlers();
+    registerModelHandlers();
+  }
   
   // 创建窗口
   createWindow();
