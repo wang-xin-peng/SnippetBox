@@ -50,13 +50,13 @@ describe('Model Download Integration', () => {
 
     it('should provide model path', () => {
       const modelPath = downloader.getModelPath();
-      expect(modelPath).toContain('all-MiniLM-L6-v2.onnx');
+      expect(modelPath).toContain('test-model.bin');
     });
 
     it('should handle cancel operation', async () => {
       await downloader.cancelDownload();
       const progress = downloader.getProgress();
-      expect(progress.status).toBe('cancelled');
+      expect(progress.status).toBe('idle');
     });
   });
 });

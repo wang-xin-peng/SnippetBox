@@ -52,6 +52,7 @@ export class DatabaseManager {
       CREATE TABLE IF NOT EXISTS tags (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL UNIQUE,
+        usage_count INTEGER DEFAULT 0,
         created_at INTEGER DEFAULT (strftime('%s', 'now'))
       );
 
@@ -91,6 +92,20 @@ export class DatabaseManager {
         WHERE rowid = old.rowid;
       END;
     `);
+    
+    // 迁移：为已存在的 tags 表添加 usage_count 列
+    try {
+      const columns = this.db.pragma('table_info(tags)') as Array<{ name: string }>;
+      const hasUsageCount = columns.some((col) => col.name === 'usage_count');
+      
+      if (!hasUsageCount) {
+        console.log('[Database] Adding usage_count column to tags table...');
+        this.db.exec('ALTER TABLE tags ADD COLUMN usage_count INTEGER DEFAULT 0');
+        console.log('[Database] Migration completed successfully');
+      }
+    } catch (error) {
+      console.error('[Database] Migration failed:', error);
+    }
   }
 
   public getDb(): Database.Database {
@@ -106,4 +121,9 @@ export class DatabaseManager {
       this.db = null;
     }
   }
+}
+
+// 导出单例获取函数
+export function getDatabaseManager(): DatabaseManager {
+  return DatabaseManager.getInstance();
 }

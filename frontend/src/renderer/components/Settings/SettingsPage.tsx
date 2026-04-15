@@ -7,6 +7,7 @@ export const SettingsPage: React.FC = () => {
   const [isModelDownloaded, setIsModelDownloaded] = useState(false);
   const [modelPath, setModelPath] = useState<string>('');
   const [searchMode, setSearchMode] = useState<'local' | 'lightweight'>('lightweight');
+  const [isGeneratingVectors, setIsGeneratingVectors] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -24,7 +25,10 @@ export const SettingsPage: React.FC = () => {
       }
 
       // 加载搜索模式设置
-      // TODO: 从 SettingsManager 加载
+      const result = await window.electron.ipcRenderer.invoke('settings:getWizardChoices');
+      if (result.success && result.data?.searchMode) {
+        setSearchMode(result.data.searchMode);
+      }
     } catch (error) {
       console.error('加载设置失败:', error);
     }
@@ -34,8 +38,34 @@ export const SettingsPage: React.FC = () => {
     setShowDownloadDialog(true);
   };
 
-  const handleDownloadComplete = () => {
-    loadSettings();
+  const handleDownloadComplete = async () => {
+    await loadSettings();
+    
+    // 下载完成后，自动切换到本地模型搜索
+    try {
+      const result = await window.electron.ipcRenderer.invoke('settings:saveWizardChoices', {
+        downloadModel: true,
+        searchMode: 'local'
+      });
+      
+      if (result.success) {
+        setSearchMode('local');
+        
+        // 自动为所有片段生成向量
+        console.log('[Settings] Starting vector generation after model download...');
+        const generateResult = await window.electron.ipcRenderer.invoke('embedding:generateVectors');
+        
+        if (generateResult.success) {
+          console.log('[Settings] Vector generation completed successfully');
+          alert('模型下载完成！已为所有代码片段生成向量，现在可以使用语义搜索了。');
+        } else {
+          console.error('[Settings] Vector generation failed:', generateResult.error);
+          alert('模型下载完成，但向量生成失败。请在设置中手动重新生成向量。');
+        }
+      }
+    } catch (error) {
+      console.error('保存设置失败:', error);
+    }
   };
 
   const handleDeleteModel = async () => {
@@ -48,6 +78,17 @@ export const SettingsPage: React.FC = () => {
       if (result.success) {
         setIsModelDownloaded(false);
         setModelPath('');
+        
+        // 删除模型后，自动切换到轻量级搜索
+        const saveResult = await window.electron.ipcRenderer.invoke('settings:saveWizardChoices', {
+          downloadModel: false,
+          searchMode: 'lightweight'
+        });
+        
+        if (saveResult.success) {
+          setSearchMode('lightweight');
+        }
+        
         alert('模型已删除');
       } else {
         alert(`删除失败: ${result.error}`);
@@ -57,9 +98,58 @@ export const SettingsPage: React.FC = () => {
     }
   };
 
-  const handleSearchModeChange = (mode: 'local' | 'lightweight') => {
+  const handleSearchModeChange = async (mode: 'local' | 'lightweight') => {
     setSearchMode(mode);
-    // TODO: 保存到 SettingsManager
+    
+    // 保存到 SettingsManager
+    try {
+      const result = await window.electron.ipcRenderer.invoke('settings:saveWizardChoices', {
+        downloadModel: isModelDownloaded,
+        searchMode: mode
+      });
+      
+      if (!result.success) {
+        console.error('保存设置失败:', result.error);
+        alert('保存设置失败，请重试');
+      }
+    } catch (error) {
+      console.error('保存设置失败:', error);
+      alert('保存设置失败，请重试');
+    }
+  };
+
+  const handleGenerateVectors = async () => {
+    if (!isModelDownloaded) {
+      alert('请先下载模型');
+      return;
+    }
+
+    if (!confirm('确定要重新生成所有代码片段的向量吗？这可能需要一些时间。\n\n注意：生成过程中应用可能会变慢，请耐心等待。')) {
+      return;
+    }
+
+    setIsGeneratingVectors(true);
+    try {
+      console.log('[Settings] Starting manual vector generation...');
+      
+      // 使用 setTimeout 让 UI 有机会更新
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      const result = await window.electron.ipcRenderer.invoke('embedding:generateVectors');
+      
+      if (result.success) {
+        console.log('[Settings] Vector generation completed successfully');
+        alert('向量生成完成！');
+      } else {
+        console.error('[Settings] Vector generation failed:', result.error);
+        alert(`向量生成失败: ${result.error}`);
+      }
+    } catch (error: any) {
+      console.error('[Settings] Vector generation failed:', error);
+      alert(`向量生成失败: ${error.message}`);
+    } finally {
+      setIsGeneratingVectors(false);
+    }
   };
 
   return (
@@ -152,6 +242,26 @@ export const SettingsPage: React.FC = () => {
               )}
             </div>
           </div>
+
+          {isModelDownloaded && (
+            <div className="setting-item">
+              <div className="setting-header">
+                <label className="setting-label">向量生成</label>
+                <p className="setting-description">
+                  为所有代码片段重新生成向量，用于语义搜索
+                </p>
+              </div>
+              <div className="setting-control">
+                <button 
+                  className="btn-secondary"
+                  onClick={handleGenerateVectors}
+                  disabled={isGeneratingVectors}
+                >
+                  {isGeneratingVectors ? '生成中...' : '重新生成向量'}
+                </button>
+              </div>
+            </div>
+          )}
         </section>
 
         {/* 关于 */}

@@ -1,24 +1,22 @@
 import fc from 'fast-check';
 import { SnippetManager } from '../../src/main/services/SnippetManager';
 
-const createMockDatabase = () => ({
-  run: jest.fn(),
-  get: jest.fn(),
-  all: jest.fn(),
-  exec: jest.fn(),
-  prepare: jest.fn().mockReturnValue({
-    run: jest.fn(),
-    get: jest.fn(),
-    all: jest.fn(),
-  }),
-  transaction: jest.fn((callback: () => any) => callback),
-} as any);
-
 jest.mock('../../src/main/database', () => ({
   DatabaseManager: {
     getInstance: jest.fn().mockReturnValue({
       connect: jest.fn(),
-      getDB: jest.fn().mockReturnValue(createMockDatabase()),
+      getDB: jest.fn().mockReturnValue({
+        run: jest.fn(),
+        get: jest.fn(),
+        all: jest.fn(),
+        exec: jest.fn(),
+        prepare: jest.fn().mockReturnValue({
+          run: jest.fn(),
+          get: jest.fn(),
+          all: jest.fn(),
+        }),
+        transaction: jest.fn((callback: () => any) => callback),
+      }),
     }),
   },
 }));
@@ -28,6 +26,22 @@ jest.mock('../../src/main/database/fts', () => ({
     search: jest.fn().mockReturnValue([]),
   })),
 }));
+
+// Helper function to create mock database
+function createMockDatabase() {
+  return {
+    run: jest.fn(),
+    get: jest.fn(),
+    all: jest.fn(),
+    exec: jest.fn(),
+    prepare: jest.fn().mockReturnValue({
+      run: jest.fn(),
+      get: jest.fn(),
+      all: jest.fn(),
+    }),
+    transaction: jest.fn((callback: () => any) => callback),
+  } as any;
+}
 
 describe('Snippet Property Tests', () => {
   let snippetManager: SnippetManager;

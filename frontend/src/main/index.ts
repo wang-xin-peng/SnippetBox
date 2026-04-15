@@ -47,6 +47,9 @@ app.whenReady().then(async () => {
     
     // 注册所有 IPC 处理器（需要数据库的）
     registerAllHandlers();
+    
+    // 不在启动时自动生成向量，而是在用户下载模型后或手动触发时生成
+    // 这样可以避免在模型未下载时尝试生成向量导致的错误
   } catch (error) {
     console.error('Failed to initialize database:', error);
     console.warn('Application will start without database functionality');

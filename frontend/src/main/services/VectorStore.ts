@@ -1,5 +1,6 @@
 import { VectorDatabase } from '../database/vector';
 import { DatabaseManager } from '../database';
+import { getLocalEmbeddingService } from './LocalEmbeddingService';
 
 interface SearchResult {
   snippetId: string;
@@ -8,6 +9,7 @@ interface SearchResult {
 
 export class VectorStore {
   private vectorDb: VectorDatabase | null = null;
+  private embeddingService = getLocalEmbeddingService();
 
   constructor() {
     // 初始化将在需要时进行
@@ -26,21 +28,34 @@ export class VectorStore {
   async addVector(snippetId: string, content: string): Promise<string> {
     this.initialize();
     
-    // 生成向量嵌入（这里使用模拟实现，实际应使用真实的嵌入模型）
-    const embedding = this.generateEmbedding(content);
-    const vectorId = `vector_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    try {
+      // 确保嵌入服务已初始化
+      if (!this.embeddingService.isModelLoaded()) {
+        console.log('[VectorStore] Initializing embedding service...');
+        await this.embeddingService.initialize();
+      }
 
-    if (!this.vectorDb) {
-      throw new Error('Vector database not initialized');
+      // 使用嵌入服务生成向量
+      const embedding = await this.embeddingService.embed(content);
+      console.log(`[VectorStore] Generated embedding for snippet: ${snippetId}, dimension: ${embedding.length}`);
+      
+      const vectorId = `vector_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      if (!this.vectorDb) {
+        throw new Error('Vector database not initialized');
+      }
+
+      this.vectorDb.insertVector({
+        id: vectorId,
+        snippetId,
+        embedding: Buffer.from(new Float32Array(embedding).buffer)
+      });
+
+      return vectorId;
+    } catch (error) {
+      console.error(`[VectorStore] Failed to add vector for snippet ${snippetId}:`, error);
+      throw error;
     }
-
-    this.vectorDb.insertVector({
-      id: vectorId,
-      snippetId,
-      embedding: Buffer.from(embedding)
-    });
-
-    return vectorId;
   }
 
   async batchAddVectors(snippets: Array<{ id: string; content: string }>): Promise<string[]> {
@@ -59,30 +74,52 @@ export class VectorStore {
   async search(query: string, limit: number = 10): Promise<SearchResult[]> {
     this.initialize();
     
-    // 生成查询向量
-    const queryEmbedding = this.generateEmbedding(query);
-    
-    if (!this.vectorDb) {
-      throw new Error('Vector database not initialized');
-    }
-    
-    // 获取所有向量
-    const vectors = this.vectorDb.getAllVectors();
-    
-    // 计算相似度并排序
-    const results = vectors.map(vector => {
-      const vectorEmbedding = Array.from(vector.embedding);
-      const score = this.cosineSimilarity(queryEmbedding, vectorEmbedding);
-      return {
-        snippetId: vector.snippetId,
-        score
-      };
-    });
+    try {
+      // 确保嵌入服务已初始化
+      if (!this.embeddingService.isModelLoaded()) {
+        console.log('[VectorStore] Initializing embedding service for search...');
+        await this.embeddingService.initialize();
+      }
 
-    // 排序并返回前 limit 个结果
-    return results
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit);
+      // 生成查询向量
+      const queryEmbedding = await this.embeddingService.embed(query);
+      console.log(`[VectorStore] Generated query embedding, dimension: ${queryEmbedding.length}`);
+      
+      if (!this.vectorDb) {
+        throw new Error('Vector database not initialized');
+      }
+      
+      // 获取所有向量
+      const vectors = this.vectorDb.getAllVectors();
+      console.log(`[VectorStore] Found ${vectors.length} vectors in database`);
+      
+      if (vectors.length === 0) {
+        console.log(`[VectorStore] No vectors found, returning empty results`);
+        return [];
+      }
+      
+      // 计算相似度并排序
+      const results = vectors.map(vector => {
+        // 将 Buffer 转换为 Float32Array
+        const vectorEmbedding = Array.from(new Float32Array(vector.embedding.buffer));
+        const score = this.cosineSimilarity(queryEmbedding, vectorEmbedding);
+        return {
+          snippetId: vector.snippetId,
+          score
+        };
+      });
+
+      // 排序并返回前 limit 个结果
+      const topResults = results
+        .sort((a, b) => b.score - a.score)
+        .slice(0, limit);
+      
+      console.log(`[VectorStore] Top ${topResults.length} results:`, topResults.map(r => ({ id: r.snippetId, score: r.score.toFixed(4) })));
+      return topResults;
+    } catch (error) {
+      console.error(`[VectorStore] Search failed:`, error);
+      throw error;
+    }
   }
 
   async deleteVector(snippetId: string): Promise<void> {
@@ -103,16 +140,6 @@ export class VectorStore {
     }
     
     return this.vectorDb.getVectorCount();
-  }
-
-  private generateEmbedding(text: string): number[] {
-    // 模拟向量嵌入生成
-    // 实际应用中应使用真实的嵌入模型，如 OpenAI API 或本地模型
-    const embedding: number[] = [];
-    for (let i = 0; i < 128; i++) {
-      embedding.push(Math.sin(i * text.length) * 0.5 + 0.5);
-    }
-    return embedding;
   }
 
   private cosineSimilarity(vec1: number[], vec2: number[]): number {

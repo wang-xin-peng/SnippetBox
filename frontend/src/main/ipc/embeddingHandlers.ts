@@ -112,5 +112,27 @@ export function registerEmbeddingHandlers(): void {
     }
   });
 
+  /**
+   * 为所有片段生成向量
+   */
+  ipcMain.handle('embedding:generateVectors', async () => {
+    try {
+      console.log('[EmbeddingHandlers] Starting vector generation...');
+      
+      // 先清空旧向量
+      const { clearAllVectors } = await import('../scripts/clearVectors');
+      clearAllVectors();
+      
+      // 然后生成新向量
+      const { generateVectorsForExistingSnippets } = await import('../scripts/generateVectors');
+      await generateVectorsForExistingSnippets();
+      
+      return { success: true };
+    } catch (error: any) {
+      console.error('[EmbeddingHandlers] Failed to generate vectors:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
   console.log('Embedding IPC handlers registered');
 }

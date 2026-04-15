@@ -39,8 +39,31 @@ export function createTestDatabase(): Database.Database {
 export function cleanupTestDatabase(db: Database.Database): void {
   const dbPath = db.name;
   db.close();
+  
+  // 在 Windows 上，文件可能被锁定，需要重试
   if (fs.existsSync(dbPath)) {
-    fs.unlinkSync(dbPath);
+    let retries = 3;
+    while (retries > 0) {
+      try {
+        fs.unlinkSync(dbPath);
+        break;
+      } catch (error: any) {
+        if (error.code === 'EBUSY' || error.code === 'EPERM') {
+          retries--;
+          if (retries === 0) {
+            console.warn(`无法删除测试数据库文件: ${dbPath}`, error.message);
+          } else {
+            // 等待一小段时间后重试
+            const start = Date.now();
+            while (Date.now() - start < 100) {
+              // 忙等待
+            }
+          }
+        } else {
+          throw error;
+        }
+      }
+    }
   }
 }
 
