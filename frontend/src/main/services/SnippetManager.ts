@@ -5,8 +5,9 @@
 
 import Database from 'better-sqlite3';
 import { randomUUID } from 'crypto';
-import { Snippet, CreateSnippetDTO, UpdateSnippetDTO, SnippetFilter } from '../../shared/types';
+import { Snippet, CreateSnippetDTO, UpdateSnippetDTO, SnippetFilter } from '../../shared/types/index';
 import { FullTextSearch } from '../database/fts';
+import { VectorStore } from './VectorStore';
 
 interface DbSnippet {
   id: string;
@@ -25,10 +26,12 @@ interface DbSnippet {
 export class SnippetManager {
   private db: Database.Database;
   private fts: FullTextSearch;
+  private vectorStore: VectorStore;
 
   constructor(db: Database.Database) {
     this.db = db;
     this.fts = new FullTextSearch(db);
+    this.vectorStore = new VectorStore();
   }
 
   /**
@@ -64,6 +67,9 @@ export class SnippetManager {
       if (!snippet) {
         throw new Error('Failed to create snippet');
       }
+
+      // 自动生成向量
+      this.generateVectorForSnippet(snippet);
 
       return snippet;
     } catch (error) {
@@ -211,7 +217,12 @@ export class SnippetManager {
       });
 
       transaction();
-      return this.getSnippet(id);
+      const updatedSnippet = await this.getSnippet(id);
+      
+      // 自动更新向量
+      this.generateVectorForSnippet(updatedSnippet);
+      
+      return updatedSnippet;
     } catch (error) {
       console.error('Failed to update snippet:', error);
       throw error;
@@ -228,6 +239,9 @@ export class SnippetManager {
       if (result.changes === 0) {
         throw new Error('Snippet not found');
       }
+
+      // 自动删除向量
+      await this.vectorStore.deleteVector(id);
     } catch (error) {
       console.error('Failed to delete snippet:', error);
       throw error;
@@ -353,5 +367,50 @@ export class SnippetManager {
       isSynced: dbSnippet.is_synced === 1,
       cloudId: dbSnippet.cloud_id || undefined,
     };
+  }
+
+  /**
+   * 向量生成队列
+   */
+  private vectorGenerationQueue: Array<{ snippetId: string; content: string }> = [];
+  private isProcessingQueue = false;
+
+  /**
+   * 为片段生成向量
+   */
+  private generateVectorForSnippet(snippet: Snippet): void {
+    const content = `${snippet.title}\n${snippet.code}`;
+    
+    // 添加到队列
+    this.vectorGenerationQueue.push({ snippetId: snippet.id, content });
+    
+    // 处理队列
+    this.processVectorGenerationQueue();
+  }
+
+  /**
+   * 处理向量生成队列
+   */
+  private async processVectorGenerationQueue(): Promise<void> {
+    if (this.isProcessingQueue || this.vectorGenerationQueue.length === 0) {
+      return;
+    }
+
+    this.isProcessingQueue = true;
+
+    try {
+      while (this.vectorGenerationQueue.length > 0) {
+        const { snippetId, content } = this.vectorGenerationQueue.shift()!;
+        
+        try {
+          await this.vectorStore.addVector(snippetId, content);
+          console.log(`Generated vector for snippet: ${snippetId}`);
+        } catch (error) {
+          console.error(`Failed to generate vector for snippet ${snippetId}:`, error);
+        }
+      }
+    } finally {
+      this.isProcessingQueue = false;
+    }
   }
 }

@@ -1,4 +1,4 @@
-// 片段接口
+// Snippet 相关类型定义
 export interface Snippet {
   id: string;
   title: string;
@@ -13,7 +13,6 @@ export interface Snippet {
   cloudId?: string;
 }
 
-// 创建片段 DTO
 export interface CreateSnippetDTO {
   title: string;
   code: string;
@@ -22,7 +21,6 @@ export interface CreateSnippetDTO {
   tags?: string[];
 }
 
-// 更新片段 DTO
 export interface UpdateSnippetDTO {
   title?: string;
   code?: string;
@@ -31,39 +29,34 @@ export interface UpdateSnippetDTO {
   tags?: string[];
 }
 
-// 片段过滤器
 export interface SnippetFilter {
   category?: string;
-  tags?: string[];
   language?: string;
+  tags?: string[];
   searchQuery?: string;
 }
 
-// 分类接口
+// 分类相关类型定义
 export interface Category {
   id: string;
   name: string;
-  color: string;
-  icon: string;
+  description?: string;
   createdAt: Date;
-  count?: number;
+  updatedAt: Date;
+  usageCount: number;
 }
 
-// 创建分类 DTO
 export interface CreateCategoryDTO {
   name: string;
-  color?: string;
-  icon?: string;
+  description?: string;
 }
 
-// 更新分类 DTO
 export interface UpdateCategoryDTO {
   name?: string;
-  color?: string;
-  icon?: string;
+  description?: string;
 }
 
-// 标签接口
+// 标签相关类型定义
 export interface Tag {
   id: string;
   name: string;
@@ -71,7 +64,55 @@ export interface Tag {
   createdAt: Date;
 }
 
-// 创建标签 DTO
-export interface CreateTagDTO {
-  name: string;
+// 搜索相关类型定义
+export interface SearchResult {
+  id: string;
+  title: string;
+  code: string;
+  language: string;
+  category?: string;
+  tags?: string[];
+  relevance: number;
+  createdAt?: Date;
+  searchMode: 'fulltext' | 'semantic' | 'hybrid';
+}
+
+export interface SearchQuery {
+  query: string;
+  filters?: {
+    language?: string[];
+    category?: string[];
+    tags?: string[];
+  };
+  sortBy?: 'relevance' | 'date' | 'title';
+  limit?: number;
+  searchMode?: 'auto' | 'fulltext' | 'semantic' | 'hybrid';
+}
+
+// 导出相关类型定义
+export interface ExportOptions {
+  includeTitle?: boolean;
+  includeMetadata?: boolean;
+  includeTimestamp?: boolean;
+  theme?: 'light' | 'dark';
+}
+
+export interface BatchResult {
+  success: number;
+  failed: number;
+  errors: string[];
+}
+
+// 导入相关类型定义
+export interface ImportOptions {
+  duplicateStrategy: 'skip' | 'overwrite' | 'merge';
+  includeMetadata?: boolean;
+  defaultCategory?: string;
+}
+
+export interface ImportResult {
+  imported: number;
+  skipped: number;
+  failed: number;
+  errors: string[];
 }
