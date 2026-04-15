@@ -27,6 +27,13 @@ describe('Category and Tag Property-Based Tests', () => {
           fc.string().filter((s: string) => /^#[0-9A-Fa-f]{6}$/.test(s)),
           fc.string({ minLength: 1, maxLength: 10 }),
           async (name: string, color: string, icon: string) => {
+            // 清理可能存在的同名分类
+            const categories = await categoryManager.getCategories();
+            const existing = categories.find(c => c.name === name.trim());
+            if (existing) {
+              await categoryManager.deleteCategory(existing.id);
+            }
+
             const category = await categoryManager.createCategory({
               name: name.trim(),
               color,
@@ -37,6 +44,9 @@ describe('Category and Tag Property-Based Tests', () => {
             expect(category.name).toBe(name.trim());
             expect(category.color).toBe(color);
             expect(category.icon).toBe(icon);
+
+            // 清理创建的分类
+            await categoryManager.deleteCategory(category.id);
           }
         ),
         { numRuns: 10 }
@@ -49,9 +59,20 @@ describe('Category and Tag Property-Based Tests', () => {
           fc.string({ minLength: 1, maxLength: 50 }).filter((s: string) => s.trim().length > 0),
           async (name: string) => {
             const trimmedName = name.trim();
-            await categoryManager.createCategory({ name: trimmedName });
+            
+            // 清理可能存在的同名分类
+            const categories = await categoryManager.getCategories();
+            const existing = categories.find(c => c.name === trimmedName);
+            if (existing) {
+              await categoryManager.deleteCategory(existing.id);
+            }
+
+            const category = await categoryManager.createCategory({ name: trimmedName });
 
             await expect(categoryManager.createCategory({ name: trimmedName })).rejects.toThrow();
+
+            // 清理创建的分类
+            await categoryManager.deleteCategory(category.id);
           }
         ),
         { numRuns: 10 }
@@ -92,11 +113,20 @@ describe('Category and Tag Property-Based Tests', () => {
         fc.asyncProperty(
           fc.string({ minLength: 1, maxLength: 30 }).filter((s: string) => s.trim().length > 0),
           async (name: string) => {
+            // 清理可能存在的同名标签
+            const existing = await tagManager.getTagByName(name.trim());
+            if (existing) {
+              await tagManager.deleteTag(existing.id);
+            }
+
             const tag = await tagManager.createTag({ name: name.trim() });
 
             expect(tag).toBeDefined();
             expect(tag.name).toBe(name.trim());
             expect(tag.usageCount).toBe(0);
+
+            // 清理创建的标签
+            await tagManager.deleteTag(tag.id);
           }
         ),
         { numRuns: 10 }
@@ -109,9 +139,19 @@ describe('Category and Tag Property-Based Tests', () => {
           fc.string({ minLength: 1, maxLength: 30 }).filter((s: string) => s.trim().length > 0),
           async (name: string) => {
             const trimmedName = name.trim();
-            await tagManager.createTag({ name: trimmedName });
+            
+            // 清理可能存在的同名标签
+            const existing = await tagManager.getTagByName(trimmedName);
+            if (existing) {
+              await tagManager.deleteTag(existing.id);
+            }
+
+            const tag = await tagManager.createTag({ name: trimmedName });
 
             await expect(tagManager.createTag({ name: trimmedName.toLowerCase() })).rejects.toThrow();
+
+            // 清理创建的标签
+            await tagManager.deleteTag(tag.id);
           }
         ),
         { numRuns: 10 }
@@ -124,12 +164,22 @@ describe('Category and Tag Property-Based Tests', () => {
           fc.string({ minLength: 1, maxLength: 30 }).filter((s: string) => s.trim().length > 0),
           async (name: string) => {
             const trimmedName = name.trim();
+            
+            // 清理可能存在的同名标签
+            const existing = await tagManager.getTagByName(trimmedName);
+            if (existing) {
+              await tagManager.deleteTag(existing.id);
+            }
+
             const created = await tagManager.createTag({ name: trimmedName });
 
             const retrieved = await tagManager.getTagByName(trimmedName.toLowerCase());
 
             expect(retrieved).toBeDefined();
             expect(retrieved?.id).toBe(created.id);
+
+            // 清理创建的标签
+            await tagManager.deleteTag(created.id);
           }
         ),
         { numRuns: 10 }

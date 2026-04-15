@@ -370,6 +370,75 @@ export class SnippetManager {
   }
 
   /**
+   * 批量删除片段
+   */
+  async batchDelete(snippetIds: string[]): Promise<BatchResult> {
+    const result: BatchResult = {
+      success: 0,
+      failed: 0,
+      errors: []
+    };
+
+    for (const snippetId of snippetIds) {
+      try {
+        await this.deleteSnippet(snippetId);
+        result.success++;
+      } catch (error) {
+        result.failed++;
+        result.errors.push({ snippetId, error: (error as Error).message });
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * 批量修改标签
+   */
+  async batchUpdateTags(snippetIds: string[], tags: string[]): Promise<BatchResult> {
+    const result: BatchResult = {
+      success: 0,
+      failed: 0,
+      errors: []
+    };
+
+    for (const snippetId of snippetIds) {
+      try {
+        await this.updateSnippet(snippetId, { tags });
+        result.success++;
+      } catch (error) {
+        result.failed++;
+        result.errors.push({ snippetId, error: (error as Error).message });
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * 批量修改分类
+   */
+  async batchUpdateCategory(snippetIds: string[], categoryId: string): Promise<BatchResult> {
+    const result: BatchResult = {
+      success: 0,
+      failed: 0,
+      errors: []
+    };
+
+    for (const snippetId of snippetIds) {
+      try {
+        await this.updateSnippet(snippetId, { category: categoryId });
+        result.success++;
+      } catch (error) {
+        result.failed++;
+        result.errors.push({ snippetId, error: (error as Error).message });
+      }
+    }
+
+    return result;
+  }
+
+  /**
    * 向量生成队列
    */
   private vectorGenerationQueue: Array<{ snippetId: string; content: string }> = [];
@@ -399,12 +468,19 @@ export class SnippetManager {
     this.isProcessingQueue = true;
 
     try {
+      let processedCount = 0;
       while (this.vectorGenerationQueue.length > 0) {
         const { snippetId, content } = this.vectorGenerationQueue.shift()!;
         
         try {
           await this.vectorStore.addVector(snippetId, content);
           console.log(`Generated vector for snippet: ${snippetId}`);
+          processedCount++;
+          
+          // 每处理 3 个片段后，让出主线程给其他任务
+          if (processedCount % 3 === 0) {
+            await new Promise(resolve => setImmediate(resolve));
+          }
         } catch (error) {
           console.error(`Failed to generate vector for snippet ${snippetId}:`, error);
         }
@@ -413,4 +489,10 @@ export class SnippetManager {
       this.isProcessingQueue = false;
     }
   }
+}
+
+export interface BatchResult {
+  success: number;
+  failed: number;
+  errors: Array<{ snippetId: string; error: string }>;
 }

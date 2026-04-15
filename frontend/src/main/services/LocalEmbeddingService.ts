@@ -52,9 +52,19 @@ export class LocalEmbeddingService {
    */
   private async _doInitialize(): Promise<void> {
     try {
+      // 使用 eval 来绕过 TypeScript 编译器的静态分析
+      // 这样可以在运行时使用动态 import() 而不会被编译成 require()
+      const importTransformers = new Function('specifier', 'return import(specifier)');
+      
       // 动态导入 @xenova/transformers (ES Module)
       if (!this.transformers) {
-        this.transformers = await import('@xenova/transformers');
+        console.log('[LocalEmbedding] Loading transformers library...');
+        
+        // 设置环境变量禁用图像处理功能
+        process.env.TRANSFORMERS_DISABLE_SHARP = '1';
+        
+        this.transformers = await importTransformers('@xenova/transformers');
+        console.log('[LocalEmbedding] Transformers library loaded successfully');
       }
 
       // 检查模型文件是否存在
@@ -64,21 +74,23 @@ export class LocalEmbeddingService {
       }
 
       // 加载 tokenizer
-      console.log('Loading tokenizer...');
+      console.log('[LocalEmbedding] Loading tokenizer...');
       this.tokenizer = await this.transformers.AutoTokenizer.from_pretrained(this.modelPath, {
         local_files_only: true,
       });
+      console.log('[LocalEmbedding] Tokenizer loaded successfully');
 
       // 加载 ONNX 模型
-      console.log('Loading ONNX model...');
+      console.log('[LocalEmbedding] Loading ONNX model...');
       this.session = await ort.InferenceSession.create(modelFile, {
         executionProviders: ['cpu'],
         graphOptimizationLevel: 'all',
       });
+      console.log('[LocalEmbedding] ONNX model loaded successfully');
 
-      console.log('LocalEmbeddingService initialized successfully');
+      console.log('[LocalEmbedding] LocalEmbeddingService initialized successfully');
     } catch (error) {
-      console.error('Failed to initialize LocalEmbeddingService:', error);
+      console.error('[LocalEmbedding] Failed to initialize LocalEmbeddingService:', error);
       throw error;
     }
   }

@@ -9,6 +9,7 @@ module.exports = {
     '^@renderer/(.*)$': '<rootDir>/src/renderer/$1',
     '^@shared/(.*)$': '<rootDir>/src/shared/$1',
     '\\.(css|less|scss|sass)$': '<rootDir>/tests/__mocks__/styleMock.js',
+    '^onnxruntime-node$': '<rootDir>/tests/__mocks__/onnxruntime-node.js',
   },
   setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
   collectCoverageFrom: [

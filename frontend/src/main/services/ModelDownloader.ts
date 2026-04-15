@@ -4,7 +4,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { app } from 'electron';
 import { DownloadProgress, DownloadState, MirrorInfo } from '../../shared/types/model';
-import { MODEL_INFO, getSortedMirrors } from '../config/mirrors';
+import { MODEL_INFO, getSortedMirrors, MODEL_FILES } from '../config/mirrors';
 
 export class ModelDownloader {
   private axiosInstance: AxiosInstance;
@@ -26,15 +26,16 @@ export class ModelDownloader {
       maxRedirects: 5
     });
 
-    // 初始化路径
-    this.modelDir = path.join(app.getPath('userData'), 'models');
-    this.modelPath = path.join(this.modelDir, MODEL_INFO.fileName);
-    this.tempPath = `${this.modelPath}.tmp`;
-    this.stateFilePath = `${this.modelPath}.state`;
+    // 初始化路径 - 使用目录而不是单个文件
+    this.modelDir = path.join(app.getPath('userData'), 'models', MODEL_INFO.name);
+    this.modelPath = this.modelDir; // 模型目录
+    this.tempPath = `${this.modelDir}.tmp`;
+    this.stateFilePath = path.join(app.getPath('userData'), 'models', `${MODEL_INFO.name}.state`);
 
     // 确保目录存在
-    if (!fs.existsSync(this.modelDir)) {
-      fs.mkdirSync(this.modelDir, { recursive: true });
+    const modelsRoot = path.join(app.getPath('userData'), 'models');
+    if (!fs.existsSync(modelsRoot)) {
+      fs.mkdirSync(modelsRoot, { recursive: true });
     }
 
     // 初始化进度
@@ -68,59 +69,58 @@ export class ModelDownloader {
 
     try {
       // 选择镜像源
-      this.currentMirrorUrl = mirrorUrl || this.selectMirror();
+      const baseUrl = mirrorUrl || this.selectMirror();
+      this.currentMirrorUrl = baseUrl;
       
-      // 创建取消令牌
-      this.cancelTokenSource = axios.CancelToken.source();
-
-      // 获取已下载的大小
-      const startByte = this.downloadState?.downloaded || 0;
-
-      // 重置速度采样
-      this.speedSamples = [];
-      this.startTime = Date.now();
-      this.lastDownloaded = startByte;
+      // 创建临时目录
+      if (!fs.existsSync(this.tempPath)) {
+        fs.mkdirSync(this.tempPath, { recursive: true });
+      }
 
       this.progress.status = 'downloading';
-      this.progress.downloaded = startByte;
+      this.progress.downloaded = 0;
+      this.progress.total = MODEL_INFO.size;
 
-      // 发起下载请求
-      const response = await this.axiosInstance.get(this.currentMirrorUrl, {
-        responseType: 'stream',
-        headers: startByte > 0 ? { Range: `bytes=${startByte}-` } : {},
-        cancelToken: this.cancelTokenSource.token,
-        onDownloadProgress: (progressEvent) => {
-          this.updateProgress(progressEvent, startByte);
-        }
-      });
+      // 下载所有文件
+      for (let i = 0; i < MODEL_FILES.length; i++) {
+        const file = MODEL_FILES[i];
+        const fileUrl = baseUrl + file.url;
+        const filePath = path.join(this.tempPath, file.name);
 
-      // 获取文件总大小
-      const contentLength = response.headers['content-length'];
-      const totalSize = startByte + parseInt(contentLength || '0', 10);
-      this.progress.total = totalSize;
+        console.log(`[ModelDownloader] Downloading ${file.name} from ${fileUrl}`);
 
-      // 创建写入流
-      const writer = fs.createWriteStream(this.tempPath, {
-        flags: startByte > 0 ? 'a' : 'w'
-      });
+        // 创建取消令牌
+        this.cancelTokenSource = axios.CancelToken.source();
 
-      // 写入数据
-      response.data.pipe(writer);
+        // 下载文件
+        const response = await this.axiosInstance.get(fileUrl, {
+          responseType: 'stream',
+          cancelToken: this.cancelTokenSource.token,
+          onDownloadProgress: (progressEvent) => {
+            // 简单的进度更新
+            const fileProgress = (i / MODEL_FILES.length) * 100;
+            const currentFileProgress = progressEvent.loaded / (progressEvent.total || 1) * (100 / MODEL_FILES.length);
+            this.progress.percentage = Math.round(fileProgress + currentFileProgress);
+          }
+        });
 
-      // 等待下载完成
-      await new Promise<void>((resolve, reject) => {
-        writer.on('finish', resolve);
-        writer.on('error', reject);
-        response.data.on('error', reject);
-      });
+        // 写入文件
+        const writer = fs.createWriteStream(filePath);
+        response.data.pipe(writer);
 
-      // 验证文件
-      const isValid = await this.verifyModel(this.tempPath);
-      if (!isValid) {
-        throw new Error('模型文件校验失败');
+        await new Promise<void>((resolve, reject) => {
+          writer.on('finish', resolve);
+          writer.on('error', reject);
+          response.data.on('error', reject);
+        });
+
+        console.log(`[ModelDownloader] Downloaded ${file.name}`);
       }
 
       // 移动到最终位置
+      if (fs.existsSync(this.modelPath)) {
+        fs.rmSync(this.modelPath, { recursive: true, force: true });
+      }
       fs.renameSync(this.tempPath, this.modelPath);
 
       // 清理状态
@@ -128,6 +128,8 @@ export class ModelDownloader {
 
       this.progress.status = 'completed';
       this.progress.percentage = 100;
+      
+      console.log(`[ModelDownloader] Model downloaded successfully to ${this.modelPath}`);
     } catch (error: any) {
       if (axios.isCancel(error)) {
         this.progress.status = 'cancelled';
@@ -245,10 +247,10 @@ export class ModelDownloader {
    */
   async deleteModel(): Promise<void> {
     if (fs.existsSync(this.modelPath)) {
-      fs.unlinkSync(this.modelPath);
+      fs.rmSync(this.modelPath, { recursive: true, force: true });
     }
     if (fs.existsSync(this.tempPath)) {
-      fs.unlinkSync(this.tempPath);
+      fs.rmSync(this.tempPath, { recursive: true, force: true });
     }
     this.clearDownloadState();
     this.progress.status = 'idle';
@@ -263,7 +265,17 @@ export class ModelDownloader {
     if (!fs.existsSync(this.modelPath)) {
       return false;
     }
-    return await this.verifyModel(this.modelPath);
+    
+    // 检查所有必需文件是否存在
+    for (const file of MODEL_FILES) {
+      const filePath = path.join(this.modelPath, file.name);
+      if (!fs.existsSync(filePath)) {
+        console.log(`[ModelDownloader] Missing file: ${file.name}`);
+        return false;
+      }
+    }
+    
+    return true;
   }
 
   /**
