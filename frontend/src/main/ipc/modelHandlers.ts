@@ -1,14 +1,9 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import { ModelDownloader } from '../services/ModelDownloader';
-import { MODEL_MIRRORS, getSortedMirrors } from '../config/mirrors';
-import { DownloadProgress } from '../../shared/types/model';
+import { getSortedMirrors } from '../config/mirrors';
 
 let modelDownloader: ModelDownloader | null = null;
-let progressInterval: NodeJS.Timeout | null = null;
 
-/**
- * 获取或创建 ModelDownloader 实例
- */
 function getModelDownloader(): ModelDownloader {
   if (!modelDownloader) {
     modelDownloader = new ModelDownloader();
@@ -16,152 +11,101 @@ function getModelDownloader(): ModelDownloader {
   return modelDownloader;
 }
 
-/**
- * 开始发送进度更新
- */
-function startProgressUpdates(window: BrowserWindow) {
-  if (progressInterval) {
-    clearInterval(progressInterval);
-  }
+/** 在后台异步执行下载，立即返回不阻塞 IPC 队列 */
+function runDownloadAsync(downloader: ModelDownloader, mirrorUrl: string | undefined, sender: Electron.WebContents) {
+  const win = BrowserWindow.fromWebContents(sender);
+  downloader.setWebContents(win ? sender : null);
 
-  progressInterval = setInterval(() => {
-    const downloader = getModelDownloader();
-    const progress = downloader.getProgress();
-    window.webContents.send('model:progress', progress);
-  }, 500); // 每 500ms 更新一次
+  setImmediate(async () => {
+    try {
+      await downloader.startDownload(mirrorUrl);
+      downloader.setWebContents(null);
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('model:progress', downloader.getProgress());
+      }
+    } catch (error: any) {
+      downloader.setWebContents(null);
+      // 进度已经在 data 事件里推送了，这里只需确保最终状态被推送
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('model:progress', downloader.getProgress());
+      }
+    }
+  });
 }
 
-/**
- * 停止发送进度更新
- */
-function stopProgressUpdates() {
-  if (progressInterval) {
-    clearInterval(progressInterval);
-    progressInterval = null;
-  }
-}
-
-/**
- * 注册模型下载相关的 IPC 处理器
- */
 export function registerModelHandlers() {
   console.log('[ModelHandlers] Registering model IPC handlers...');
-  
-  // 获取镜像源列表
+
   ipcMain.handle('model:getMirrors', async () => {
-    console.log('[ModelHandlers] getMirrors called');
     return getSortedMirrors();
   });
 
-  // 开始下载
+  // 立即返回，下载在后台异步执行
   ipcMain.handle('model:startDownload', async (event, mirrorUrl?: string) => {
-    console.log('[ModelHandlers] startDownload called with mirrorUrl:', mirrorUrl);
     try {
       const downloader = getModelDownloader();
-      const window = BrowserWindow.fromWebContents(event.sender);
-      
-      if (window) {
-        startProgressUpdates(window);
-      }
-
-      await downloader.startDownload(mirrorUrl);
-      
-      stopProgressUpdates();
-      
-      // 发送最终进度
-      if (window) {
-        window.webContents.send('model:progress', downloader.getProgress());
-      }
-
+      runDownloadAsync(downloader, mirrorUrl, event.sender);
       return { success: true };
     } catch (error: any) {
-      stopProgressUpdates();
       return { success: false, error: error.message };
     }
   });
 
-  // 暂停下载
   ipcMain.handle('model:pauseDownload', async () => {
     try {
       const downloader = getModelDownloader();
       await downloader.pauseDownload();
-      stopProgressUpdates();
+      downloader.setWebContents(null);
       return { success: true };
     } catch (error: any) {
       return { success: false, error: error.message };
     }
   });
 
-  // 恢复下载
+  // 恢复下载也异步执行
   ipcMain.handle('model:resumeDownload', async (event) => {
     try {
       const downloader = getModelDownloader();
-      const window = BrowserWindow.fromWebContents(event.sender);
-      
-      if (window) {
-        startProgressUpdates(window);
-      }
-
-      await downloader.resumeDownload();
-      
-      stopProgressUpdates();
-      
-      // 发送最终进度
-      if (window) {
-        window.webContents.send('model:progress', downloader.getProgress());
-      }
-
+      runDownloadAsync(downloader, undefined, event.sender);
       return { success: true };
     } catch (error: any) {
-      stopProgressUpdates();
       return { success: false, error: error.message };
     }
   });
 
-  // 取消下载
   ipcMain.handle('model:cancelDownload', async () => {
     try {
       const downloader = getModelDownloader();
+      downloader.setWebContents(null);
       await downloader.cancelDownload();
-      stopProgressUpdates();
       return { success: true };
     } catch (error: any) {
       return { success: false, error: error.message };
     }
   });
 
-  // 获取下载进度
   ipcMain.handle('model:getProgress', async () => {
-    const downloader = getModelDownloader();
-    return downloader.getProgress();
+    return getModelDownloader().getProgress();
   });
 
-  // 验证模型
   ipcMain.handle('model:verifyModel', async (event, filePath: string) => {
-    const downloader = getModelDownloader();
-    return await downloader.verifyModel(filePath);
+    return await getModelDownloader().verifyModel(filePath);
   });
 
-  // 删除模型
   ipcMain.handle('model:deleteModel', async () => {
     try {
-      const downloader = getModelDownloader();
-      await downloader.deleteModel();
+      await getModelDownloader().deleteModel();
       return { success: true };
     } catch (error: any) {
       return { success: false, error: error.message };
     }
   });
 
-  // 检查模型是否已下载
   ipcMain.handle('model:isDownloaded', async () => {
-    const downloader = getModelDownloader();
-    return await downloader.isModelDownloaded();
+    return await getModelDownloader().isModelDownloaded();
   });
 
-  // 获取模型路径
   ipcMain.handle('model:getPath', async () => {
-    const downloader = getModelDownloader();
-    return downloader.getModelPath();
+    return getModelDownloader().getModelPath();
   });
 }

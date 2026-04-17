@@ -40,6 +40,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
 contextBridge.exposeInMainWorld('electron', {
   ipcRenderer: {
     invoke: (channel: string, ...args: any[]) => ipcRenderer.invoke(channel, ...args),
+    on: (channel: string, listener: (...args: any[]) => void) => {
+      const wrapped = (_event: any, ...args: any[]) => listener(_event, ...args);
+      ipcRenderer.on(channel, wrapped);
+      return () => ipcRenderer.removeListener(channel, wrapped);
+    },
   },
   model: {
     getMirrors: (): Promise<MirrorInfo[]> => ipcRenderer.invoke('model:getMirrors'),
@@ -77,6 +82,11 @@ contextBridge.exposeInMainWorld('electron', {
       ipcRenderer.invoke('embedding:unload', useWorker),
     getInfo: (): Promise<{ success: boolean; info?: any; error?: string }> =>
       ipcRenderer.invoke('embedding:getInfo'),
+  },
+  search: {
+    keyword: (query: string) => ipcRenderer.invoke('search:keyword', query),
+    semantic: (query: string) => ipcRenderer.invoke('search:semantic', query),
+    capability: () => ipcRenderer.invoke('search:capability'),
   },
 });
 

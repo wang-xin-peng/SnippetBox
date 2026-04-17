@@ -1,9 +1,43 @@
 import { ipcMain } from 'electron';
+import { getDatabaseManager } from '../database';
+import { TagManager } from '../services/TagManager';
 
-/**
- * 注册标签相关的 IPC 处理器
- */
+let tagManager: TagManager | null = null;
+
 export function registerTagHandlers() {
-  // 标签相关的 IPC 处理器将在这里实现
+  const dbManager = getDatabaseManager();
+  const db = dbManager.getDb();
+  tagManager = new TagManager(db);
+
+  ipcMain.handle('tag:list', async () => {
+    if (!tagManager) throw new Error('TagManager not initialized');
+    return tagManager.getTags();
+  });
+
+  ipcMain.handle('tag:get', async (_event, id: string) => {
+    if (!tagManager) throw new Error('TagManager not initialized');
+    return tagManager.getTagById(id);
+  });
+
+  ipcMain.handle('tag:create', async (_event, name: string) => {
+    if (!tagManager) throw new Error('TagManager not initialized');
+    return tagManager.createTag({ name });
+  });
+
+  ipcMain.handle('tag:findByName', async (_event, name: string) => {
+    if (!tagManager) throw new Error('TagManager not initialized');
+    return tagManager.getTagByName(name);
+  });
+
+  ipcMain.handle('tag:delete', async (_event, id: string) => {
+    if (!tagManager) throw new Error('TagManager not initialized');
+    return tagManager.deleteTag(id);
+  });
+
+  ipcMain.handle('tag:merge', async (_event, sourceId: string, targetId: string) => {
+    if (!tagManager) throw new Error('TagManager not initialized');
+    return tagManager.mergeTags(sourceId, targetId);
+  });
+
   console.log('Tag handlers registered');
 }

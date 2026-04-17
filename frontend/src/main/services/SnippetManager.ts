@@ -21,6 +21,7 @@ interface DbSnippet {
   access_count: number;
   is_synced: number;
   cloud_id: string | null;
+  starred: number;
 }
 
 export class SnippetManager {
@@ -93,8 +94,9 @@ export class SnippetManager {
 
       // 应用过滤条件
       if (filter?.category) {
-        sql += ` AND s.category_id = ?`;
-        params.push(filter.category);
+        // category 可能是名称或 ID，都支持
+        sql += ` AND (s.category_id = ? OR s.category_id IN (SELECT id FROM categories WHERE name = ?))`;
+        params.push(filter.category, filter.category);
       }
 
       if (filter?.language) {
@@ -189,6 +191,10 @@ export class SnippetManager {
         if (data.category !== undefined) {
           updates.push('category_id = ?');
           params.push(data.category);
+        }
+        if ((data as any).starred !== undefined) {
+          updates.push('starred = ?');
+          params.push((data as any).starred ? 1 : 0);
         }
 
         updates.push('updated_at = ?');
@@ -361,6 +367,7 @@ export class SnippetManager {
       language: dbSnippet.language,
       category,
       tags,
+      starred: dbSnippet.starred === 1,
       createdAt: new Date(dbSnippet.created_at),
       updatedAt: new Date(dbSnippet.updated_at),
       accessCount: dbSnippet.access_count,

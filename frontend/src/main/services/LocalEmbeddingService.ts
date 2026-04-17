@@ -67,15 +67,24 @@ export class LocalEmbeddingService {
         console.log('[LocalEmbedding] Transformers library loaded successfully');
       }
 
+      // 关键：设置 cacheDir 为模型父目录，这样 from_pretrained('all-MiniLM-L6-v2') 
+      // 就会直接在 cacheDir 下查找，而不是拼在 node_modules 路径后面
+      const modelsDir = path.dirname(this.modelPath);
+      const modelName = path.basename(this.modelPath);
+      this.transformers.env.cacheDir = modelsDir;
+      this.transformers.env.localModelPath = modelsDir;
+      this.transformers.env.allowRemoteModels = false;
+      console.log(`[LocalEmbedding] Cache dir set to: ${modelsDir}, model name: ${modelName}`);
+
       // 检查模型文件是否存在
       const modelFile = path.join(this.modelPath, 'model.onnx');
       if (!fs.existsSync(modelFile)) {
         throw new Error(`Model file not found at ${modelFile}. Please download the model first.`);
       }
 
-      // 加载 tokenizer
+      // 加载 tokenizer（用 modelName 而非绝对路径，配合 cacheDir 使用）
       console.log('[LocalEmbedding] Loading tokenizer...');
-      this.tokenizer = await this.transformers.AutoTokenizer.from_pretrained(this.modelPath, {
+      this.tokenizer = await this.transformers.AutoTokenizer.from_pretrained(modelName, {
         local_files_only: true,
       });
       console.log('[LocalEmbedding] Tokenizer loaded successfully');
@@ -154,10 +163,18 @@ export class LocalEmbeddingService {
         encoded.attention_mask.dims
       );
 
+      // token_type_ids: 全零，形状与 input_ids 相同（BERT 系模型需要此输入）
+      const tokenTypeIds = new ort.Tensor(
+        'int64',
+        new BigInt64Array(encoded.input_ids.data.length).fill(0n),
+        encoded.input_ids.dims
+      );
+
       // 模型推理
-      const feeds = {
+      const feeds: Record<string, ort.Tensor> = {
         input_ids: inputIds,
         attention_mask: attentionMask,
+        token_type_ids: tokenTypeIds,
       };
 
       const results = await this.session!.run(feeds);

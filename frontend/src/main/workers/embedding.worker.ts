@@ -1,6 +1,5 @@
 import { parentPort, workerData } from 'worker_threads';
 import * as ort from 'onnxruntime-node';
-import { AutoTokenizer } from '@xenova/transformers';
 import * as path from 'path';
 
 /**
@@ -42,10 +41,19 @@ class EmbeddingWorker {
 
     try {
       const modelFile = path.join(this.modelPath, 'model.onnx');
+      const modelsDir = path.dirname(this.modelPath);
+      const modelName = path.basename(this.modelPath);
 
-      // 加载 tokenizer
+      // 加载 tokenizer（设置 cacheDir 避免路径拼接问题）
       console.log('[Worker] Loading tokenizer...');
-      this.tokenizer = await AutoTokenizer.from_pretrained(this.modelPath, {
+      // 用 new Function 绕过 tsc 把 import() 编译成 require() 的问题
+      const dynamicImport = new Function('specifier', 'return import(specifier)');
+      const transformers = await dynamicImport('@xenova/transformers');
+      transformers.env.cacheDir = modelsDir;
+      transformers.env.localModelPath = modelsDir;
+      transformers.env.allowRemoteModels = false;
+
+      this.tokenizer = await transformers.AutoTokenizer.from_pretrained(modelName, {
         local_files_only: true,
       });
 
@@ -106,10 +114,18 @@ class EmbeddingWorker {
         encoded.attention_mask.dims
       );
 
+      // token_type_ids: 全零（BERT 系模型需要）
+      const tokenTypeIds = new ort.Tensor(
+        'int64',
+        new BigInt64Array(encoded.input_ids.data.length).fill(0n),
+        encoded.input_ids.dims
+      );
+
       // 模型推理
       const feeds = {
         input_ids: inputIds,
         attention_mask: attentionMask,
+        token_type_ids: tokenTypeIds,
       };
 
       const results = await this.session.run(feeds);

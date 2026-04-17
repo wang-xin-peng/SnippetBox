@@ -1,9 +1,29 @@
 import { ipcMain } from 'electron';
 import { getDatabaseManager } from '../database';
 import { SnippetManager } from '../services/SnippetManager';
+import { VectorStore } from '../services/VectorStore';
 import { CreateSnippetDTO, UpdateSnippetDTO, SnippetFilter } from '../../shared/types';
 
 let snippetManager: SnippetManager | null = null;
+let vectorStore: VectorStore | null = null;
+
+function getVectorStore(): VectorStore {
+  if (!vectorStore) vectorStore = new VectorStore();
+  return vectorStore;
+}
+
+// 异步生成向量，不阻塞主流程
+function generateVectorAsync(id: string, title: string, code: string) {
+  setImmediate(async () => {
+    try {
+      await getVectorStore().addVector(id, `${title}\n${code}`);
+      console.log(`[SnippetHandlers] Vector generated for snippet: ${id}`);
+    } catch (e) {
+      // 模型未加载时静默失败，不影响片段保存
+      console.warn(`[SnippetHandlers] Vector generation skipped for ${id}:`, (e as any).message);
+    }
+  });
+}
 
 /**
  * 注册片段相关的 IPC 处理器
@@ -28,6 +48,8 @@ export function registerSnippetHandlers() {
       if (!snippetManager) throw new Error('SnippetManager not initialized');
       const snippet = await snippetManager.createSnippet(data);
       console.log('[SnippetHandlers] Snippet created successfully:', snippet.id);
+      // 异步生成向量，不阻塞返回
+      generateVectorAsync(snippet.id, snippet.title, snippet.code);
       return snippet;
     } catch (error) {
       console.error('[SnippetHandlers] Failed to create snippet:', error);
@@ -72,6 +94,15 @@ export function registerSnippetHandlers() {
       if (!snippetManager) throw new Error('SnippetManager not initialized');
       const snippet = await snippetManager.updateSnippet(id, data);
       console.log('[SnippetHandlers] Snippet updated successfully');
+      // 更新向量（先删旧的再生成新的）
+      setImmediate(async () => {
+        try {
+          await getVectorStore().deleteVector(id);
+          await getVectorStore().addVector(id, `${snippet.title}\n${snippet.code}`);
+        } catch (e) {
+          console.warn(`[SnippetHandlers] Vector update skipped for ${id}:`, (e as any).message);
+        }
+      });
       return snippet;
     } catch (error) {
       console.error('[SnippetHandlers] Failed to update snippet:', error);

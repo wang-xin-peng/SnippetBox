@@ -71,63 +71,41 @@ export const DownloadDialog: React.FC<DownloadDialogProps> = ({
   };
 
   const handlePause = async () => {
-    setIsLoading(true);
     try {
       const result = await window.electron.model.pauseDownload();
       if (!result.success) {
-        alert(`暂停失败: ${result.error}`);
+        console.error('暂停失败:', result.error);
       }
     } catch (error: any) {
-      alert(`暂停失败: ${error.message}`);
-    } finally {
-      setIsLoading(false);
+      console.error('暂停失败:', error.message);
     }
   };
 
   const handleResume = async () => {
-    setIsLoading(true);
     try {
       const result = await window.electron.model.resumeDownload();
       if (!result.success) {
-        alert(`恢复失败: ${result.error}`);
+        console.error('恢复失败:', result.error);
       }
     } catch (error: any) {
-      alert(`恢复失败: ${error.message}`);
-    } finally {
-      setIsLoading(false);
+      console.error('恢复失败:', error.message);
     }
   };
 
   const handleCancel = async () => {
-    // 如果是错误状态，直接取消不需要确认
-    if (progress.status !== 'error' && progress.status !== 'cancelled') {
-      if (!confirm('确定要取消下载吗？已下载的内容将被删除。')) {
-        return;
-      }
-    }
-
-    setIsLoading(true);
     try {
       const result = await window.electron.model.cancelDownload();
       if (!result.success) {
-        alert(`取消失败: ${result.error}`);
+        console.error('取消失败:', result.error);
       } else {
-        // 取消成功后重新加载进度
         await loadProgress();
       }
     } catch (error: any) {
-      alert(`取消失败: ${error.message}`);
-    } finally {
-      setIsLoading(false);
+      console.error('取消失败:', error.message);
     }
   };
 
   const handleClose = () => {
-    if (progress.status === 'downloading') {
-      if (!confirm('下载正在进行中，确定要关闭吗？下载将在后台继续。')) {
-        return;
-      }
-    }
     onClose();
   };
 
@@ -161,7 +139,7 @@ export const DownloadDialog: React.FC<DownloadDialogProps> = ({
             onPause={handlePause}
             onResume={handleResume}
             onCancel={handleCancel}
-            disabled={isLoading}
+            disabled={false}
           />
         </div>
       </div>

@@ -51,17 +51,27 @@ export const SettingsPage: React.FC = () => {
       if (result.success) {
         setSearchMode('local');
         
-        // 自动为所有片段生成向量
+        // 监听向量生成完成事件（异步，不阻塞 UI）
+        const removeListener = window.electron.ipcRenderer.on(
+          'embedding:generateVectorsComplete',
+          (_event: any, res: { success: boolean; error?: string }) => {
+            removeListener();
+            if (res.success) {
+              console.log('[Settings] Vector generation completed successfully');
+              alert('模型下载完成！已为所有代码片段生成向量，现在可以使用语义搜索了。');
+            } else {
+              console.error('[Settings] Vector generation failed:', res.error);
+              alert('模型下载完成，但向量生成失败。请在设置中手动重新生成向量。');
+            }
+          }
+        );
+
+        // 触发异步向量生成（立即返回，不阻塞）
         console.log('[Settings] Starting vector generation after model download...');
-        const generateResult = await window.electron.ipcRenderer.invoke('embedding:generateVectors');
-        
-        if (generateResult.success) {
-          console.log('[Settings] Vector generation completed successfully');
-          alert('模型下载完成！已为所有代码片段生成向量，现在可以使用语义搜索了。');
-        } else {
-          console.error('[Settings] Vector generation failed:', generateResult.error);
-          alert('模型下载完成，但向量生成失败。请在设置中手动重新生成向量。');
-        }
+        window.electron.ipcRenderer.invoke('embedding:generateVectors').catch((err: any) => {
+          removeListener();
+          console.error('[Settings] Failed to start vector generation:', err);
+        });
       }
     } catch (error) {
       console.error('保存设置失败:', error);
@@ -124,31 +134,41 @@ export const SettingsPage: React.FC = () => {
       return;
     }
 
-    if (!confirm('确定要重新生成所有代码片段的向量吗？这可能需要一些时间。\n\n注意：生成过程中应用可能会变慢，请耐心等待。')) {
+    if (!confirm('确定要重新生成所有代码片段的向量吗？这可能需要一些时间。\n\n注意：生成过程将在后台进行，完成后会弹出提示。')) {
       return;
     }
 
     setIsGeneratingVectors(true);
     try {
       console.log('[Settings] Starting manual vector generation...');
-      
-      // 使用 setTimeout 让 UI 有机会更新
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
+
+      // 监听完成事件
+      const removeListener = window.electron.ipcRenderer.on(
+        'embedding:generateVectorsComplete',
+        (_event: any, res: { success: boolean; error?: string }) => {
+          removeListener();
+          setIsGeneratingVectors(false);
+          if (res.success) {
+            console.log('[Settings] Vector generation completed successfully');
+            alert('向量生成完成！');
+          } else {
+            console.error('[Settings] Vector generation failed:', res.error);
+            alert(`向量生成失败: ${res.error}`);
+          }
+        }
+      );
+
+      // 触发异步向量生成（立即返回）
       const result = await window.electron.ipcRenderer.invoke('embedding:generateVectors');
-      
-      if (result.success) {
-        console.log('[Settings] Vector generation completed successfully');
-        alert('向量生成完成！');
-      } else {
-        console.error('[Settings] Vector generation failed:', result.error);
+      if (!result.success && !result.async) {
+        removeListener();
+        setIsGeneratingVectors(false);
         alert(`向量生成失败: ${result.error}`);
       }
     } catch (error: any) {
       console.error('[Settings] Vector generation failed:', error);
-      alert(`向量生成失败: ${error.message}`);
-    } finally {
       setIsGeneratingVectors(false);
+      alert(`向量生成失败: ${error.message}`);
     }
   };
 
