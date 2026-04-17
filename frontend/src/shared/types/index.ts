@@ -6,6 +6,7 @@ export interface Snippet {
   language: string;
   category: string;
   tags: string[];
+  starred: boolean;
   createdAt: Date;
   updatedAt: Date;
   accessCount: number;
@@ -27,6 +28,7 @@ export interface UpdateSnippetDTO {
   language?: string;
   category?: string;
   tags?: string[];
+  starred?: boolean;
 }
 
 export interface SnippetFilter {

@@ -22,8 +22,9 @@ export function registerSearchHandlers() {
     
     // 初始化嵌入服务（异步，不阻塞）
     embeddingService.initialize().catch(err => {
-      console.error('[SearchHandlers] Failed to initialize embedding service:', err);
-    });
+      console.warn('[SearchHandlers] Embedding service unavailable (model not downloaded)')
+    })
+
     
     console.log('[SearchHandlers] SearchEngine initialized successfully');
   } catch (error) {
@@ -54,6 +55,15 @@ export function registerSearchHandlers() {
       if (!vectorStore) throw new Error('VectorStore not initialized');
       if (!searchEngine) throw new Error('SearchEngine not initialized');
       
+      // 检查向量数量
+      const vectorCount = await vectorStore.getVectorCount();
+      console.log(`[SearchHandlers] Vector count in DB: ${vectorCount}`);
+      
+      if (vectorCount === 0) {
+        console.warn('[SearchHandlers] No vectors in DB, returning empty results. Please generate vectors first.');
+        return [];
+      }
+
       // 确保嵌入服务已初始化
       if (!embeddingService.isModelLoaded()) {
         console.log('[SearchHandlers] Model not loaded, initializing...');
@@ -63,7 +73,7 @@ export function registerSearchHandlers() {
       // 向量相似度搜索
       console.log('[SearchHandlers] Searching similar vectors...');
       const vectorResults = await vectorStore.search(query, 20);
-      console.log('[SearchHandlers] Found', vectorResults.length, 'vector results');
+      console.log('[SearchHandlers] Found', vectorResults.length, 'vector results:', vectorResults);
       
       // 获取完整的片段信息
       const dbManager = getDatabaseManager();

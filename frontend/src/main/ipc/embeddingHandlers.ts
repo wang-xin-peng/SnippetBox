@@ -113,23 +113,39 @@ export function registerEmbeddingHandlers(): void {
   });
 
   /**
-   * 为所有片段生成向量
+   * 为所有片段生成向量（异步执行，立即返回，通过事件通知进度）
    */
-  ipcMain.handle('embedding:generateVectors', async () => {
+  ipcMain.handle('embedding:generateVectors', async (event) => {
     try {
-      console.log('[EmbeddingHandlers] Starting vector generation...');
-      
-      // 先清空旧向量
-      const { clearAllVectors } = await import('../scripts/clearVectors');
-      clearAllVectors();
-      
-      // 然后生成新向量
-      const { generateVectorsForExistingSnippets } = await import('../scripts/generateVectors');
-      await generateVectorsForExistingSnippets();
-      
-      return { success: true };
+      console.log('[EmbeddingHandlers] Starting vector generation (async)...');
+
+      // 立即返回，在后台异步执行，避免阻塞主进程 IPC 队列
+      setImmediate(async () => {
+        try {
+          const { BrowserWindow } = await import('electron');
+          const win = BrowserWindow.fromWebContents(event.sender);
+
+          const { clearAllVectors } = await import('../scripts/clearVectors');
+          clearAllVectors();
+
+          const { generateVectorsForExistingSnippets } = await import('../scripts/generateVectors');
+          await generateVectorsForExistingSnippets();
+
+          console.log('[EmbeddingHandlers] Vector generation completed');
+          win?.webContents.send('embedding:generateVectorsComplete', { success: true });
+        } catch (err: any) {
+          console.error('[EmbeddingHandlers] Vector generation failed:', err);
+          const { BrowserWindow } = await import('electron');
+          BrowserWindow.getAllWindows()[0]?.webContents.send('embedding:generateVectorsComplete', {
+            success: false,
+            error: err.message,
+          });
+        }
+      });
+
+      return { success: true, async: true };
     } catch (error: any) {
-      console.error('[EmbeddingHandlers] Failed to generate vectors:', error);
+      console.error('[EmbeddingHandlers] Failed to start vector generation:', error);
       return { success: false, error: error.message };
     }
   });

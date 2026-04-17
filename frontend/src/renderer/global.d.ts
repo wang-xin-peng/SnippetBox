@@ -31,6 +31,7 @@ declare global {
     electron: {
       ipcRenderer: {
         invoke: (channel: string, ...args: any[]) => Promise<any>;
+        on: (channel: string, listener: (...args: any[]) => void) => () => void;
       };
       model: {
         getMirrors: () => Promise<MirrorInfo[]>;
@@ -44,6 +45,11 @@ declare global {
         isDownloaded: () => Promise<boolean>;
         getPath: () => Promise<string>;
         onProgress: (callback: (progress: DownloadProgress) => void) => () => void;
+      };
+      search: {
+        keyword: (query: string) => Promise<any[]>;
+        semantic: (query: string) => Promise<any[]>;
+        capability: () => Promise<{ hasKeywordSearch: boolean; hasSemanticSearch: boolean; hasHybridSearch: boolean }>;
       };
     };
   }

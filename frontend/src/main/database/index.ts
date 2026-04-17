@@ -97,14 +97,64 @@ export class DatabaseManager {
     try {
       const columns = this.db.pragma('table_info(tags)') as Array<{ name: string }>;
       const hasUsageCount = columns.some((col) => col.name === 'usage_count');
-      
       if (!hasUsageCount) {
-        console.log('[Database] Adding usage_count column to tags table...');
         this.db.exec('ALTER TABLE tags ADD COLUMN usage_count INTEGER DEFAULT 0');
-        console.log('[Database] Migration completed successfully');
       }
     } catch (error) {
       console.error('[Database] Migration failed:', error);
+    }
+
+    // 迁移：为 snippets 表添加 starred 列
+    try {
+      const cols = this.db.pragma('table_info(snippets)') as Array<{ name: string }>;
+      if (!cols.some(c => c.name === 'starred')) {
+        this.db.exec('ALTER TABLE snippets ADD COLUMN starred INTEGER DEFAULT 0');
+      }
+    } catch (error) {
+      console.error('[Database] starred migration failed:', error);
+    }
+
+    // 迁移：为 categories 表添加 color、icon、updated_at 列
+    try {
+      const catCols = this.db.pragma('table_info(categories)') as Array<{ name: string }>;
+      const catColNames = catCols.map(c => c.name);
+      if (!catColNames.includes('color')) {
+        this.db.exec("ALTER TABLE categories ADD COLUMN color TEXT DEFAULT '#6c757d'");
+      }
+      if (!catColNames.includes('icon')) {
+        this.db.exec("ALTER TABLE categories ADD COLUMN icon TEXT DEFAULT '📁'");
+      }
+      if (!catColNames.includes('updated_at')) {
+        this.db.exec('ALTER TABLE categories ADD COLUMN updated_at INTEGER DEFAULT 0');
+      }
+    } catch (error) {
+      console.error('[Database] categories migration failed:', error);
+    }
+
+    // 预置默认分类（如果分类表为空）
+    try {
+      const count = (this.db.prepare('SELECT COUNT(*) as c FROM categories').get() as any).c;
+      if (count === 0) {
+        const now = Date.now();
+        const defaults = [
+          { name: 'JavaScript', color: '#f7df1e', icon: '🟨' },
+          { name: 'TypeScript', color: '#3178c6', icon: '🔷' },
+          { name: 'Python',     color: '#3572a5', icon: '🐍' },
+          { name: 'CSS',        color: '#563d7c', icon: '🎨' },
+          { name: 'React',      color: '#61dafb', icon: '⚛️' },
+          { name: 'Node.js',    color: '#68a063', icon: '🟢' },
+        ];
+        const insert = this.db.prepare(
+          'INSERT OR IGNORE INTO categories (id, name, color, icon, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
+        );
+        const crypto = require('crypto');
+        for (const d of defaults) {
+          insert.run(crypto.randomUUID(), d.name, d.color, d.icon, now, now);
+        }
+        console.log('[Database] Default categories created');
+      }
+    } catch (error) {
+      console.error('[Database] Default categories failed:', error);
     }
   }
 
