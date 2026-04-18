@@ -108,6 +108,8 @@ async def access_share_page(
     公开访问，不需要认证
     """
     try:
+        logger.info(f"Accessing share: {short_code}")
+        
         # 获取分享信息
         share = await conn.fetchrow("""
             SELECT ss.id, ss.short_code, ss.snippet_id, ss.user_id, ss.password_hash,
@@ -117,6 +119,8 @@ async def access_share_page(
             JOIN cloud_snippets cs ON ss.snippet_id = cs.id
             WHERE ss.short_code = $1
         """, short_code)
+        
+        logger.info(f"Share found: {share is not None}")
         
         if not share:
             return templates.TemplateResponse("share_not_found.html", {
@@ -153,21 +157,27 @@ async def access_share_page(
             WHERE short_code = $1
         """, short_code)
         
+        logger.info(f"Rendering template for: {share['title']}")
+        
         # 返回片段内容页面
-        return templates.TemplateResponse("share.html", {
+        context = {
             "request": request,
             "snippet": {
-                "title": share['title'],
-                "language": share['language'],
-                "code": share['code'],
-                "description": share['description']
+                "title": str(share['title']),
+                "language": str(share['language']),
+                "code": str(share['code']),
+                "description": str(share['description']) if share['description'] else ""
             },
-            "view_count": share['view_count'] + 1,
-            "created_at": share['created_at']
-        })
+            "view_count": int(share['view_count']) + 1,
+            "created_at": str(share['created_at'])
+        }
+        
+        logger.info(f"Template context prepared: {list(context.keys())}")
+        
+        return templates.TemplateResponse("share.html", context)
     
     except Exception as e:
-        logger.error(f"Access share error: {e}")
+        logger.error(f"Access share error: {e}", exc_info=True)
         return templates.TemplateResponse("share_error.html", {
             "request": request,
             "message": "访问出错，请稍后重试"
