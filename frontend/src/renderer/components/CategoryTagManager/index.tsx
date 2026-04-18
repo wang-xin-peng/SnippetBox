@@ -121,7 +121,11 @@ const CategoryTagManager: React.FC<CategoryTagManagerProps> = ({
                 <input
                   type="text"
                   value={newCategory.name}
-                  onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    setNewCategory({ ...newCategory, name: e.target.value });
+                  }}
+                  onClick={(e) => e.stopPropagation()}
                   placeholder="输入分类名称"
                 />
               </div>
@@ -130,7 +134,11 @@ const CategoryTagManager: React.FC<CategoryTagManagerProps> = ({
                 <input
                   type="color"
                   value={newCategory.color}
-                  onChange={(e) => setNewCategory({ ...newCategory, color: e.target.value })}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    setNewCategory({ ...newCategory, color: e.target.value });
+                  }}
+                  onClick={(e) => e.stopPropagation()}
                 />
               </div>
               <div className="form-group">
@@ -138,7 +146,11 @@ const CategoryTagManager: React.FC<CategoryTagManagerProps> = ({
                 <input
                   type="text"
                   value={newCategory.icon}
-                  onChange={(e) => setNewCategory({ ...newCategory, icon: e.target.value })}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    setNewCategory({ ...newCategory, icon: e.target.value });
+                  }}
+                  onClick={(e) => e.stopPropagation()}
                   placeholder="输入 emoji 图标"
                 />
               </div>
@@ -176,21 +188,28 @@ const CategoryTagManager: React.FC<CategoryTagManagerProps> = ({
                       </span>
                       <span className="category-name">{category.name}</span>
                       <div className="category-actions">
-                        <button
-                          className="action-btn edit"
-                          onClick={() => {
-                            setSelectedCategory(category);
-                            setNewCategory({ ...category });
-                          }}
-                        >
-                          编辑
-                        </button>
-                        <button
-                          className="action-btn delete"
-                          onClick={() => onDeleteCategory(category.id)}
-                        >
-                          删除
-                        </button>
+                        {category.name !== '未分类' && (
+                          <>
+                            <button
+                              className="action-btn edit"
+                              onClick={() => {
+                                setSelectedCategory(category);
+                                setNewCategory({ ...category });
+                              }}
+                            >
+                              编辑
+                            </button>
+                            <button
+                              className="action-btn delete"
+                              onClick={() => onDeleteCategory(category.id)}
+                            >
+                              删除
+                            </button>
+                          </>
+                        )}
+                        {category.name === '未分类' && (
+                          <span className="category-system-badge">系统分类</span>
+                        )}
                       </div>
                     </div>
                   ))
@@ -209,7 +228,11 @@ const CategoryTagManager: React.FC<CategoryTagManagerProps> = ({
                 <input
                   type="text"
                   value={newTagName}
-                  onChange={(e) => setNewTagName(e.target.value)}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    setNewTagName(e.target.value);
+                  }}
+                  onClick={(e) => e.stopPropagation()}
                   placeholder="输入标签名称"
                 />
               </div>

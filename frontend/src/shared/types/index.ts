@@ -4,6 +4,7 @@ export interface Snippet {
   title: string;
   code: string;
   language: string;
+  description?: string;
   category: string;
   tags: string[];
   starred: boolean;
@@ -18,6 +19,7 @@ export interface CreateSnippetDTO {
   title: string;
   code: string;
   language: string;
+  description?: string;
   category?: string;
   tags?: string[];
 }
@@ -26,6 +28,7 @@ export interface UpdateSnippetDTO {
   title?: string;
   code?: string;
   language?: string;
+  description?: string;
   category?: string;
   tags?: string[];
   starred?: boolean;

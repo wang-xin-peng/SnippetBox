@@ -112,6 +112,11 @@ export class CategoryManager {
       throw new Error(`Category with id "${id}" not found`);
     }
 
+    // 防止修改"未分类"的名称
+    if (existingCategory.name === '未分类' && dto.name && dto.name !== '未分类') {
+      throw new Error('Cannot rename the "未分类" category');
+    }
+
     if (dto.name) {
       const trimmedName = dto.name.trim();
       if (!trimmedName) {
@@ -162,6 +167,11 @@ export class CategoryManager {
     const existingCategory = await this.getCategoryById(id);
     if (!existingCategory) {
       throw new Error(`Category with id "${id}" not found`);
+    }
+
+    // 防止删除"未分类"
+    if (existingCategory.name === '未分类') {
+      throw new Error('Cannot delete the "未分类" category');
     }
 
     const transaction = this.db.transaction(() => {

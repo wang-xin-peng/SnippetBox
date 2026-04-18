@@ -70,9 +70,9 @@ export function registerSearchHandlers() {
         await embeddingService.initialize();
       }
       
-      // 向量相似度搜索
+      // 向量相似度搜索（增加返回数量）
       console.log('[SearchHandlers] Searching similar vectors...');
-      const vectorResults = await vectorStore.search(query, 20);
+      const vectorResults = await vectorStore.search(query, 30);
       console.log('[SearchHandlers] Found', vectorResults.length, 'vector results:', vectorResults);
       
       // 获取完整的片段信息
@@ -152,26 +152,27 @@ export function registerSearchHandlers() {
       // 合并结果并去重
       const resultMap = new Map();
       
-      // 添加关键词搜索结果
+      // 添加关键词搜索结果（给予较高的基础分数）
       keywordResults.forEach((result: any) => {
         resultMap.set(result.id, {
           ...result,
-          score: result.relevance,
+          score: result.relevance * 2.0, // 提高关键词搜索的权重
           source: 'keyword'
         });
       });
       
-      // 添加语义搜索结果（更高权重）
+      // 添加语义搜索结果
       semanticResults.forEach((result: any) => {
         if (resultMap.has(result.snippet.id)) {
-          // 如果已存在，提高分数
+          // 如果已存在，合并分数（关键词 + 语义）
           const existing = resultMap.get(result.snippet.id);
-          existing.score = Math.max(existing.score, result.similarity * 1.2);
+          existing.score = existing.score + result.similarity * 1.5; // 语义作为补充
           existing.source = 'hybrid';
         } else {
+          // 纯语义结果，分数较低
           resultMap.set(result.snippet.id, {
             ...result.snippet,
-            score: result.similarity,
+            score: result.similarity * 0.8, // 降低纯语义结果的权重
             source: 'semantic'
           });
         }

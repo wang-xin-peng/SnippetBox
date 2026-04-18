@@ -36,7 +36,9 @@
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "update-categories": "npm run build:main && node dist/main/main/scripts/updateCategories.js",
+    "regenerate-vectors": "npm run build:main && node dist/main/main/scripts/regenerateVectors.js"
   },
   "dependencies": {
     "@mapbox/node-pre-gyp": "^2.0.3",

@@ -16,10 +16,11 @@ export async function generateVectorsForExistingSnippets(): Promise<void> {
     const db = dbManager.getDb();
     
     // 获取所有片段
-    const snippets = db.prepare('SELECT id, title, code FROM snippets').all() as Array<{
+    const snippets = db.prepare('SELECT id, title, code, description FROM snippets').all() as Array<{
       id: string;
       title: string;
       code: string;
+      description?: string;
     }>;
     
     console.log(`[GenerateVectors] Found ${snippets.length} snippets`);
@@ -55,15 +56,19 @@ export async function generateVectorsForExistingSnippets(): Promise<void> {
     for (let i = 0; i < snippetsWithoutVectors.length; i++) {
       const snippet = snippetsWithoutVectors[i];
       try {
-        const content = `${snippet.title}\n${snippet.code}`;
+        // 组合标题、描述和代码，提高语义搜索准确性
+        const content = [
+          snippet.title,
+          snippet.description || '',
+          snippet.code
+        ].filter(Boolean).join('\n');
+        
         await vectorStore.addVector(snippet.id, content);
         successCount++;
         console.log(`[GenerateVectors] Generated vector for snippet ${i + 1}/${snippetsWithoutVectors.length}: ${snippet.id} (${snippet.title})`);
         
-        // 每处理 5 个片段后，让出主线程给其他任务
-        if ((i + 1) % 5 === 0) {
-          await new Promise(resolve => setImmediate(resolve));
-        }
+        // 每处理 1 个片段后就让出主线程，避免阻塞 UI
+        await new Promise(resolve => setImmediate(resolve));
       } catch (error) {
         failCount++;
         console.error(`[GenerateVectors] Failed to generate vector for snippet ${snippet.id}:`, error);

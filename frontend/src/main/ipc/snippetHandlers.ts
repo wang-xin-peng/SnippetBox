@@ -13,10 +13,17 @@ function getVectorStore(): VectorStore {
 }
 
 // 异步生成向量，不阻塞主流程
-function generateVectorAsync(id: string, title: string, code: string) {
+function generateVectorAsync(id: string, title: string, code: string, description?: string) {
   setImmediate(async () => {
     try {
-      await getVectorStore().addVector(id, `${title}\n${code}`);
+      // 组合标题、描述和代码，提高语义搜索的准确性
+      const content = [
+        title,
+        description || '',
+        code
+      ].filter(Boolean).join('\n');
+      
+      await getVectorStore().addVector(id, content);
       console.log(`[SnippetHandlers] Vector generated for snippet: ${id}`);
     } catch (e) {
       // 模型未加载时静默失败，不影响片段保存
@@ -49,7 +56,7 @@ export function registerSnippetHandlers() {
       const snippet = await snippetManager.createSnippet(data);
       console.log('[SnippetHandlers] Snippet created successfully:', snippet.id);
       // 异步生成向量，不阻塞返回
-      generateVectorAsync(snippet.id, snippet.title, snippet.code);
+      generateVectorAsync(snippet.id, snippet.title, snippet.code, snippet.description);
       return snippet;
     } catch (error) {
       console.error('[SnippetHandlers] Failed to create snippet:', error);
@@ -98,7 +105,13 @@ export function registerSnippetHandlers() {
       setImmediate(async () => {
         try {
           await getVectorStore().deleteVector(id);
-          await getVectorStore().addVector(id, `${snippet.title}\n${snippet.code}`);
+          // 组合标题、描述和代码
+          const content = [
+            snippet.title,
+            snippet.description || '',
+            snippet.code
+          ].filter(Boolean).join('\n');
+          await getVectorStore().addVector(id, content);
         } catch (e) {
           console.warn(`[SnippetHandlers] Vector update skipped for ${id}:`, (e as any).message);
         }

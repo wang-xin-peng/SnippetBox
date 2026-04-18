@@ -207,6 +207,15 @@
   margin: 0;
 }
 
+.category-system-badge {
+  font-size: 11px;
+  color: #6c757d;
+  background-color: #e9ecef;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
 .tag-item input[type="checkbox"] {
   margin-right: 12px;
 }

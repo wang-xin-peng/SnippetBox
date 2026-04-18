@@ -52,7 +52,7 @@ export class SnippetManager {
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0)
         `
           )
-          .run(id, data.title, data.code, data.language, data.category || null, null, now, now);
+          .run(id, data.title, data.code, data.language, data.category || null, data.description || null, now, now);
 
         // 处理标签
         if (data.tags && data.tags.length > 0) {
@@ -187,6 +187,10 @@ export class SnippetManager {
         if (data.language !== undefined) {
           updates.push('language = ?');
           params.push(data.language);
+        }
+        if (data.description !== undefined) {
+          updates.push('description = ?');
+          params.push(data.description);
         }
         if (data.category !== undefined) {
           updates.push('category_id = ?');
@@ -365,6 +369,7 @@ export class SnippetManager {
       title: dbSnippet.title,
       code: dbSnippet.code,
       language: dbSnippet.language,
+      description: dbSnippet.description || undefined,
       category,
       tags,
       starred: dbSnippet.starred === 1,
@@ -455,7 +460,12 @@ export class SnippetManager {
    * 为片段生成向量
    */
   private generateVectorForSnippet(snippet: Snippet): void {
-    const content = `${snippet.title}\n${snippet.code}`;
+    // 组合标题、描述和代码，提高语义搜索准确性
+    const content = [
+      snippet.title,
+      snippet.description || '',
+      snippet.code
+    ].filter(Boolean).join('\n');
     
     // 添加到队列
     this.vectorGenerationQueue.push({ snippetId: snippet.id, content });

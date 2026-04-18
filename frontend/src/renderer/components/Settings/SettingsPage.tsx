@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DownloadDialog } from '../ModelDownload';
 import './SettingsPage.css';
 
 export const SettingsPage: React.FC = () => {
+  const navigate = useNavigate();
   const [showDownloadDialog, setShowDownloadDialog] = useState(false);
   const [isModelDownloaded, setIsModelDownloaded] = useState(false);
   const [modelPath, setModelPath] = useState<string>('');
   const [searchMode, setSearchMode] = useState<'local' | 'lightweight'>('lightweight');
   const [isGeneratingVectors, setIsGeneratingVectors] = useState(false);
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
     loadSettings();
@@ -35,10 +38,15 @@ export const SettingsPage: React.FC = () => {
   };
 
   const handleDownloadModel = () => {
+    console.log('[Settings] Opening download dialog');
     setShowDownloadDialog(true);
   };
 
   const handleDownloadComplete = async () => {
+    console.log('[Settings] Download complete, closing dialog');
+    // 关闭下载对话框
+    setShowDownloadDialog(false);
+    
     await loadSettings();
     
     // 下载完成后，自动切换到本地模型搜索
@@ -58,10 +66,19 @@ export const SettingsPage: React.FC = () => {
             removeListener();
             if (res.success) {
               console.log('[Settings] Vector generation completed successfully');
-              alert('模型下载完成！已为所有代码片段生成向量，现在可以使用语义搜索了。');
+              setNotification({ 
+                message: '模型下载完成！已为所有代码片段生成向量，现在可以使用语义搜索了。', 
+                type: 'success' 
+              });
+              // 5秒后自动关闭通知
+              setTimeout(() => setNotification(null), 5000);
             } else {
               console.error('[Settings] Vector generation failed:', res.error);
-              alert('模型下载完成，但向量生成失败。请在设置中手动重新生成向量。');
+              setNotification({ 
+                message: '模型下载完成，但向量生成失败。请在设置中手动重新生成向量。', 
+                type: 'error' 
+              });
+              setTimeout(() => setNotification(null), 5000);
             }
           }
         );
@@ -150,10 +167,12 @@ export const SettingsPage: React.FC = () => {
           setIsGeneratingVectors(false);
           if (res.success) {
             console.log('[Settings] Vector generation completed successfully');
-            alert('向量生成完成！');
+            setNotification({ message: '向量生成完成！', type: 'success' });
+            setTimeout(() => setNotification(null), 5000);
           } else {
             console.error('[Settings] Vector generation failed:', res.error);
-            alert(`向量生成失败: ${res.error}`);
+            setNotification({ message: `向量生成失败: ${res.error}`, type: 'error' });
+            setTimeout(() => setNotification(null), 5000);
           }
         }
       );
@@ -163,19 +182,49 @@ export const SettingsPage: React.FC = () => {
       if (!result.success && !result.async) {
         removeListener();
         setIsGeneratingVectors(false);
-        alert(`向量生成失败: ${result.error}`);
+        setNotification({ message: `向量生成失败: ${result.error}`, type: 'error' });
+        setTimeout(() => setNotification(null), 5000);
       }
     } catch (error: any) {
       console.error('[Settings] Vector generation failed:', error);
       setIsGeneratingVectors(false);
-      alert(`向量生成失败: ${error.message}`);
+      setNotification({ message: `向量生成失败: ${error.message}`, type: 'error' });
+      setTimeout(() => setNotification(null), 5000);
     }
   };
 
   return (
     <div className="settings-page">
+      {/* 通知提示 */}
+      {notification && (
+        <div 
+          className={`settings-notification ${notification.type}`}
+          style={{
+            position: 'fixed',
+            top: '20px',
+            right: '20px',
+            padding: '16px 24px',
+            borderRadius: '8px',
+            backgroundColor: notification.type === 'success' ? '#d4edda' : '#f8d7da',
+            color: notification.type === 'success' ? '#155724' : '#721c24',
+            border: `1px solid ${notification.type === 'success' ? '#c3e6cb' : '#f5c6cb'}`,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            zIndex: 10000,
+            maxWidth: '400px',
+            animation: 'slideIn 0.3s ease-out'
+          }}
+        >
+          {notification.message}
+        </div>
+      )}
+      
       <div className="settings-container">
-        <h1 className="settings-title">设置</h1>
+        <div className="settings-header">
+          <button className="btn-back" onClick={() => navigate('/')} title="返回首页">
+            ← 返回
+          </button>
+          <h1 className="settings-title">设置</h1>
+        </div>
 
         {/* 搜索设置 */}
         <section className="settings-section">
@@ -301,7 +350,10 @@ export const SettingsPage: React.FC = () => {
 
       <DownloadDialog
         isOpen={showDownloadDialog}
-        onClose={() => setShowDownloadDialog(false)}
+        onClose={() => {
+          console.log('[Settings] Closing download dialog via onClose');
+          setShowDownloadDialog(false);
+        }}
         onComplete={handleDownloadComplete}
       />
     </div>

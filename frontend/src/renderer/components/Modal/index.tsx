@@ -6,9 +6,10 @@ interface ModalProps {
   onClose: () => void;
   title?: string;
   children: React.ReactNode;
+  width?: string;
 }
 
-function Modal({ isOpen, onClose, title, children }: ModalProps) {
+function Modal({ isOpen, onClose, title, children, width }: ModalProps) {
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -31,7 +32,11 @@ function Modal({ isOpen, onClose, title, children }: ModalProps) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+      <div 
+        className="modal-content" 
+        onClick={(e) => e.stopPropagation()}
+        style={width ? { maxWidth: width, width: '90%' } : undefined}
+      >
         {title && (
           <div className="modal-header">
             <h2 className="modal-title">{title}</h2>

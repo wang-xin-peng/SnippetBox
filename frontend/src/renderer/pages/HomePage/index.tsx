@@ -114,12 +114,14 @@ export default function HomePage() {
     }
     setIsSearching(true);
     try {
+      console.log('[HomePage] Starting semantic search for:', query);
       const results = await (window as any).electron.search.semantic(query);
-      console.log('[HomePage] Semantic results:', results);
+      console.log('[HomePage] Semantic search returned:', results.length, 'results');
+      console.log('[HomePage] Results:', results);
 
       if (results.length === 0 && snippets.length > 0) {
         // 向量库可能是空的，降级到关键词
-        console.warn('[HomePage] Semantic search returned 0 results, vectors may not be generated yet');
+        console.warn('[HomePage] Semantic search returned 0 results, falling back to keyword search');
         applyKeywordFilter(snippets, query, category);
         return;
       }
@@ -130,6 +132,8 @@ export default function HomePage() {
           return snippets.find(sn => sn.id === id) ?? null;
         })
         .filter(Boolean) as Snippet[];
+      
+      console.log('[HomePage] Matched snippets:', matched.length);
       if (category) matched = matched.filter(s => s.category === category);
       setFiltered(matched);
     } catch (e) {

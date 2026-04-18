@@ -44,7 +44,7 @@ export class VectorStore {
     return vectorId;
   }
 
-  async search(query: string, limit = 10): Promise<SearchResult[]> {
+  async search(query: string, limit = 20): Promise<SearchResult[]> {
     this.initDb();
     await this.ensureWorker();
 
@@ -53,16 +53,24 @@ export class VectorStore {
     console.log(`[VectorStore] Found ${vectors.length} vectors in database`);
     if (vectors.length === 0) return [];
 
-    const results = vectors
-      .map(v => ({
-        snippetId: v.snippetId,
-        score: this.cosineSimilarity(queryEmbedding, Array.from(new Float32Array(v.embedding.buffer))),
-      }))
-      .filter(r => r.score >= 0.3) // 过滤掉相似度过低的结果
-      .sort((a, b) => b.score - a.score)
+    // 计算所有相似度
+    const allResults = vectors.map(v => ({
+      snippetId: v.snippetId,
+      score: this.cosineSimilarity(queryEmbedding, Array.from(new Float32Array(v.embedding.buffer))),
+    })).sort((a, b) => b.score - a.score);
+
+    // 显示所有结果的分数（用于调试）
+    console.log(`[VectorStore] Query: "${query}"`);
+    console.log(`[VectorStore] All results with scores:`, 
+      allResults.map(r => ({ id: r.snippetId.substring(0, 8), score: r.score.toFixed(4) }))
+    );
+
+    // 使用更宽松的阈值，因为中文模型的相似度普遍较低
+    const results = allResults
+      .filter(r => r.score >= 0.03) // 非常宽松的阈值
       .slice(0, limit);
 
-    console.log(`[VectorStore] Top results:`, results.map(r => ({ id: r.snippetId, score: r.score.toFixed(4) })));
+    console.log(`[VectorStore] Returning ${results.length} results after filtering (threshold: 0.03)`);
     return results;
   }
 

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
+import CategoryTagManager from '../CategoryTagManager';
 import './Sidebar.css';
 
 interface Category {
@@ -26,34 +27,6 @@ interface SidebarProps {
   refreshKey?: number;
 }
 
-// 根据分类名称返回 emoji 图标和颜色
-function getCategoryStyle(name: string): { icon: string; color: string } {
-  const map: Record<string, { icon: string; color: string }> = {
-    react:      { icon: '⚛️', color: '#61dafb' },
-    javascript: { icon: '🟨', color: '#f7df1e' },
-    typescript: { icon: '🔷', color: '#3178c6' },
-    css:        { icon: '🎨', color: '#563d7c' },
-    html:       { icon: '🌐', color: '#e34c26' },
-    python:     { icon: '🐍', color: '#3572a5' },
-    java:       { icon: '☕', color: '#b07219' },
-    go:         { icon: '🐹', color: '#00add8' },
-    rust:       { icon: '🦀', color: '#dea584' },
-    node:       { icon: '🟢', color: '#68a063' },
-    'node.js':  { icon: '🟢', color: '#68a063' },
-    sql:        { icon: '🗄️', color: '#e38c00' },
-    shell:      { icon: '💻', color: '#89e051' },
-    vue:        { icon: '💚', color: '#42b883' },
-    angular:    { icon: '🔴', color: '#dd0031' },
-    swift:      { icon: '🍎', color: '#fa7343' },
-    kotlin:     { icon: '🟣', color: '#7f52ff' },
-    php:        { icon: '🐘', color: '#777bb4' },
-    ruby:       { icon: '💎', color: '#cc342d' },
-    dart:       { icon: '🎯', color: '#0175c2' },
-  };
-  const key = name.toLowerCase();
-  return map[key] || { icon: '📁', color: '#8b949e' };
-}
-
 function Sidebar({
   onCategorySelect,
   selectedCategory,
@@ -65,14 +38,29 @@ function Sidebar({
   const [categories, setCategories] = useState<Category[]>([]);
   const [snippets, setSnippets] = useState<SnippetItem[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
+  const [tags, setTags] = useState<any[]>([]);
 
   const loadData = useCallback(async () => {
     try {
       const api = (window as any).electronAPI;
-      const [cats, snips] = await Promise.all([api.category.list(), api.snippet.list()]);
-      setCategories(cats);
+      const [cats, snips, tagList] = await Promise.all([
+        api.category.list(), 
+        api.snippet.list(),
+        api.tag.list()
+      ]);
+      
+      // 将"未分类"放到最后
+      const sortedCats = cats.sort((a: Category, b: Category) => {
+        if (a.name === '未分类') return 1;
+        if (b.name === '未分类') return -1;
+        return 0;
+      });
+      
+      setCategories(sortedCats);
       setSnippets(snips);
-      setExpanded(new Set(cats.map((c: Category) => c.id)));
+      setTags(tagList || []);
+      setExpanded(new Set(sortedCats.map((c: Category) => c.id)));
     } catch (e) {
       console.error('Sidebar load failed:', e);
     }
@@ -91,6 +79,77 @@ function Sidebar({
   const getSnippets = (catId: string, catName: string) => snippets.filter(s => s.category === catName || s.category === catId);
   const getCount = (catId: string, catName: string) => getSnippets(catId, catName).length;
   const favCount = snippets.filter(s => s.starred).length;
+
+  // 分类管理操作
+  const handleAddCategory = async (category: Omit<Category, 'id'>) => {
+    try {
+      await (window as any).electronAPI.category.create(category);
+      await loadData();
+    } catch (e) {
+      console.error('Failed to add category:', e);
+      alert('添加分类失败：' + (e as Error).message);
+    }
+  };
+
+  const handleUpdateCategory = async (category: Category) => {
+    try {
+      await (window as any).electronAPI.category.update(category.id, {
+        name: category.name,
+        color: category.color,
+        icon: category.icon
+      });
+      await loadData();
+    } catch (e) {
+      console.error('Failed to update category:', e);
+      alert('更新分类失败：' + (e as Error).message);
+    }
+  };
+
+  const handleDeleteCategory = async (categoryId: string) => {
+    if (!confirm('确定要删除这个分类吗？该分类下的代码片段会被移到"未分类"。')) {
+      return;
+    }
+    try {
+      await (window as any).electronAPI.category.delete(categoryId);
+      await loadData();
+    } catch (e) {
+      console.error('Failed to delete category:', e);
+      alert('删除分类失败：' + (e as Error).message);
+    }
+  };
+
+  const handleAddTag = async (tag: { name: string }) => {
+    try {
+      await (window as any).electronAPI.tag.create(tag);
+      await loadData();
+    } catch (e) {
+      console.error('Failed to add tag:', e);
+      alert('添加标签失败：' + (e as Error).message);
+    }
+  };
+
+  const handleDeleteTag = async (tagId: string) => {
+    if (!confirm('确定要删除这个标签吗？')) {
+      return;
+    }
+    try {
+      await (window as any).electronAPI.tag.delete(tagId);
+      await loadData();
+    } catch (e) {
+      console.error('Failed to delete tag:', e);
+      alert('删除标签失败：' + (e as Error).message);
+    }
+  };
+
+  const handleMergeTags = async (sourceId: string, targetId: string) => {
+    try {
+      await (window as any).electronAPI.tag.merge(sourceId, targetId);
+      await loadData();
+    } catch (e) {
+      console.error('Failed to merge tags:', e);
+      alert('合并标签失败：' + (e as Error).message);
+    }
+  };
 
   return (
     <div className="sidebar">
@@ -111,6 +170,13 @@ function Sidebar({
         <div className="category-header">
           <span className="category-header-title">分类</span>
           <button
+            className="category-header-manage"
+            onClick={() => setShowCategoryManager(true)}
+            title="管理分类和标签"
+          >
+            ⚙️
+          </button>
+          <button
             className={`category-header-all ${!selectedCategory && !showingFavorites ? 'active' : ''}`}
             onClick={() => onCategorySelect?.(null)}
           >
@@ -119,7 +185,6 @@ function Sidebar({
         </div>
 
         {categories.map(cat => {
-          const style = getCategoryStyle(cat.name);
           const isOpen = expanded.has(cat.id);
           const isActive = selectedCategory === cat.name || selectedCategory === cat.id;
           const children = getSnippets(cat.id, cat.name);
@@ -132,7 +197,9 @@ function Sidebar({
                 onClick={() => { toggle(cat.id); onCategorySelect?.(cat.name); }}
               >
                 <span className={`category-chevron ${isOpen ? 'open' : ''}`}>›</span>
-                <span className="category-icon">{style.icon}</span>
+                <span className="category-icon" style={{ color: cat.color || '#8b949e' }}>
+                  {cat.icon || '📁'}
+                </span>
                 <span className="category-name">{cat.name}</span>
                 <span className="category-badge">{count}</span>
               </div>
@@ -165,6 +232,22 @@ function Sidebar({
           <span>设置</span>
         </NavLink>
       </div>
+
+      {/* 分类和标签管理器 */}
+      {showCategoryManager && (
+        <CategoryTagManager
+          isOpen={showCategoryManager}
+          onClose={() => setShowCategoryManager(false)}
+          categories={categories}
+          tags={tags}
+          onAddCategory={handleAddCategory}
+          onUpdateCategory={handleUpdateCategory}
+          onDeleteCategory={handleDeleteCategory}
+          onAddTag={handleAddTag}
+          onDeleteTag={handleDeleteTag}
+          onMergeTags={handleMergeTags}
+        />
+      )}
     </div>
   );
 }
