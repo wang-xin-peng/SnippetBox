@@ -44,9 +44,11 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - DEBUG=True
       - HF_ENDPOINT=https://hf-mirror.com
+      - JWT_SECRET_KEY=your-secret-key-change-this-in-production
+      - JWT_ALGORITHM=HS256
     volumes:
       - .:/app
-      - models_cache:/app/models
+      - models_cache:/app/.cache/models
     depends_on:
       postgres:
         condition: service_healthy
