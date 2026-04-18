@@ -22,8 +22,17 @@ router = APIRouter()
 
 # 模板配置（用于短链接访问页面）
 import os
+from jinja2 import Environment, FileSystemLoader
+
 template_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "templates")
-templates = Jinja2Templates(directory=template_dir)
+
+# 创建Jinja2环境，禁用缓存避免unhashable type错误
+jinja_env = Environment(
+    loader=FileSystemLoader(template_dir),
+    autoescape=True,
+    cache_size=0  # 禁用缓存
+)
+templates = Jinja2Templates(env=jinja_env)
 
 
 @router.post("/api/v1/share", response_model=ShareResponse, status_code=status.HTTP_201_CREATED)
