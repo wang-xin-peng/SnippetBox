@@ -55,6 +55,13 @@ class Settings(BaseSettings):
     # 速率限制
     RATE_LIMIT_PER_MINUTE: int = 60
     
+    # JWT 配置
+    JWT_SECRET_KEY: str = "your-secret-key-change-in-production"
+    JWT_ALGORITHM: str = "HS256"
+    
+    # 短链接配置
+    BASE_URL: str = "http://localhost:8000"
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

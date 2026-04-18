@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ snippet.title }} - SnippetBox</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #0d1117;
+            color: #c9d1d9;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #30363d;
+        }
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #58a6ff;
+        }
+        .download-link {
+            color: #58a6ff;
+            text-decoration: none;
+            padding: 8px 16px;
+            border: 1px solid #58a6ff;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        .download-link:hover {
+            background: #58a6ff;
+            color: #0d1117;
+        }
+        .snippet-card {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .snippet-header {
+            padding: 20px;
+            border-bottom: 1px solid #30363d;
+        }
+        .snippet-title {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        .snippet-meta {
+            display: flex;
+            gap: 20px;
+            font-size: 14px;
+            color: #8b949e;
+        }
+        .snippet-meta span {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .snippet-description {
+            padding: 20px;
+            color: #8b949e;
+            border-bottom: 1px solid #30363d;
+        }
+        .code-container {
+            position: relative;
+        }
+        .copy-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #21262d;
+            color: #c9d1d9;
+            border: 1px solid #30363d;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .copy-button:hover {
+            background: #30363d;
+        }
+        .copy-button.copied {
+            background: #238636;
+            border-color: #238636;
+        }
+        pre {
+            margin: 0;
+            padding: 20px;
+            overflow-x: auto;
+        }
+        code {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+        }
+        .footer {
+            margin-top: 30px;
+            text-align: center;
+            color: #8b949e;
+            font-size: 14px;
+        }
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            .header {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+            .snippet-meta {
+                flex-direction: column;
+                gap: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">📦 SnippetBox</div>
+            <a href="https://github.com/snippetbox" class="download-link">下载 SnippetBox</a>
+        </div>
+
+        <div class="snippet-card">
+            <div class="snippet-header">
+                <h1 class="snippet-title">{{ snippet.title }}</h1>
+                <div class="snippet-meta">
+                    <span>🔤 {{ snippet.language }}</span>
+                    <span>👁️ {{ view_count }} 次查看</span>
+                    <span>📅 {{ created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+                </div>
+            </div>
+
+            {% if snippet.description %}
+            <div class="snippet-description">
+                {{ snippet.description }}
+            </div>
+            {% endif %}
+
+            <div class="code-container">
+                <button class="copy-button" onclick="copyCode()">复制代码</button>
+                <pre><code class="language-{{ snippet.language }}">{{ snippet.code }}</code></pre>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>由 <strong>SnippetBox</strong> 提供支持 - 专业的代码片段管理工具</p>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script>
+        // 语法高亮
+        hljs.highlightAll();
+
+        // 复制代码
+        function copyCode() {
+            const code = document.querySelector('code').textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const button = document.querySelector('.copy-button');
+                button.textContent = '✓ 已复制';
+                button.classList.add('copied');
+                setTimeout(() => {
+                    button.textContent = '复制代码';
+                    button.classList.remove('copied');
+                }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>
