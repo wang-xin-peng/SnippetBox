@@ -21,7 +21,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # 模板配置（用于短链接访问页面）
-templates = Jinja2Templates(directory="templates")
+import os
+template_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "templates")
+templates = Jinja2Templates(directory=template_dir)
 
 
 @router.post("/api/v1/share", response_model=ShareResponse, status_code=status.HTTP_201_CREATED)
