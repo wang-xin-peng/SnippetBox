@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
 
-from api.v1 import embedding, vectors, auth, snippets, sync, share
+from api.v1 import embedding, vectors, auth, snippets, sync, share, vector_sync
 from services.embedding import EmbeddingService
 from database.connection import init_db, close_db_pool
 from config import settings
@@ -89,6 +89,7 @@ app.include_router(auth.router, prefix="/api/v1", tags=["auth"])
 app.include_router(snippets.router, prefix="/api/v1", tags=["snippets"])
 app.include_router(sync.router, prefix="/api/v1", tags=["sync"])
 app.include_router(share.router, prefix="/api/v1", tags=["share"])
+app.include_router(vector_sync.router, prefix="/api/v1", tags=["vector-sync"])
 app.include_router(embedding.router, prefix="/api/v1", tags=["embedding"])
 app.include_router(vectors.router, prefix="/api/v1", tags=["vectors"])
 
