@@ -140,32 +140,31 @@ async def access_share_page(
         logger.info(f"Share found: {share is not None}")
         
         if not share:
-            return templates.TemplateResponse("share_not_found.html", {
-                "request": request,
-                "message": "分享不存在或已被删除"
-            })
+            template = templates.env.get_template("share_not_found.html")
+            html_content = template.render({"request": request, "message": "分享不存在或已被删除"})
+            from fastapi.responses import HTMLResponse
+            return HTMLResponse(content=html_content, status_code=404)
         
         # 检查是否过期
         if share['expires_at'] < datetime.utcnow():
-            return templates.TemplateResponse("share_expired.html", {
-                "request": request,
-                "message": "分享已过期"
-            })
+            template = templates.env.get_template("share_expired.html")
+            html_content = template.render({"request": request, "message": "分享已过期"})
+            from fastapi.responses import HTMLResponse
+            return HTMLResponse(content=html_content, status_code=410)
         
         # 检查密码
         if share['password_hash']:
             if not password:
-                return templates.TemplateResponse("share_password.html", {
-                    "request": request,
-                    "short_code": short_code
-                })
+                template = templates.env.get_template("share_password.html")
+                html_content = template.render({"request": request, "short_code": short_code})
+                from fastapi.responses import HTMLResponse
+                return HTMLResponse(content=html_content, status_code=200)
             
             if not AuthService.verify_password(password, share['password_hash']):
-                return templates.TemplateResponse("share_password.html", {
-                    "request": request,
-                    "short_code": short_code,
-                    "error": "密码错误"
-                })
+                template = templates.env.get_template("share_password.html")
+                html_content = template.render({"request": request, "short_code": short_code, "error": "密码错误"})
+                from fastapi.responses import HTMLResponse
+                return HTMLResponse(content=html_content, status_code=401)
         
         # 增加访问计数
         await conn.execute("""
@@ -191,14 +190,19 @@ async def access_share_page(
         
         logger.info(f"Template context prepared: {list(context.keys())}")
         
-        return templates.TemplateResponse("share.html", context)
+        # 直接使用Jinja2渲染，避免Starlette的TemplateResponse问题
+        template = templates.env.get_template("share.html")
+        html_content = template.render(context)
+        
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse(content=html_content, status_code=200)
     
     except Exception as e:
         logger.error(f"Access share error: {e}", exc_info=True)
-        return templates.TemplateResponse("share_error.html", {
-            "request": request,
-            "message": "访问出错，请稍后重试"
-        })
+        template = templates.env.get_template("share_error.html")
+        html_content = template.render({"request": request, "message": "访问出错，请稍后重试"})
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse(content=html_content, status_code=500)
 
 
 @router.get("/api/v1/share/{short_code}/info", response_model=ShareInfo)
