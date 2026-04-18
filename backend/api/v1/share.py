@@ -24,7 +24,7 @@ router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
 
-@router.post("/share", response_model=ShareResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/api/v1/share", response_model=ShareResponse, status_code=status.HTTP_201_CREATED)
 async def create_share(
     share_request: ShareCreate,
     current_user: dict = Depends(get_current_user),
@@ -172,7 +172,7 @@ async def access_share_page(
         })
 
 
-@router.get("/share/{short_code}/info", response_model=ShareInfo)
+@router.get("/api/v1/share/{short_code}/info", response_model=ShareInfo)
 async def get_share_info(
     short_code: str,
     current_user: dict = Depends(get_current_user),
@@ -209,7 +209,7 @@ async def get_share_info(
     )
 
 
-@router.get("/shares", response_model=List[ShareInfo])
+@router.get("/api/v1/shares", response_model=List[ShareInfo])
 async def list_shares(
     current_user: dict = Depends(get_current_user),
     conn: asyncpg.Connection = Depends(get_db_connection)
@@ -243,7 +243,7 @@ async def list_shares(
     ]
 
 
-@router.delete("/share/{short_code}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/api/v1/share/{short_code}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_share(
     short_code: str,
     current_user: dict = Depends(get_current_user),
@@ -268,7 +268,7 @@ async def delete_share(
         )
 
 
-@router.get("/share/{short_code}/stats", response_model=ShareStats)
+@router.get("/api/v1/share/{short_code}/stats", response_model=ShareStats)
 async def get_share_stats(
     short_code: str,
     current_user: dict = Depends(get_current_user),

@@ -98,8 +98,10 @@ async def health_check():
 app.include_router(auth.router, prefix="/api/v1", tags=["auth"])
 app.include_router(snippets.router, prefix="/api/v1", tags=["snippets"])
 app.include_router(sync.router, prefix="/api/v1", tags=["sync"])
-app.include_router(share.router, prefix="/api/v1", tags=["share"])
 app.include_router(vector_sync.router, prefix="/api/v1", tags=["vector-sync"])
+
+# 分享路由（包含公开访问的短链接）
+app.include_router(share.router, tags=["share"])
 
 # 可选的嵌入服务路由
 if EMBEDDING_AVAILABLE:
