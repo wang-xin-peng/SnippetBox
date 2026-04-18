@@ -25,11 +25,8 @@ import os
 template_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "templates")
 templates = Jinja2Templates(directory=template_dir)
 
-# 禁用Jinja2缓存以避免unhashable type错误
-# 通过设置bytecode_cache为None来禁用字节码缓存
-templates.env.bytecode_cache = None
-# 设置auto_reload确保模板总是重新加载
-templates.env.auto_reload = True
+# 完全禁用Jinja2缓存 - 将cache设为None而不是字典
+templates.env.cache = None
 
 
 @router.post("/api/v1/share", response_model=ShareResponse, status_code=status.HTTP_201_CREATED)
