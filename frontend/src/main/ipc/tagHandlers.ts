@@ -19,9 +19,9 @@ export function registerTagHandlers() {
     return tagManager.getTagById(id);
   });
 
-  ipcMain.handle('tag:create', async (_event, name: string) => {
+  ipcMain.handle('tag:create', async (_event, dto: { name: string }) => {
     if (!tagManager) throw new Error('TagManager not initialized');
-    return tagManager.createTag({ name });
+    return tagManager.createTag(dto);
   });
 
   ipcMain.handle('tag:findByName', async (_event, name: string) => {

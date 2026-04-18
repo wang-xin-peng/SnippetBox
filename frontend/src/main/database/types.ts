@@ -10,6 +10,7 @@ export interface Snippet {
   title: string;
   content: string;
   language: string;
+  description?: string;
   category_id?: string;
   tags: string;
   created_at: string;

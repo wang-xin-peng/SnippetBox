@@ -16,9 +16,9 @@ export class LocalEmbeddingService {
   private transformers: any = null;
 
   constructor() {
-    // 模型存储路径
+    // 模型存储路径 - 使用多语言模型
     const userDataPath = app.getPath('userData');
-    this.modelPath = path.join(userDataPath, 'models', 'all-MiniLM-L6-v2');
+    this.modelPath = path.join(userDataPath, 'models', 'paraphrase-multilingual-MiniLM-L12-v2');
   }
 
   /**
@@ -284,7 +284,7 @@ export class LocalEmbeddingService {
    */
   getModelInfo(): { name: string; path: string; loaded: boolean } {
     return {
-      name: 'all-MiniLM-L6-v2',
+      name: 'paraphrase-multilingual-MiniLM-L12-v2',
       path: this.modelPath,
       loaded: this.isModelLoaded(),
     };

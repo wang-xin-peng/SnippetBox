@@ -131,10 +131,24 @@ export function registerEmbeddingHandlers(): void {
           const { generateVectorsForExistingSnippets } = await import('../scripts/generateVectors');
           await generateVectorsForExistingSnippets();
 
-          console.log('[EmbeddingHandlers] Vector generation completed');
+          console.log('[EmbeddingHandlers] Vector generation completed, waiting for cleanup...');
+          
+          // 等待更长时间，确保所有清理工作完成
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          // 多次让出主线程，确保 UI 完全恢复响应
+          for (let i = 0; i < 5; i++) {
+            await new Promise(resolve => setImmediate(resolve));
+          }
+          
+          console.log('[EmbeddingHandlers] Cleanup complete, sending notification');
           win?.webContents.send('embedding:generateVectorsComplete', { success: true });
         } catch (err: any) {
           console.error('[EmbeddingHandlers] Vector generation failed:', err);
+          
+          // 等待一小段时间再发送错误通知
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
           const { BrowserWindow } = await import('electron');
           BrowserWindow.getAllWindows()[0]?.webContents.send('embedding:generateVectorsComplete', {
             success: false,

@@ -11,11 +11,39 @@
   padding: 40px 20px;
 }
 
+.settings-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.btn-back {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 16px;
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  color: #495057;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-back:hover {
+  background: #f8f9fa;
+  border-color: #adb5bd;
+  color: #212529;
+}
+
 .settings-title {
   font-size: 32px;
   font-weight: 700;
   color: #212529;
-  margin-bottom: 32px;
+  margin: 0;
 }
 
 .settings-section {
@@ -226,4 +254,20 @@
   .model-status {
     min-width: 100%;
   }
+}
+
+/* 通知动画 */
+@keyframes slideIn {
+  from {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.settings-notification {
+  animation: slideIn 0.3s ease-out;
 }

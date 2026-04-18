@@ -144,12 +144,18 @@ export const INIT_SCRIPTS = [
   ...CREATE_FTS_TRIGGERS,
 ];
 
-// 默认数据
+// 默认数据 - 按用途分类
 export const DEFAULT_CATEGORIES = [
-  { id: 'cat_1', name: 'Uncategorized', description: 'Default category', color: '#6B7280', icon: '📁' },
-  { id: 'cat_2', name: 'Algorithm', description: 'Algorithm snippets', color: '#3B82F6', icon: '🧮' },
-  { id: 'cat_3', name: 'UI Components', description: 'UI component snippets', color: '#8B5CF6', icon: '🎨' },
-  { id: 'cat_4', name: 'Utils', description: 'Utility functions', color: '#10B981', icon: '🔧' },
+  { id: 'cat_default', name: '未分类', description: '未分类的代码片段', color: '#6B7280', icon: '📁' },
+  { id: 'cat_algorithm', name: '算法', description: '排序、搜索、动态规划等算法实现', color: '#3B82F6', icon: '🧮' },
+  { id: 'cat_data_structure', name: '数据结构', description: '链表、树、图、栈、队列等数据结构', color: '#10B981', icon: '🗂️' },
+  { id: 'cat_ui', name: 'UI组件', description: '可复用的界面组件和样式', color: '#8B5CF6', icon: '🎨' },
+  { id: 'cat_utils', name: '工具函数', description: '通用工具函数和辅助方法', color: '#F59E0B', icon: '🔧' },
+  { id: 'cat_database', name: '数据库操作', description: 'SQL查询、ORM操作、数据库优化', color: '#EF4444', icon: '💾' },
+  { id: 'cat_api', name: 'API接口', description: 'HTTP请求、接口调用、API封装', color: '#06B6D4', icon: '🌐' },
+  { id: 'cat_config', name: '配置文件', description: '项目配置、环境变量、构建配置', color: '#84CC16', icon: '⚙️' },
+  { id: 'cat_hooks', name: 'Hooks/钩子', description: 'React Hooks、Vue Composition API等', color: '#EC4899', icon: '🪝' },
+  { id: 'cat_validation', name: '验证/校验', description: '表单验证、数据校验、正则表达式', color: '#F97316', icon: '✅' },
 ];
 
 // 初始化默认设置

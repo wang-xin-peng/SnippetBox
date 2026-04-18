@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import { runMigrations } from './migrations';
 
 export class DatabaseManager {
   private static instance: DatabaseManager;
@@ -133,28 +134,9 @@ export class DatabaseManager {
 
     // 预置默认分类（如果分类表为空）
     try {
-      const count = (this.db.prepare('SELECT COUNT(*) as c FROM categories').get() as any).c;
-      if (count === 0) {
-        const now = Date.now();
-        const defaults = [
-          { name: 'JavaScript', color: '#f7df1e', icon: '🟨' },
-          { name: 'TypeScript', color: '#3178c6', icon: '🔷' },
-          { name: 'Python',     color: '#3572a5', icon: '🐍' },
-          { name: 'CSS',        color: '#563d7c', icon: '🎨' },
-          { name: 'React',      color: '#61dafb', icon: '⚛️' },
-          { name: 'Node.js',    color: '#68a063', icon: '🟢' },
-        ];
-        const insert = this.db.prepare(
-          'INSERT OR IGNORE INTO categories (id, name, color, icon, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
-        );
-        const crypto = require('crypto');
-        for (const d of defaults) {
-          insert.run(crypto.randomUUID(), d.name, d.color, d.icon, now, now);
-        }
-        console.log('[Database] Default categories created');
-      }
+      runMigrations(this.db);
     } catch (error) {
-      console.error('[Database] Default categories failed:', error);
+      console.error('[Database] Default categories migration failed:', error);
     }
   }
 

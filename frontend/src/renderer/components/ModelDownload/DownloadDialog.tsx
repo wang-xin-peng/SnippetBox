@@ -27,8 +27,16 @@ export const DownloadDialog: React.FC<DownloadDialogProps> = ({
   const [selectedMirror, setSelectedMirror] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
 
+  // 调试日志
+  useEffect(() => {
+    console.log('[DownloadDialog] isOpen changed:', isOpen);
+  }, [isOpen]);
+
   useEffect(() => {
     if (isOpen) {
+      // 防止背景滚动
+      document.body.style.overflow = 'hidden';
+      
       loadProgress();
       
       // 监听进度更新
@@ -43,7 +51,12 @@ export const DownloadDialog: React.FC<DownloadDialogProps> = ({
 
       return () => {
         removeListener();
+        // 恢复背景滚动
+        document.body.style.overflow = 'unset';
       };
+    } else {
+      // 确保关闭时恢复滚动
+      document.body.style.overflow = 'unset';
     }
   }, [isOpen, onComplete]);
 
@@ -106,20 +119,40 @@ export const DownloadDialog: React.FC<DownloadDialogProps> = ({
   };
 
   const handleClose = () => {
+    // 强制清理 body 样式
+    document.body.style.overflow = 'unset';
+    console.log('[DownloadDialog] Closing dialog, body overflow reset');
     onClose();
   };
 
-  if (!isOpen) return null;
+  if (!isOpen) {
+    console.log('[DownloadDialog] Not rendering (isOpen=false)');
+    return null;
+  }
+
+  console.log('[DownloadDialog] Rendering dialog, progress status:', progress.status);
 
   return (
-    <div className="download-dialog-overlay">
-      <div className="download-dialog">
+    <div 
+      className="download-dialog-overlay" 
+      onClick={(e) => {
+        console.log('[DownloadDialog] Overlay clicked');
+        // 点击背景关闭（仅在非下载状态）
+        if (e.target === e.currentTarget && progress.status !== 'downloading') {
+          handleClose();
+        }
+      }}
+    >
+      <div className="download-dialog" onClick={(e) => {
+        console.log('[DownloadDialog] Dialog clicked');
+        e.stopPropagation();
+      }}>
         <div className="dialog-header">
           <h2 className="dialog-title">模型下载</h2>
           <button 
             className="close-btn"
             onClick={handleClose}
-            disabled={isLoading}
+            disabled={isLoading || progress.status === 'downloading'}
           >
             ×
           </button>

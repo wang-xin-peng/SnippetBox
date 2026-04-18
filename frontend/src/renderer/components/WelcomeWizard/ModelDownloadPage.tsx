@@ -24,6 +24,8 @@ export function ModelDownloadPage({
   };
 
   const handleDownloadComplete = () => {
+    // 关闭下载对话框
+    setShowDownloadDialog(false);
     // 下载完成后可以自动进入下一步
     console.log('模型下载完成');
   };
