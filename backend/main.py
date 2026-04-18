@@ -7,8 +7,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
 
-from api.v1 import embedding, vectors, auth, snippets, sync, share, vector_sync
-from services.embedding import EmbeddingService
+from api.v1 import auth, snippets, sync, share, vector_sync
+try:
+    from api.v1 import embedding, vectors
+    from services.embedding import EmbeddingService
+    EMBEDDING_AVAILABLE = True
+except ImportError:
+    EMBEDDING_AVAILABLE = False
+    
 from database.connection import init_db, close_db_pool
 from config import settings
 
@@ -34,13 +40,17 @@ async def lifespan(app: FastAPI):
         logger.error(f"Database initialization failed: {e}")
     
     # 初始化嵌入服务（懒加载，首次调用时才加载模型）
-    app.state.embedding_service = EmbeddingService()
+    if EMBEDDING_AVAILABLE:
+        app.state.embedding_service = EmbeddingService()
+        logger.info("Embedding service initialized")
+    else:
+        logger.warning("Embedding service not available (missing dependencies)")
     
     yield
     
     # 关闭时
     logger.info("Shutting down SnippetBox API...")
-    if hasattr(app.state, 'embedding_service'):
+    if EMBEDDING_AVAILABLE and hasattr(app.state, 'embedding_service'):
         await app.state.embedding_service.cleanup()
     
     # 关闭数据库连接池
@@ -90,8 +100,11 @@ app.include_router(snippets.router, prefix="/api/v1", tags=["snippets"])
 app.include_router(sync.router, prefix="/api/v1", tags=["sync"])
 app.include_router(share.router, prefix="/api/v1", tags=["share"])
 app.include_router(vector_sync.router, prefix="/api/v1", tags=["vector-sync"])
-app.include_router(embedding.router, prefix="/api/v1", tags=["embedding"])
-app.include_router(vectors.router, prefix="/api/v1", tags=["vectors"])
+
+# 可选的嵌入服务路由
+if EMBEDDING_AVAILABLE:
+    app.include_router(embedding.router, prefix="/api/v1", tags=["embedding"])
+    app.include_router(vectors.router, prefix="/api/v1", tags=["vectors"])
 
 
 if __name__ == "__main__":
