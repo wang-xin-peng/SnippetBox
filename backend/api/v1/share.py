@@ -23,7 +23,10 @@ router = APIRouter()
 # 模板配置（用于短链接访问页面）
 import os
 template_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "templates")
+
+# 创建Jinja2Templates并禁用缓存
 templates = Jinja2Templates(directory=template_dir)
+templates.env.cache = {}  # 禁用缓存避免unhashable type错误
 
 
 @router.post("/api/v1/share", response_model=ShareResponse, status_code=status.HTTP_201_CREATED)
@@ -169,7 +172,7 @@ async def access_share_page(
                 "description": str(share['description']) if share['description'] else ""
             },
             "view_count": int(share['view_count']) + 1,
-            "created_at": str(share['created_at'])
+            "created_at": share['created_at']  # 保持datetime对象
         }
         
         logger.info(f"Template context prepared: {list(context.keys())}")
