@@ -22,11 +22,25 @@ router = APIRouter()
 
 # 模板配置（用于短链接访问页面）
 import os
-template_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "templates")
-templates = Jinja2Templates(directory=template_dir)
+from jinja2 import FileSystemLoader
 
-# 完全禁用Jinja2缓存 - 将cache设为None而不是字典
-templates.env.cache = None
+template_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "templates")
+
+# 创建一个简单的无操作缓存类
+class NoOpCache:
+    """不执行任何缓存操作的缓存类"""
+    def get(self, key):
+        return None
+    
+    def __getitem__(self, key):
+        raise KeyError(key)
+    
+    def __setitem__(self, key, value):
+        pass
+
+templates = Jinja2Templates(directory=template_dir)
+# 使用无操作缓存替代默认缓存
+templates.env.cache = NoOpCache()
 
 
 @router.post("/api/v1/share", response_model=ShareResponse, status_code=status.HTTP_201_CREATED)
