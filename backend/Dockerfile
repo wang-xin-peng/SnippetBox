@@ -11,10 +11,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # 复制依赖文件
-COPY requirements.txt .
+COPY requirements-docker.txt .
 
-# 安装 Python 依赖
-RUN pip install --no-cache-dir -r requirements.txt
+# 升级 pip 并安装 Python 依赖
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements-docker.txt
 
 # 复制应用代码
 COPY . .
