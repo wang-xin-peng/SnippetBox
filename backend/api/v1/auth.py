@@ -2,6 +2,7 @@
 认证 API 端点
 """
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials
 import asyncpg
 from datetime import datetime
 import logging
@@ -9,7 +10,7 @@ import logging
 from models.user import UserCreate, UserLogin, UserResponse, TokenResponse, TokenRefresh
 from services.auth import AuthService
 from database.connection import get_db_connection
-from middleware.auth import get_current_user
+from middleware.auth import get_current_user, security
 
 logger = logging.getLogger(__name__)
 
@@ -150,6 +151,7 @@ async def refresh_token(
 
 @router.post("/auth/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
     current_user: dict = Depends(get_current_user),
     conn: asyncpg.Connection = Depends(get_db_connection)
 ):
@@ -159,10 +161,12 @@ async def logout(
     将当前访问令牌加入黑名单
     需要在请求头中提供有效的访问令牌
     """
-    # 注意：这里我们需要从请求中获取原始令牌
-    # 在实际实现中，可以通过修改 get_current_user 来返回令牌
-    # 这里简化处理，实际应该将令牌也返回
-    pass
+    token = credentials.credentials
+    
+    # 将令牌加入黑名单
+    await AuthService.blacklist_token(conn, token)
+    
+    logger.info(f"User {current_user['email']} logged out")
 
 
 @router.get("/auth/me", response_model=UserResponse)
