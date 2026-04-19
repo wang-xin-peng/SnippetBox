@@ -166,6 +166,22 @@ class AuthService:
         )
     
     @staticmethod
+    async def blacklist_token(conn: asyncpg.Connection, token: str):
+        """
+        将令牌加入黑名单（自动解析过期时间）
+        用于登出功能
+        """
+        # 解析令牌获取过期时间
+        payload = AuthService.verify_token(token, "access")
+        if not payload:
+            logger.warning("Attempted to blacklist invalid token")
+            return
+        
+        expires_at = datetime.fromtimestamp(payload["exp"])
+        await AuthService.add_token_to_blacklist(conn, token, expires_at)
+        logger.info(f"Token blacklisted, expires at {expires_at}")
+    
+    @staticmethod
     async def add_token_to_blacklist(conn: asyncpg.Connection, token: str, expires_at: datetime):
         """将令牌加入黑名单"""
         await conn.execute("""

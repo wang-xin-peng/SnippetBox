@@ -440,18 +440,38 @@ def test_delete_snippet():
         return False
 
 def test_logout():
-    """测试登出"""
-    print_section('20. 登出')
+    """测试登出并验证令牌黑名单"""
+    print_section('20. 登出并验证令牌黑名单')
     try:
         headers = {'Authorization': f'Bearer {access_token}'}
+        
+        # 先测试令牌是否有效
+        print_info('步骤1: 验证令牌当前有效')
+        response = requests.get(f'{BASE_URL}/auth/me', headers=headers)
+        if response.status_code != 200:
+            print_error('令牌在登出前就无效')
+            return False
+        print_success('令牌当前有效')
+        
+        # 登出
+        print_info('步骤2: 执行登出操作')
         response = requests.post(f'{BASE_URL}/auth/logout', headers=headers)
-        print_response(response)
-        if response.status_code == 200:
-            print_success('登出成功')
+        print(f'状态码: {response.status_code}')
+        if response.status_code != 204:
+            print_error(f'登出失败，期望状态码204，实际{response.status_code}')
+            return False
+        print_success('登出成功（返回204 No Content）')
+        
+        # 验证令牌已被加入黑名单
+        print_info('步骤3: 验证令牌已被加入黑名单')
+        response = requests.get(f'{BASE_URL}/auth/me', headers=headers)
+        if response.status_code == 401:
+            print_success('令牌已失效，成功加入黑名单')
             return True
         else:
-            print_error('登出失败')
+            print_error(f'令牌仍然有效（状态码{response.status_code}），未加入黑名单')
             return False
+            
     except Exception as e:
         print_error(f'请求失败: {e}')
         return False
