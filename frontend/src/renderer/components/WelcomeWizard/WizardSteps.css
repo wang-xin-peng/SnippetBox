@@ -1,0 +1,118 @@
+.wizard-steps {
+  padding: 40px 60px;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.steps-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.step-wrapper {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.step-wrapper:last-child {
+  flex: 0 0 auto;
+}
+
+.wizard-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.step-number {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 16px;
+  transition: all 0.3s ease;
+  margin-bottom: 16px;
+  position: relative;
+  z-index: 2;
+}
+
+.wizard-step.active .step-number {
+  background: var(--primary-color);
+  color: white;
+  transform: scale(1.15);
+  box-shadow: 0 6px 16px rgba(33, 150, 243, 0.35);
+}
+
+.wizard-step.completed .step-number {
+  background: var(--primary-color);
+  color: white;
+}
+
+.step-line {
+  flex: 1;
+  height: 3px;
+  background: var(--border-color);
+  margin: 0 16px;
+  transition: background 0.3s ease;
+  position: relative;
+  top: -15px; /* 向上偏移，使线条对齐圆圈中心 */
+}
+
+.step-line.completed {
+  background: var(--primary-color);
+}
+
+.step-title {
+  font-size: 15px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  transition: color 0.3s ease;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.wizard-step.active .step-title {
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+.wizard-step.completed .step-title {
+  color: var(--text-primary);
+}
+
+/* 响应式布局 */
+@media (max-width: 768px) {
+  .wizard-steps {
+    padding: 32px 24px;
+  }
+
+  .steps-container {
+    max-width: 100%;
+  }
+
+  .step-number {
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
+    margin-bottom: 12px;
+  }
+
+  .step-title {
+    font-size: 13px;
+  }
+
+  .step-line {
+    margin: 0 12px;
+    top: -24px;
+  }
+}
