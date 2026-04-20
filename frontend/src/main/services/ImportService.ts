@@ -1,24 +1,81 @@
 import Database from 'better-sqlite3';
 import * as fs from 'fs';
 import * as path from 'path';
-import { randomUUID } from 'crypto';
+import { randomUUID, createHash } from 'crypto';
 
 export interface ImportResult {
   imported: number;
   skipped: number;
   errors: Array<{ file: string; error: string }>;
+  duplicates?: Array<{ title: string; codeHash: string; action: string }>;
 }
 
 export interface ImportOptions {
   skipDuplicates?: boolean;
   overwriteDuplicates?: boolean;
+  smartMerge?: boolean;
+  logImport?: boolean;
+}
+
+export interface ValidationResult {
+  valid: boolean;
+  errors: string[];
 }
 
 export class ImportService {
   private db: Database.Database;
 
-  constructor(db: Database.Database) {
-    this.db = db;
+  constructor(db?: Database.Database) {
+    this.db = db || new Database(':memory:');
+  }
+
+  /**
+   * 验证导入文件
+   */
+  validateImportFile(fileName: string, format?: 'markdown' | 'json'): ValidationResult {
+    const errors: string[] = [];
+    const ext = path.extname(fileName).toLowerCase();
+
+    if (format === 'markdown' || ext === '.md' || ext === '.markdown') {
+      // Markdown 格式无需特殊验证
+      return { valid: true, errors: [] };
+    } else if (format === 'json' || ext === '.json') {
+      // JSON 格式无需特殊验证
+      return { valid: true, errors: [] };
+    }
+
+    errors.push('不支持的文件格式，请使用 .md、.markdown 或 .json 文件');
+    return { valid: false, errors };
+  }
+
+  /**
+   * 导入片段（UI 调用入口）
+   */
+  async importSnippets(
+    filePath: string,
+    options: { format?: 'markdown' | 'json'; duplicateStrategy?: 'skip' | 'overwrite' | 'rename' }
+  ): Promise<{ imported: number; skipped: number; errors: string[]; success: boolean }> {
+    const format = options.format || (filePath.endsWith('.json') ? 'json' : 'markdown');
+    const importOptions: ImportOptions = {
+      skipDuplicates: options.duplicateStrategy === 'skip',
+      overwriteDuplicates: options.duplicateStrategy === 'overwrite',
+      logImport: true
+    };
+
+    let result: ImportResult;
+
+    if (format === 'json') {
+      result = await this.importFromJSON(filePath, importOptions);
+    } else {
+      result = await this.importFromMarkdown(filePath, importOptions);
+    }
+
+    return {
+      imported: result.imported,
+      skipped: result.skipped,
+      errors: result.errors.map(e => e.error),
+      success: result.errors.length === 0
+    };
   }
 
   /**
@@ -47,14 +104,26 @@ export class ImportService {
           }
 
           // 检查重复
-          if (options.skipDuplicates || options.overwriteDuplicates) {
+          if (options.skipDuplicates || options.overwriteDuplicates || options.smartMerge) {
             const existing = this.findDuplicate(snippet.title, snippet.code);
             if (existing) {
               if (options.skipDuplicates) {
+                if (options.logImport) this.logImport('skip', snippet, result);
                 result.skipped++;
                 continue;
               } else if (options.overwriteDuplicates) {
                 this.updateSnippet(existing.id, snippet);
+                if (options.logImport) this.logImport('overwrite', snippet, result);
+                result.imported++;
+                continue;
+              } else if (options.smartMerge) {
+                const merged = this.smartMerge(existing, snippet);
+                if (merged) {
+                  this.updateSnippet(existing.id, merged);
+                  if (options.logImport) this.logImport('smart_merge', snippet, result);
+                } else {
+                  if (options.logImport) this.logImport('keep_existing', snippet, result);
+                }
                 result.imported++;
                 continue;
               }
@@ -89,11 +158,16 @@ export class ImportService {
 
     try {
       const content = fs.readFileSync(filePath, 'utf-8');
-      const snippets = JSON.parse(content);
+      let snippets = JSON.parse(content);
 
+      // 支持两种格式：数组 或 { snippets: [...] } 对象
       if (!Array.isArray(snippets)) {
-        result.errors.push({ file: filePath, error: 'Invalid JSON format: expected array' });
-        return result;
+        if (snippets.snippets && Array.isArray(snippets.snippets)) {
+          snippets = snippets.snippets;
+        } else {
+          result.errors.push({ file: filePath, error: 'Invalid JSON format: expected array or object with snippets property' });
+          return result;
+        }
       }
 
       for (const snippet of snippets) {
@@ -105,14 +179,26 @@ export class ImportService {
           }
 
           // 检查重复
-          if (options.skipDuplicates || options.overwriteDuplicates) {
+          if (options.skipDuplicates || options.overwriteDuplicates || options.smartMerge) {
             const existing = this.findDuplicate(snippet.title, snippet.code);
             if (existing) {
               if (options.skipDuplicates) {
+                if (options.logImport) this.logImport('skip', snippet, result);
                 result.skipped++;
                 continue;
               } else if (options.overwriteDuplicates) {
                 this.updateSnippet(existing.id, snippet);
+                if (options.logImport) this.logImport('overwrite', snippet, result);
+                result.imported++;
+                continue;
+              } else if (options.smartMerge) {
+                const merged = this.smartMerge(existing, snippet);
+                if (merged) {
+                  this.updateSnippet(existing.id, merged);
+                  if (options.logImport) this.logImport('smart_merge', snippet, result);
+                } else {
+                  if (options.logImport) this.logImport('keep_existing', snippet, result);
+                }
                 result.imported++;
                 continue;
               }
@@ -178,19 +264,58 @@ export class ImportService {
   }
 
   /**
-   * 查找重复片段
+   * 计算代码哈希
+   */
+  private computeCodeHash(code: string): string {
+    return createHash('sha256').update(code).digest('hex').substring(0, 16);
+  }
+
+  /**
+   * 查找重复片段（基于标题 + 代码哈希）
    */
   private findDuplicate(title: string, code: string): any | null {
     try {
+      const codeHash = this.computeCodeHash(code);
       const snippet = this.db.prepare(`
-        SELECT * FROM snippets 
-        WHERE title = ? AND code = ?
+        SELECT s.* FROM snippets s
+        WHERE s.title = ? AND s.code_hash = ?
         LIMIT 1
-      `).get(title, code);
+      `).get(title, codeHash);
       return snippet || null;
     } catch (error) {
       return null;
     }
+  }
+
+  /**
+   * 智能合并片段（保留更新的版本）
+   */
+  private smartMerge(existing: any, imported: any): any {
+    const existingUpdated = new Date(existing.updated_at).getTime();
+    const importedUpdated = imported.updatedAt ? new Date(imported.updatedAt).getTime() : Date.now();
+
+    if (importedUpdated > existingUpdated) {
+      return {
+        ...imported,
+        id: existing.id,
+        created_at: existing.created_at
+      };
+    }
+    return null;
+  }
+
+  /**
+   * 记录导入日志
+   */
+  private logImport(action: string, snippet: any, result: ImportResult): void {
+    if (!result.duplicates) {
+      result.duplicates = [];
+    }
+    result.duplicates.push({
+      title: snippet.title,
+      codeHash: this.computeCodeHash(snippet.code),
+      action
+    });
   }
 
   /**
@@ -214,10 +339,11 @@ export class ImportService {
     }
 
     // 创建片段
+    const codeHash = this.computeCodeHash(snippet.code);
     this.db.prepare(`
-      INSERT INTO snippets (id, title, description, code, language, category_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, snippet.title, snippet.description || '', snippet.code, snippet.language, categoryId, now, now);
+      INSERT INTO snippets (id, title, description, code, code_hash, language, category_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, snippet.title, snippet.description || '', snippet.code, codeHash, snippet.language, categoryId, now, now);
 
     // 添加标签
     if (snippet.tags && snippet.tags.length > 0) {
