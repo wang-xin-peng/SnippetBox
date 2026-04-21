@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { CodeEditor } from '../../components/CodeEditor';
 import { EditSnippetModal } from '../../components/SnippetEditor/EditSnippetModal';
+import { ShareButton } from '../../components/Share/ShareButton';
 import { Snippet } from '../../../shared/types';
 import './HomePage.css';
 
@@ -195,6 +196,36 @@ export default function HomePage() {
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
+  // 批量选择
+  const [batchMode, setBatchMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const toggleBatchMode = () => {
+    setBatchMode(prev => { if (prev) setSelectedIds(new Set()); return !prev; });
+  };
+
+  const toggleSelect = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const handleBatchDelete = async () => {
+    if (!selectedIds.size || !window.confirm(`确定删除选中的 ${selectedIds.size} 个片段吗？`)) return;
+    try {
+      await (window as any).electron.ipcRenderer.invoke('batch:delete', [...selectedIds]);
+      const ids = selectedIds;
+      setSnippets(prev => prev.filter(s => !ids.has(s.id)));
+      setFiltered(prev => prev.filter(s => !ids.has(s.id)));
+      if (selected && ids.has(selected.id)) setSelected(null);
+      setSelectedIds(new Set());
+      triggerRefresh();
+    } catch (e) { console.error('Batch delete failed:', e); }
+  };
+
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setDeleteConfirmId(id);
@@ -281,8 +312,34 @@ export default function HomePage() {
               <rect x="1" y="11" width="13" height="2" rx="1" fill="currentColor"/>
             </svg>
           </button>
+          <button
+            className={`toolbar-btn${batchMode ? ' active' : ''}`}
+            onClick={toggleBatchMode}
+            title="批量选择"
+          >
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+              <rect x="1" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.5"/>
+              <rect x="9" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.5"/>
+              <rect x="1" y="9" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.5"/>
+              <rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.5"/>
+            </svg>
+          </button>
         </div>
 
+        {/* 批量操作栏 */}
+        {batchMode && (
+          <div className="batch-bar">
+            <span className="batch-bar-count">已选 {selectedIds.size} / {filtered.length}</span>
+            <button className="batch-bar-btn" onClick={() => setSelectedIds(new Set(filtered.map(s => s.id)))}>全选</button>
+            <button className="batch-bar-btn" onClick={() => setSelectedIds(new Set())}>清除</button>
+            {selectedIds.size > 0 && (
+              <button className="batch-bar-btn batch-bar-btn--danger" onClick={handleBatchDelete}>
+                🗑️ 删除 ({selectedIds.size})
+              </button>
+            )}
+            <button className="batch-bar-btn batch-bar-btn--exit" onClick={toggleBatchMode}>退出批量</button>
+          </div>
+        )}
         {/* Sub toolbar */}
         <div className="snippet-panel-subbar">
           <div className="subbar-filters">
@@ -312,6 +369,9 @@ export default function HomePage() {
                   onClick={() => setSelected(snippet)}
                   onDelete={handleDelete}
                   onToggleStar={handleToggleStar}
+                  batchMode={batchMode}
+                  checked={selectedIds.has(snippet.id)}
+                  onToggleCheck={toggleSelect}
                 />
               ) : (
                 <SnippetListItem
@@ -321,6 +381,9 @@ export default function HomePage() {
                   onClick={() => setSelected(snippet)}
                   onDelete={handleDelete}
                   onToggleStar={handleToggleStar}
+                  batchMode={batchMode}
+                  checked={selectedIds.has(snippet.id)}
+                  onToggleCheck={toggleSelect}
                 />
               ))
             )}
@@ -379,21 +442,34 @@ interface CardProps {
   onClick: () => void;
   onDelete: (id: string, e: React.MouseEvent) => void;
   onToggleStar: (snippet: Snippet, e: React.MouseEvent) => void;
+  batchMode?: boolean;
+  checked?: boolean;
+  onToggleCheck?: (id: string, e: React.MouseEvent) => void;
 }
 
-function SnippetCard({ snippet, isSelected, onClick, onDelete, onToggleStar }: CardProps) {
+function SnippetCard({ snippet, isSelected, onClick, onDelete, onToggleStar, batchMode, checked, onToggleCheck }: CardProps) {
   const lang = snippet.language?.toLowerCase() || '';
   const color = getLangColor(lang);
 
+  const handleClick = () => {
+    if (batchMode) onToggleCheck?.(snippet.id, { stopPropagation: () => {} } as any);
+    else onClick();
+  };
+
   return (
-    <div className={`snippet-card ${isSelected ? 'selected' : ''}`} onClick={onClick}>
+    <div className={`snippet-card ${isSelected ? 'selected' : ''} ${checked ? 'batch-checked' : ''}`} onClick={handleClick}>
       <div className="card-header">
-        <span className="card-lang-icon" style={{ color }}>{'</>'}</span>
+        {batchMode ? (
+          <input type="checkbox" checked={!!checked} onChange={() => {}} onClick={e => onToggleCheck?.(snippet.id, e)} style={{ marginRight: 6, cursor: 'pointer' }} />
+        ) : (
+          <span className="card-lang-icon" style={{ color }}>{'</>'}</span>
+        )}
         <span className="card-title">{snippet.title}</span>
-        <button
-          className={`card-star ${snippet.starred ? 'starred' : ''}`}
-          onClick={e => onToggleStar(snippet, e)}
-        >{snippet.starred ? '★' : '☆'}</button>
+        {!batchMode && (
+          <button className={`card-star ${snippet.starred ? 'starred' : ''}`} onClick={e => onToggleStar(snippet, e)}>
+            {snippet.starred ? '★' : '☆'}
+          </button>
+        )}
       </div>
 
       {snippet.tags?.length > 0 && (
@@ -415,25 +491,36 @@ function SnippetCard({ snippet, isSelected, onClick, onDelete, onToggleStar }: C
           <span className="card-meta-item">📅 {formatDate(snippet.updatedAt)}</span>
         </div>
         <span className="card-lang-badge">{snippet.language}</span>
+        {!batchMode && <ShareButton snippet={snippet} iconOnly />}
       </div>
     </div>
   );
 }
 
 /* ---- Snippet List Item ---- */
-function SnippetListItem({ snippet, isSelected, onClick, onToggleStar }: CardProps) {
+function SnippetListItem({ snippet, isSelected, onClick, onToggleStar, batchMode, checked, onToggleCheck }: CardProps) {
   const lang = snippet.language?.toLowerCase() || '';
   const color = getLangColor(lang);
 
+  const handleClick = () => {
+    if (batchMode) onToggleCheck?.(snippet.id, { stopPropagation: () => {} } as any);
+    else onClick();
+  };
+
   return (
-    <div className={`snippet-list-item ${isSelected ? 'selected' : ''}`} onClick={onClick}>
+    <div className={`snippet-list-item ${isSelected ? 'selected' : ''} ${checked ? 'batch-checked' : ''}`} onClick={handleClick}>
       <div className="list-item-header">
-        <span className="list-item-lang-icon" style={{ color }}>{'</>'}</span>
+        {batchMode ? (
+          <input type="checkbox" checked={!!checked} onChange={() => {}} onClick={e => onToggleCheck?.(snippet.id, e)} style={{ marginRight: 6, cursor: 'pointer' }} />
+        ) : (
+          <span className="list-item-lang-icon" style={{ color }}>{'</>'}</span>
+        )}
         <span className="list-item-title">{snippet.title}</span>
-        <button
-          className={`card-star ${snippet.starred ? 'starred' : ''}`}
-          onClick={e => onToggleStar(snippet, e)}
-        >{snippet.starred ? '★' : '☆'}</button>
+        {!batchMode && (
+          <button className={`card-star ${snippet.starred ? 'starred' : ''}`} onClick={e => onToggleStar(snippet, e)}>
+            {snippet.starred ? '★' : '☆'}
+          </button>
+        )}
       </div>
 
       {(snippet as any).description && (

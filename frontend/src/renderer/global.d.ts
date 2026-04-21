@@ -1,5 +1,7 @@
-import { Snippet, CreateSnippetDTO, UpdateSnippetDTO, SnippetFilter, Category, Tag } from '../shared/types';
+import { Snippet, CreateSnippetDTO, UpdateSnippetDTO, SnippetFilter, Category, Tag, BatchResult } from '../shared/types';
 import { MirrorInfo, DownloadProgress } from '../shared/types/model';
+import { User, LoginResult } from '../main/services/AuthService';
+import { SyncResult, PushResult, PullResult, SyncStatus, Conflict, ConflictResolution, QueueStatus, ConflictHistoryEntry } from '../shared/types/sync';
 
 declare global {
   interface Window {
@@ -50,6 +52,34 @@ declare global {
         keyword: (query: string) => Promise<any[]>;
         semantic: (query: string) => Promise<any[]>;
         capability: () => Promise<{ hasKeywordSearch: boolean; hasSemanticSearch: boolean; hasHybridSearch: boolean }>;
+      };
+      batch: {
+        delete: (snippetIds: string[]) => Promise<BatchResult>;
+        updateTags: (snippetIds: string[], tags: string[]) => Promise<BatchResult>;
+        updateCategory: (snippetIds: string[], categoryId: string) => Promise<BatchResult>;
+        export: (snippetIds: string[], format: string) => Promise<BatchResult>;
+      };
+      auth: {
+        register: (email: string, password: string, username: string) => Promise<{ success: boolean; error?: string }>;
+        login: (email: string, password: string) => Promise<{ success: boolean; data?: LoginResult; error?: string }>;
+        logout: () => Promise<{ success: boolean; error?: string }>;
+        refresh: () => Promise<{ success: boolean; accessToken?: string; error?: string }>;
+        getCurrentUser: () => Promise<{ success: boolean; user?: User | null; error?: string }>;
+        isLoggedIn: () => Promise<{ isLoggedIn: boolean }>;
+      };
+      sync: {
+        push: () => Promise<{ success: boolean; data?: PushResult; error?: string }>;
+        pull: () => Promise<{ success: boolean; data?: PullResult; error?: string }>;
+        sync: () => Promise<{ success: boolean; data?: SyncResult; error?: string }>;
+        getStatus: () => Promise<SyncStatus>;
+        enableAutoSync: (intervalMinutes: number) => Promise<{ success: boolean }>;
+        disableAutoSync: () => Promise<{ success: boolean }>;
+        resolveConflict: (conflict: Conflict, resolution: ConflictResolution) => Promise<{ success: boolean; error?: string }>;
+        autoResolve: (conflicts: Conflict[], strategy: 'local' | 'cloud' | 'latest') => Promise<{ success: boolean; error?: string }>;
+        getConflictHistory: () => Promise<ConflictHistoryEntry[]>;
+        getQueueStatus: () => Promise<QueueStatus>;
+        clearFailedQueue: () => Promise<{ success: boolean }>;
+        onStatusChanged: (callback: (status: SyncStatus) => void) => () => void;
       };
     };
   }

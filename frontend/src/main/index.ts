@@ -58,8 +58,14 @@ app.whenReady().then(async () => {
     // 即使数据库失败，也注册不依赖数据库的处理器
     const { registerSettingsHandlers } = require('./ipc/settingsHandlers');
     const { registerModelHandlers } = require('./ipc/modelHandlers');
+    const { registerAuthHandlers } = require('./ipc/authHandlers');
+    const { registerSyncHandlers } = require('./ipc/syncHandlers');
+    const { registerShareHandlers } = require('./ipc/shareHandlers');
     registerSettingsHandlers();
     registerModelHandlers();
+    registerAuthHandlers();
+    registerSyncHandlers();
+    registerShareHandlers();
   }
   
   // 创建窗口

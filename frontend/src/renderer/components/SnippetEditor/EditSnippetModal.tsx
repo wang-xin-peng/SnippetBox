@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CodeEditor } from '../CodeEditor';
 import { Snippet, UpdateSnippetDTO } from '../../../shared/types';
+import { ShareButton } from '../Share/ShareButton';
 import './NewSnippetModal.css'; // 复用同一套样式
 
 interface Props {
@@ -167,6 +168,8 @@ export const EditSnippetModal: React.FC<Props> = ({ snippet, onClose, onSaved })
 
         {/* Footer */}
         <div className="nsm-footer">
+          <ShareButton snippet={snippet} />
+          <div style={{ flex: 1 }} />
           <button className="nsm-btn" onClick={onClose}>取消</button>
           <button className="nsm-btn nsm-btn--primary" onClick={handleSave} disabled={isSaving}>
             {isSaving ? '保存中...' : '💾 保存片段'}

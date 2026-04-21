@@ -8,6 +8,9 @@ import { registerSearchHandlers } from './searchHandlers';
 import { registerExportHandlers } from './exportHandlers';
 import { registerImportHandlers } from './importHandlers';
 import { registerBatchHandlers } from './batchHandlers';
+import { registerAuthHandlers } from './authHandlers';
+import { registerSyncHandlers } from './syncHandlers';
+import { registerShareHandlers } from './shareHandlers';
 
 /**
  * 注册所有 IPC 处理器
@@ -23,4 +26,7 @@ export function registerAllHandlers() {
   registerExportHandlers();
   registerImportHandlers();
   registerBatchHandlers();
+  registerAuthHandlers();
+  registerSyncHandlers();
+  registerShareHandlers();
 }

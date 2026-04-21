@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Router } from './router';
 import { WelcomeWizard } from './components/WelcomeWizard';
 import { settingsApi } from './api/settings';
+import { AuthProvider } from './store/authStore';
+import { SyncProvider } from './store/syncStore';
 import type { WizardChoices } from '@shared/types/wizard';
 
 function App() {
@@ -92,12 +94,14 @@ function App() {
   }
 
   return (
-    <>
-      {showWizard && (
-        <WelcomeWizard onComplete={handleWizardComplete} onSkip={handleWizardSkip} />
-      )}
-      <Router />
-    </>
+    <AuthProvider>
+      <SyncProvider>
+        {showWizard && (
+          <WelcomeWizard onComplete={handleWizardComplete} onSkip={handleWizardSkip} />
+        )}
+        <Router />
+      </SyncProvider>
+    </AuthProvider>
   );
 }
 

@@ -2,6 +2,8 @@ import { useState, useRef, useCallback } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import Sidebar from '../Sidebar';
 import { NewSnippetModal } from '../SnippetEditor/NewSnippetModal';
+import { UserMenu } from '../Header/UserMenu';
+import { SyncIndicator } from '../Sync/SyncIndicator';
 import './Layout.css';
 
 function Layout() {
@@ -84,6 +86,8 @@ function Layout() {
           <button className="btn-new-snippet" onClick={handleNewSnippet}>
             + 新建片段
           </button>
+          <SyncIndicator />
+          <UserMenu />
         </div>
       </header>
 
