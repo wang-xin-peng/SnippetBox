@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { Snippet, CreateSnippetDTO, UpdateSnippetDTO, SnippetFilter, Category, Tag } from '../shared/types';
 import { MirrorInfo, DownloadProgress } from '../shared/types/model';
+import { ConflictResolution, Conflict } from '../shared/types/sync';
 
 // 暴露 Electron API
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -87,6 +88,46 @@ contextBridge.exposeInMainWorld('electron', {
     keyword: (query: string) => ipcRenderer.invoke('search:keyword', query),
     semantic: (query: string) => ipcRenderer.invoke('search:semantic', query),
     capability: () => ipcRenderer.invoke('search:capability'),
+  },
+  batch: {
+    delete: (snippetIds: string[]) => ipcRenderer.invoke('batch:delete', snippetIds),
+    updateTags: (snippetIds: string[], tags: string[]) =>
+      ipcRenderer.invoke('batch:update-tags', snippetIds, tags),
+    updateCategory: (snippetIds: string[], categoryId: string) =>
+      ipcRenderer.invoke('batch:update-category', snippetIds, categoryId),
+    export: (snippetIds: string[], format: string) =>
+      ipcRenderer.invoke('batch:export', snippetIds, format),
+  },
+  auth: {
+    register: (email: string, password: string, username: string) =>
+      ipcRenderer.invoke('auth:register', email, password, username),
+    login: (email: string, password: string) =>
+      ipcRenderer.invoke('auth:login', email, password),
+    logout: () => ipcRenderer.invoke('auth:logout'),
+    refresh: () => ipcRenderer.invoke('auth:refresh'),
+    getCurrentUser: () => ipcRenderer.invoke('auth:getCurrentUser'),
+    isLoggedIn: () => ipcRenderer.invoke('auth:isLoggedIn'),
+  },
+  sync: {
+    push: () => ipcRenderer.invoke('sync:push'),
+    pull: () => ipcRenderer.invoke('sync:pull'),
+    sync: () => ipcRenderer.invoke('sync:sync'),
+    getStatus: () => ipcRenderer.invoke('sync:getStatus'),
+    enableAutoSync: (intervalMinutes: number) =>
+      ipcRenderer.invoke('sync:enableAutoSync', intervalMinutes),
+    disableAutoSync: () => ipcRenderer.invoke('sync:disableAutoSync'),
+    resolveConflict: (conflict: Conflict, resolution: ConflictResolution) =>
+      ipcRenderer.invoke('sync:resolveConflict', conflict, resolution),
+    autoResolve: (conflicts: Conflict[], strategy: 'local' | 'cloud' | 'latest') =>
+      ipcRenderer.invoke('sync:autoResolve', conflicts, strategy),
+    getConflictHistory: () => ipcRenderer.invoke('sync:getConflictHistory'),
+    getQueueStatus: () => ipcRenderer.invoke('sync:getQueueStatus'),
+    clearFailedQueue: () => ipcRenderer.invoke('sync:clearFailedQueue'),
+    onStatusChanged: (callback: (status: any) => void) => {
+      const listener = (_event: any, status: any) => callback(status);
+      ipcRenderer.on('sync:statusChanged', listener);
+      return () => ipcRenderer.removeListener('sync:statusChanged', listener);
+    },
   },
 });
 

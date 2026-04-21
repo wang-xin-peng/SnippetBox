@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import CategoryTagManager from '../CategoryTagManager';
 import './Sidebar.css';
 
@@ -35,6 +35,15 @@ function Sidebar({
   showingFavorites,
   refreshKey,
 }: SidebarProps) {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const goHomeFirst = (cb: () => void) => {
+    if (location.pathname !== '/') {
+      navigate('/');
+    }
+    cb();
+  };
   const [categories, setCategories] = useState<Category[]>([]);
   const [snippets, setSnippets] = useState<SnippetItem[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -156,7 +165,7 @@ function Sidebar({
       {/* 收藏夹 */}
       <div
         className={`sidebar-favorites ${showingFavorites ? 'active' : ''}`}
-        onClick={onFavoritesSelect}
+        onClick={() => goHomeFirst(() => onFavoritesSelect?.())}
       >
         <span className="sidebar-fav-icon">{showingFavorites ? '★' : '☆'}</span>
         <span className="sidebar-fav-label">收藏夹</span>
@@ -178,7 +187,7 @@ function Sidebar({
           </button>
           <button
             className={`category-header-all ${!selectedCategory && !showingFavorites ? 'active' : ''}`}
-            onClick={() => onCategorySelect?.(null)}
+            onClick={() => goHomeFirst(() => onCategorySelect?.(null))}
           >
             全部
           </button>
@@ -194,7 +203,7 @@ function Sidebar({
             <div key={cat.id} className="category-group">
               <div
                 className={`category-row ${isActive ? 'active' : ''}`}
-                onClick={() => { toggle(cat.id); onCategorySelect?.(cat.name); }}
+                onClick={() => { toggle(cat.id); goHomeFirst(() => onCategorySelect?.(cat.name)); }}
               >
                 <span className={`category-chevron ${isOpen ? 'open' : ''}`}>›</span>
                 <span className="category-icon" style={{ color: cat.color || '#8b949e' }}>

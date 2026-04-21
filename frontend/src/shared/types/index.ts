@@ -121,3 +121,6 @@ export interface ImportResult {
   failed: number;
   errors: string[];
 }
+
+// 分享相关类型定义
+export * from './share';

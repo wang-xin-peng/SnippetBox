@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Snippet } from '../../../shared/types';
 import { SnippetCard } from './SnippetCard';
 import { SnippetFilter } from './SnippetFilter';
+import { BatchSelection } from './BatchSelection';
+import { BatchOperations } from './BatchOperations';
 import './SnippetList.css';
 
 interface SnippetListProps {
@@ -19,11 +21,15 @@ export const SnippetList: React.FC<SnippetListProps> = ({ onSnippetClick, onSnip
   const [loading, setLoading] = useState(true);
   const [searchMode, setSearchMode] = useState<'keyword' | 'semantic'>('keyword');
 
+  // 批量选择状态
+  const [batchMode, setBatchMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const lastSelectedIndexRef = useRef<number | null>(null);
+
   const loadSnippets = async () => {
     try {
       setLoading(true);
-      const api = (window as any).electronAPI;
-      const data = await api.snippet.list();
+      const data = await window.electronAPI.snippet.list();
       setSnippets(data);
     } catch (error) {
       console.error('Failed to load snippets:', error);
@@ -52,32 +58,19 @@ export const SnippetList: React.FC<SnippetListProps> = ({ onSnippetClick, onSnip
     const filterSnippets = async () => {
       let filtered = [...snippets];
 
-      // 搜索过滤
       if (searchQuery) {
         if (searchMode === 'semantic') {
-          // 使用语义搜索
           try {
-            console.log('[SnippetList] Performing semantic search:', searchQuery);
             const results = await window.electron.ipcRenderer.invoke('search:semantic', searchQuery);
-            console.log('[SnippetList] Semantic search results:', results);
-            
             if (results && results.length > 0) {
-              // 将搜索结果转换为片段列表
               const snippetIds = new Set(results.map((r: any) => r.snippet.id));
-              filtered = filtered.filter(s => snippetIds.has(s.id));
-              
-              // 按相似度排序
-              const scoreMap = new Map(results.map((r: any) => [r.snippet.id, r.similarity]));
-              filtered.sort((a, b) => (scoreMap.get(b.id) || 0) - (scoreMap.get(a.id) || 0));
-              
-              console.log('[SnippetList] Filtered to', filtered.length, 'snippets by semantic search');
+              filtered = filtered.filter((s) => snippetIds.has(s.id));
+              const scoreMap = new Map<string, number>(results.map((r: any) => [r.snippet.id, r.similarity as number]));
+              filtered.sort((a, b) => (scoreMap.get(b.id) ?? 0) - (scoreMap.get(a.id) ?? 0));
             } else {
-              console.log('[SnippetList] No semantic search results, showing empty list');
               filtered = [];
             }
-          } catch (error) {
-            console.error('[SnippetList] Semantic search failed, falling back to keyword search:', error);
-            // 降级到关键词搜索
+          } catch {
             const query = searchQuery.toLowerCase();
             filtered = filtered.filter(
               (s) =>
@@ -87,8 +80,6 @@ export const SnippetList: React.FC<SnippetListProps> = ({ onSnippetClick, onSnip
             );
           }
         } else {
-          // 使用关键词搜索
-          console.log('[SnippetList] Performing keyword search:', searchQuery);
           const query = searchQuery.toLowerCase();
           filtered = filtered.filter(
             (s) =>
@@ -96,21 +87,12 @@ export const SnippetList: React.FC<SnippetListProps> = ({ onSnippetClick, onSnip
               s.code.toLowerCase().includes(query) ||
               s.tags.some((tag) => tag.toLowerCase().includes(query))
           );
-          console.log('[SnippetList] Filtered to', filtered.length, 'snippets by keyword search');
         }
       }
 
-      // 语言过滤
-      if (selectedLanguage) {
-        filtered = filtered.filter((s) => s.language === selectedLanguage);
-      }
+      if (selectedLanguage) filtered = filtered.filter((s) => s.language === selectedLanguage);
+      if (selectedCategory) filtered = filtered.filter((s) => s.category === selectedCategory);
 
-      // 分类过滤
-      if (selectedCategory) {
-        filtered = filtered.filter((s) => s.category === selectedCategory);
-      }
-
-      // 排序（仅在非语义搜索时排序，语义搜索已按相似度排序）
       if (!searchQuery || searchMode !== 'semantic') {
         filtered.sort((a, b) => {
           const dateA = sortBy === 'updated' ? a.updatedAt : a.createdAt;
@@ -122,24 +104,86 @@ export const SnippetList: React.FC<SnippetListProps> = ({ onSnippetClick, onSnip
       setFilteredSnippets(filtered);
     };
 
-    // 使用 setTimeout 防抖，避免频繁执行
-    const timeoutId = setTimeout(() => {
-      filterSnippets();
-    }, 300);
-
+    const timeoutId = setTimeout(filterSnippets, 300);
     return () => clearTimeout(timeoutId);
   }, [snippets, searchQuery, selectedLanguage, selectedCategory, sortBy, searchMode]);
 
   const handleDelete = async (id: string) => {
     try {
-      const api = (window as any).electronAPI;
-      await api.snippet.delete(id);
-      setSnippets(snippets.filter((s) => s.id !== id));
+      await window.electronAPI.snippet.delete(id);
+      setSnippets((prev) => prev.filter((s) => s.id !== id));
       onSnippetDeleted?.();
     } catch (error) {
       console.error('Failed to delete snippet:', error);
     }
   };
+
+  // Shift 连续选择
+  const handleToggleSelect = useCallback(
+    (id: string, event: React.MouseEvent) => {
+      const currentIndex = filteredSnippets.findIndex((s) => s.id === id);
+
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+
+        if (event.shiftKey && lastSelectedIndexRef.current !== null) {
+          // Shift 连续选择
+          const start = Math.min(lastSelectedIndexRef.current, currentIndex);
+          const end = Math.max(lastSelectedIndexRef.current, currentIndex);
+          for (let i = start; i <= end; i++) {
+            next.add(filteredSnippets[i].id);
+          }
+        } else {
+          if (next.has(id)) {
+            next.delete(id);
+          } else {
+            next.add(id);
+          }
+        }
+
+        return next;
+      });
+
+      lastSelectedIndexRef.current = currentIndex;
+    },
+    [filteredSnippets]
+  );
+
+  const handleSelectAll = useCallback(() => {
+    setSelectedIds(new Set(filteredSnippets.map((s) => s.id)));
+  }, [filteredSnippets]);
+
+  const handleClearAll = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
+  const toggleBatchMode = () => {
+    setBatchMode((prev) => {
+      if (prev) {
+        setSelectedIds(new Set());
+        lastSelectedIndexRef.current = null;
+      }
+      return !prev;
+    });
+  };
+
+  // 批量操作完成后刷新列表
+  const handleBatchOperationComplete = useCallback(
+    (deletedIds?: string[]) => {
+      if (deletedIds && deletedIds.length > 0) {
+        setSnippets((prev) => prev.filter((s) => !deletedIds.includes(s.id)));
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          deletedIds.forEach((id) => next.delete(id));
+          return next;
+        });
+        onSnippetDeleted?.();
+      } else {
+        loadSnippets();
+      }
+    },
+    [onSnippetDeleted]
+  );
 
   if (loading) {
     return <div className="snippet-list-loading">Loading snippets...</div>;
@@ -158,15 +202,41 @@ export const SnippetList: React.FC<SnippetListProps> = ({ onSnippetClick, onSnip
 
       <div className="snippet-list-header">
         <h2>Snippets ({filteredSnippets.length})</h2>
-        <select
-          className="sort-select"
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as 'updated' | 'created')}
-        >
-          <option value="updated">Last Updated</option>
-          <option value="created">Date Created</option>
-        </select>
+        <div className="snippet-list-header-actions">
+          <select
+            className="sort-select"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as 'updated' | 'created')}
+          >
+            <option value="updated">Last Updated</option>
+            <option value="created">Date Created</option>
+          </select>
+          <button
+            className={`batch-mode-btn${batchMode ? ' active' : ''}`}
+            onClick={toggleBatchMode}
+          >
+            {batchMode ? '退出批量' : '批量选择'}
+          </button>
+        </div>
       </div>
+
+      {batchMode && (
+        <>
+          <BatchSelection
+            totalCount={filteredSnippets.length}
+            selectedIds={selectedIds}
+            allIds={filteredSnippets.map((s) => s.id)}
+            onSelectAll={handleSelectAll}
+            onClearAll={handleClearAll}
+          />
+          {selectedIds.size > 0 && (
+            <BatchOperations
+              selectedIds={selectedIds}
+              onOperationComplete={handleBatchOperationComplete}
+            />
+          )}
+        </>
+      )}
 
       <div className="snippet-list-grid">
         {filteredSnippets.length === 0 ? (
@@ -178,6 +248,9 @@ export const SnippetList: React.FC<SnippetListProps> = ({ onSnippetClick, onSnip
               snippet={snippet}
               onClick={() => onSnippetClick(snippet)}
               onDelete={handleDelete}
+              selectable={batchMode}
+              selected={selectedIds.has(snippet.id)}
+              onToggleSelect={handleToggleSelect}
             />
           ))
         )}
