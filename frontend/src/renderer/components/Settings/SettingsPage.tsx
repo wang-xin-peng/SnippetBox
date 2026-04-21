@@ -356,6 +356,66 @@ export const SettingsPage: React.FC = () => {
         }}
         onComplete={handleDownloadComplete}
       />
+
+      {/* 设置操作按钮 */}
+      <div style={{ marginTop: 24, display: 'flex', gap: 12 }}>
+        <button
+          className="btn-secondary"
+          onClick={async () => {
+            if (!confirm('确定要重置所有设置吗？')) return;
+            try {
+              const result = await window.electron.ipcRenderer.invoke('settings:reset');
+              if (result.success) {
+                alert('设置已重置');
+                loadSettings();
+              }
+            } catch (error) {
+              console.error('重置设置失败:', error);
+            }
+          }}
+        >
+          重置设置
+        </button>
+        <button
+          className="btn-secondary"
+          onClick={async () => {
+            const filePath = prompt('请输入导出文件路径:');
+            if (!filePath) return;
+            try {
+              const result = await window.electron.ipcRenderer.invoke('settings:export', filePath);
+              if (result.success) {
+                alert('设置已导出');
+              } else {
+                alert('导出失败: ' + result.error);
+              }
+            } catch (error) {
+              console.error('导出设置失败:', error);
+            }
+          }}
+        >
+          导出设置
+        </button>
+        <button
+          className="btn-secondary"
+          onClick={async () => {
+            const filePath = prompt('请输入导入文件路径:');
+            if (!filePath) return;
+            try {
+              const result = await window.electron.ipcRenderer.invoke('settings:import', filePath);
+              if (result.success) {
+                alert('设置已导入');
+                loadSettings();
+              } else {
+                alert('导入失败: ' + result.error);
+              }
+            } catch (error) {
+              console.error('导入设置失败:', error);
+            }
+          }}
+        >
+          导入设置
+        </button>
+      </div>
     </div>
   );
 };
