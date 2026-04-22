@@ -67,8 +67,8 @@ export function registerSettingsHandlers(): void {
   ipcMain.handle('settings:isFirstLaunch', async () => {
     try {
       const settings = await getSettingsManager().getSettings();
-      // 如果没有设置或者是默认设置，认为是首次启动
-      const isFirst = !settings || Object.keys(settings).length === 0;
+      // 检查是否已标记首次启动完成
+      const isFirst = !(settings as any)?.firstLaunchComplete;
       return { success: true, isFirstLaunch: isFirst };
     } catch (error) {
       return { success: true, isFirstLaunch: true }; // 出错时默认为首次启动
@@ -101,6 +101,20 @@ export function registerSettingsHandlers(): void {
       await getSettingsManager().updateSettings({
         ...currentSettings,
         ...choices
+      } as any);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
+  // 标记首次启动完成
+  ipcMain.handle('settings:markFirstLaunchComplete', async () => {
+    try {
+      const currentSettings = await getSettingsManager().getSettings();
+      await getSettingsManager().updateSettings({
+        ...currentSettings,
+        firstLaunchComplete: true
       } as any);
       return { success: true };
     } catch (error) {
