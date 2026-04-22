@@ -49,6 +49,7 @@ export const RegisterDialog: React.FC<RegisterDialogProps> = ({ onClose, onSwitc
   const validateForm = () => {
     const errs: Record<string, string> = {};
     if (!username.trim()) errs.username = '姓名不能为空';
+    else if (username.trim().length < 3) errs.username = '姓名至少 3 个字符';
     if (!email.trim()) errs.email = '邮箱不能为空';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = '请输入有效的邮箱地址';
     if (!password) errs.password = '密码不能为空';
