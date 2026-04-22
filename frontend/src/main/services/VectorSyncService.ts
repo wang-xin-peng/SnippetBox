@@ -17,6 +17,7 @@ export class VectorSyncService {
 
   /**
    * 同步单个片段的向量到云端
+   * 如果本地没有向量，则使用云端API生成
    */
   async syncSnippetVector(snippetId: string, cloudId: string): Promise<boolean> {
     try {
@@ -28,18 +29,32 @@ export class VectorSyncService {
 
       const db = getDatabaseManager().getDb();
       
-      // 从本地数据库获取向量
-      const vectorRow = db
-        .prepare('SELECT vector FROM snippet_vectors WHERE snippet_id = ?')
+      // 从本地数据库获取片段信息
+      const snippet = db
+        .prepare('SELECT title, description, code FROM snippets WHERE id = ?')
         .get(snippetId) as any;
 
-      if (!vectorRow || !vectorRow.vector) {
-        console.log(`[VectorSync] No vector found for snippet ${snippetId}`);
+      if (!snippet) {
+        console.log(`[VectorSync] Snippet ${snippetId} not found`);
         return false;
       }
 
-      // 解析向量数据
-      const vector = JSON.parse(vectorRow.vector);
+      // 组合文本用于生成向量
+      const text = [
+        snippet.title,
+        snippet.description || '',
+        snippet.code
+      ].filter(Boolean).join(' ');
+
+      // 使用云端API生成向量（768维）
+      const embedResponse = await this.http.post(
+        '/embed',
+        { text },
+        { timeout: 30000 }
+      );
+
+      const vector = embedResponse.data.vector;
+      console.log(`[VectorSync] Generated vector for snippet ${snippetId}, dimension: ${vector.length}`);
       
       // 上传到云端
       await this.http.post(
@@ -63,6 +78,7 @@ export class VectorSyncService {
 
   /**
    * 批量同步向量
+   * 使用云端API生成向量
    */
   async batchSyncVectors(snippets: Array<{ localId: string; cloudId: string }>): Promise<{
     success: number;
@@ -78,38 +94,61 @@ export class VectorSyncService {
       }
 
       const db = getDatabaseManager().getDb();
-      const vectors: Array<{ snippet_id: string; vector: number[] }> = [];
+      const vectorsToUpload: Array<{ snippet_id: string; vector: number[] }> = [];
 
-      // 收集所有向量
+      // 为每个片段生成向量
       for (const { localId, cloudId } of snippets) {
-        const vectorRow = db
-          .prepare('SELECT vector FROM snippet_vectors WHERE snippet_id = ?')
-          .get(localId) as any;
+        try {
+          const snippet = db
+            .prepare('SELECT title, description, code FROM snippets WHERE id = ?')
+            .get(localId) as any;
 
-        if (vectorRow && vectorRow.vector) {
-          vectors.push({
+          if (!snippet) {
+            console.warn(`[VectorSync] Snippet ${localId} not found`);
+            result.failed++;
+            continue;
+          }
+
+          // 组合文本
+          const text = [
+            snippet.title,
+            snippet.description || '',
+            snippet.code
+          ].filter(Boolean).join(' ');
+
+          // 生成向量
+          const embedResponse = await this.http.post(
+            '/embed',
+            { text },
+            { timeout: 30000 }
+          );
+
+          vectorsToUpload.push({
             snippet_id: cloudId,
-            vector: JSON.parse(vectorRow.vector)
+            vector: embedResponse.data.vector
           });
+        } catch (error: any) {
+          console.error(`[VectorSync] Failed to generate vector for ${localId}:`, error.message);
+          result.failed++;
         }
       }
 
-      if (vectors.length === 0) {
-        console.log('[VectorSync] No vectors to sync');
+      if (vectorsToUpload.length === 0) {
+        console.log('[VectorSync] No vectors to upload');
         return result;
       }
 
       // 批量上传
       const response = await this.http.post(
         '/vector-sync/batch-upload',
-        vectors,
+        vectorsToUpload,
         {
           headers: { Authorization: `Bearer ${token}` }
         }
       );
 
       result.success = response.data.success_count || 0;
-      result.failed = response.data.error_count || 0;
+      result.failed += response.data.error_count || 0;
 
       console.log(`[VectorSync] Batch sync completed: ${result.success} success, ${result.failed} failed`);
     } catch (error: any) {

@@ -466,6 +466,54 @@ export const SettingsPage: React.FC = () => {
               </div>
             </div>
           </div>
+
+          <div className="setting-item">
+            <div className="setting-header">
+              <label className="setting-label">云端向量同步</label>
+              <p className="setting-description">
+                将所有已同步片段的向量上传到云端，用于云端AI搜索
+              </p>
+            </div>
+            <div className="setting-control">
+              <button
+                className="btn-primary"
+                disabled={isGeneratingVectors}
+                onClick={async () => {
+                  if (!confirm('确定要上传所有片段的向量到云端吗？这可能需要几分钟时间。')) {
+                    return;
+                  }
+                  
+                  setIsGeneratingVectors(true);
+                  try {
+                    const result = await window.electron.ipcRenderer.invoke('sync:uploadAllVectors');
+                    if (result.success) {
+                      setNotification({ 
+                        message: result.data.message || '向量上传完成', 
+                        type: 'success' 
+                      });
+                      setTimeout(() => setNotification(null), 5000);
+                    } else {
+                      setNotification({ 
+                        message: '向量上传失败: ' + result.error, 
+                        type: 'error' 
+                      });
+                      setTimeout(() => setNotification(null), 5000);
+                    }
+                  } catch (error: any) {
+                    setNotification({ 
+                      message: '向量上传失败: ' + error.message, 
+                      type: 'error' 
+                    });
+                    setTimeout(() => setNotification(null), 5000);
+                  } finally {
+                    setIsGeneratingVectors(false);
+                  }
+                }}
+              >
+                {isGeneratingVectors ? '上传中...' : '上传所有向量到云端'}
+              </button>
+            </div>
+          </div>
         </section>
       </div>
 
