@@ -65,5 +65,30 @@ export function registerAuthHandlers() {
     return { isLoggedIn: auth.isLoggedIn() };
   });
 
+  ipcMain.handle('auth:getCapabilities', async () => {
+    try {
+      return { success: true, data: await auth.getCapabilities() };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('auth:sendCode', async (_e, email: string) => {
+    try {
+      return await auth.sendCode(email);
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  });
+
+  ipcMain.handle('auth:loginWithCode', async (_e, email: string, code: string) => {
+    try {
+      const result = await auth.loginWithCode(email, code);
+      return { success: true, data: result };
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  });
+
   console.log('[AuthHandlers] Registered');
 }

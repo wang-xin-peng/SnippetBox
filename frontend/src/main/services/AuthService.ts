@@ -6,6 +6,17 @@ import axios, { AxiosInstance } from 'axios';
 const BASE_URL = 'http://8.141.108.146:8000/api/v1';
 const TOKEN_KEY = 'auth_tokens';
 
+function extractError(err: any): string {
+  const detail = err?.response?.data?.detail;
+  if (!detail) return err?.message ?? '未知错误';
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    return detail.map((d: any) => d?.msg ?? JSON.stringify(d)).join('；');
+  }
+  if (typeof detail === 'object') return detail.msg ?? JSON.stringify(detail);
+  return String(detail);
+}
+
 export interface User {
   id: string;
   email: string;
@@ -19,6 +30,13 @@ export interface LoginResult {
   user: User;
 }
 
+export interface AuthCapabilities {
+  supportsPasswordAuth: boolean;
+  supportsRegistration: boolean;
+  supportsGithubAuth: boolean;
+  supportsGoogleAuth: boolean;
+}
+
 interface StoredTokens {
   accessToken: string;
   refreshToken: string;
@@ -29,6 +47,7 @@ export class AuthService {
   private http: AxiosInstance;
   private tokens: StoredTokens | null = null;
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
+  private capabilitiesCache: { value: AuthCapabilities; expiresAt: number } | null = null;
 
   constructor() {
     this.http = axios.create({ baseURL: BASE_URL, timeout: 10000 });
@@ -56,6 +75,39 @@ export class AuthService {
     if (rememberMe) {
       this.saveTokens(tokens);
     }
+    this.scheduleRefresh(tokens.expiresAt);
+
+    const user = await this.getCurrentUser();
+    return {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: user!,
+    };
+  }
+
+  // ── 发送邮箱验证码 ─────────────────────────────────────
+  async sendCode(email: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      await this.http.post('/auth/send-code', { email });
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  }
+
+  // ── 验证码登录 ────────────────────────────────────────
+  async loginWithCode(email: string, code: string): Promise<LoginResult> {
+    const res = await this.http.post('/auth/login-with-code', { email, code });
+    const data = res.data;
+
+    const tokens: StoredTokens = {
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token,
+      expiresAt: Date.now() + (data.expires_in ?? 1800) * 1000,
+    };
+
+    this.tokens = tokens;
+    this.saveTokens(tokens);
     this.scheduleRefresh(tokens.expiresAt);
 
     const user = await this.getCurrentUser();
@@ -107,6 +159,14 @@ export class AuthService {
   // ── 获取当前用户 ──────────────────────────────────────
   async getCurrentUser(): Promise<User | null> {
     if (!this.tokens?.accessToken) return null;
+    // 如果 token 已过期，先刷新
+    if (this.tokens.expiresAt <= Date.now()) {
+      try {
+        await this.refreshToken();
+      } catch {
+        return null;
+      }
+    }
     try {
       const res = await this.http.get('/auth/me', {
         headers: { Authorization: `Bearer ${this.tokens.accessToken}` },
@@ -125,11 +185,46 @@ export class AuthService {
 
   // ── 是否已登录 ────────────────────────────────────────
   isLoggedIn(): boolean {
-    return !!this.tokens?.accessToken;
+    if (!this.tokens?.accessToken) return false;
+    // token 未过期，或者有 refresh token 可以续期
+    return this.tokens.expiresAt > Date.now() || !!this.tokens.refreshToken;
   }
 
   getAccessToken(): string | null {
     return this.tokens?.accessToken ?? null;
+  }
+
+  async getCapabilities(): Promise<AuthCapabilities> {
+    if (this.capabilitiesCache && this.capabilitiesCache.expiresAt > Date.now()) {
+      return this.capabilitiesCache.value;
+    }
+
+    const fallback: AuthCapabilities = {
+      supportsPasswordAuth: true,
+      supportsRegistration: true,
+      supportsGithubAuth: false,
+      supportsGoogleAuth: false,
+    };
+
+    try {
+      const res = await axios.get(`${BASE_URL.replace(/\/api\/v1$/, '')}/openapi.json`, { timeout: 5000 });
+      const paths = res.data?.paths ?? {};
+
+      const value: AuthCapabilities = {
+        supportsPasswordAuth: Boolean(paths['/api/v1/auth/login']),
+        supportsRegistration: Boolean(paths['/api/v1/auth/register']),
+        supportsGithubAuth: Boolean(paths['/api/v1/auth/github'] || paths['/api/v1/auth/github/login']),
+        supportsGoogleAuth: Boolean(paths['/api/v1/auth/google'] || paths['/api/v1/auth/google/login']),
+      };
+
+      this.capabilitiesCache = {
+        value,
+        expiresAt: Date.now() + 5 * 60 * 1000,
+      };
+      return value;
+    } catch {
+      return fallback;
+    }
   }
 
   // ── 令牌持久化（safeStorage 加密 + 文件存储）────────────────────

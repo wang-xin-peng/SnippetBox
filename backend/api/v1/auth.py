@@ -8,7 +8,10 @@ from datetime import datetime
 import logging
 
 from models.user import UserCreate, UserLogin, UserResponse, TokenResponse, TokenRefresh
+from models.email_code import EmailCodeRequest, EmailCodeVerify, EmailCodeResponse
 from services.auth import AuthService
+from services.email_code import email_code_service
+from services.email import email_service
 from database.connection import get_db_connection
 from middleware.auth import get_current_user, security
 
@@ -198,3 +201,103 @@ async def get_current_user_info(
         username=row['username'],
         created_at=row['created_at']
     )
+
+
+@router.post("/auth/send-code", response_model=EmailCodeResponse)
+async def send_verification_code(
+    request: EmailCodeRequest,
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    """
+    发送邮箱验证码
+
+    - **email**: 邮箱地址
+
+    返回验证码发送结果
+    """
+    email = request.email
+
+    allowed, wait_seconds = email_code_service.check_rate_limit(email)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"请求过于频繁，请在 {wait_seconds} 秒后重试"
+        )
+
+    count = email_code_service.increment_rate_limit(email)
+    if count > email_code_service.MAX_REQUESTS_PER_MINUTE:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="请求过于频繁，请稍后再试"
+        )
+
+    user_exists = await conn.fetchrow("SELECT id FROM users WHERE email = $1", email)
+    if not user_exists:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="该邮箱尚未注册"
+        )
+
+    code = email_code_service.generate_and_store_code(email)
+    email_service.send_verification_code(email, code)
+
+    return EmailCodeResponse(
+        message="验证码已发送",
+        expires_in=300
+    )
+
+
+@router.post("/auth/login-with-code", response_model=TokenResponse)
+async def login_with_code(
+    verify_data: EmailCodeVerify,
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    """
+    使用邮箱验证码登录
+
+    - **email**: 邮箱地址
+    - **code**: 验证码
+
+    返回访问令牌和刷新令牌
+    """
+    email = verify_data.email
+    code = verify_data.code
+
+    success, error_msg = email_code_service.verify_code(email, code)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_msg
+        )
+
+    try:
+        user = await AuthService.authenticate_user_by_email(conn, email)
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="用户不存在",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        access_token, expires_in = AuthService.create_access_token(user.id, user.email)
+        refresh_token = AuthService.create_refresh_token(user.id, user.email)
+
+        return TokenResponse(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_type="bearer",
+            expires_in=expires_in
+        )
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Login with code error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="登录失败"
+        )

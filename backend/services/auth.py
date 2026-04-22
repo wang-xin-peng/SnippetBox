@@ -164,6 +164,40 @@ class AuthService:
             failed_login_attempts=0,
             last_login=datetime.utcnow()
         )
+
+    @staticmethod
+    async def authenticate_user_by_email(conn: asyncpg.Connection, email: str) -> Optional[User]:
+        """通过邮箱获取用户（用于验证码登录）"""
+        row = await conn.fetchrow("""
+            SELECT id, email, username, password_hash, created_at, updated_at,
+                   is_active, failed_login_attempts, last_login
+            FROM users WHERE email = $1
+        """, email)
+
+        if not row:
+            return None
+
+        if row['failed_login_attempts'] >= AuthService.MAX_FAILED_ATTEMPTS:
+            logger.warning(f"Account locked for email: {email}")
+            raise ValueError("Account locked due to too many failed login attempts")
+
+        await conn.execute("""
+            UPDATE users
+            SET failed_login_attempts = 0, last_login = CURRENT_TIMESTAMP
+            WHERE email = $1
+        """, email)
+
+        return User(
+            id=str(row['id']),
+            email=row['email'],
+            username=row['username'],
+            password_hash=row['password_hash'],
+            created_at=row['created_at'],
+            updated_at=row['updated_at'],
+            is_active=row['is_active'],
+            failed_login_attempts=0,
+            last_login=datetime.utcnow()
+        )
     
     @staticmethod
     async def blacklist_token(conn: asyncpg.Connection, token: str):
