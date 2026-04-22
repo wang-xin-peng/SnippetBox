@@ -67,13 +67,16 @@ async def upload_vector(
                 detail="Vector dimension must be 384"
             )
         
+        # 将向量转换为字符串格式（pgvector需要）
+        vector_str = '[' + ','.join(map(str, vector)) + ']'
+        
         # 插入或更新向量
         await conn.execute("""
             INSERT INTO cloud_snippet_vectors (snippet_id, user_id, vector)
             VALUES ($1::uuid, $2::uuid, $3::vector)
             ON CONFLICT (snippet_id) 
             DO UPDATE SET vector = EXCLUDED.vector, updated_at = CURRENT_TIMESTAMP
-        """, snippet_id, user_id, vector)
+        """, snippet_id, user_id, vector_str)
         
         return {
             "status": "success",
@@ -132,13 +135,16 @@ async def batch_upload_vectors(
                     errors.append({"snippet_id": snippet_id, "error": "Snippet not found"})
                     continue
                 
+                # 将向量转换为字符串格式（pgvector需要）
+                vector_str = '[' + ','.join(map(str, vector)) + ']'
+                
                 # 插入或更新向量
                 await conn.execute("""
                     INSERT INTO cloud_snippet_vectors (snippet_id, user_id, vector)
                     VALUES ($1::uuid, $2::uuid, $3::vector)
                     ON CONFLICT (snippet_id) 
                     DO UPDATE SET vector = EXCLUDED.vector, updated_at = CURRENT_TIMESTAMP
-                """, snippet_id, user_id, vector)
+                """, snippet_id, user_id, vector_str)
                 
                 success_count += 1
             
@@ -189,6 +195,9 @@ async def search_vectors(
                 detail="Query vector dimension must be 384"
             )
         
+        # 将查询向量转换为字符串格式（pgvector需要）
+        query_vector_str = '[' + ','.join(map(str, query_vector)) + ']'
+        
         # 向量相似度搜索（使用余弦相似度）
         rows = await conn.fetch("""
             SELECT 
@@ -209,7 +218,7 @@ async def search_vectors(
                 AND 1 - (v.vector <=> $1::vector) >= $3
             ORDER BY v.vector <=> $1::vector
             LIMIT $4
-        """, query_vector, user_id, threshold, limit)
+        """, query_vector_str, user_id, threshold, limit)
         
         results = [
             {
