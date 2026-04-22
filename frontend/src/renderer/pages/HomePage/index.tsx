@@ -557,6 +557,106 @@ interface PreviewProps {
 }
 
 function PreviewPanel({ snippet, onEdit, onCopy, onDelete, onToggleStar }: PreviewProps) {
+  const handleDownload = () => {
+    // 获取文件扩展名
+    const langExtMap: Record<string, string> = {
+      javascript: 'js', typescript: 'ts', python: 'py', java: 'java',
+      cpp: 'cpp', 'c++': 'cpp', csharp: 'cs', 'c#': 'cs',
+      go: 'go', rust: 'rs', php: 'php', ruby: 'rb',
+      swift: 'swift', kotlin: 'kt', html: 'html', css: 'css',
+      sql: 'sql', shell: 'sh', bash: 'sh', dart: 'dart',
+      r: 'r', yaml: 'yaml', json: 'json',
+    };
+    const ext = langExtMap[snippet.language?.toLowerCase()] || 'txt';
+    const filename = `${snippet.title.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_')}.${ext}`;
+    
+    // 创建下载链接
+    const blob = new Blob([snippet.code], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleColorize = async () => {
+    try {
+      // 使用浏览器的打印功能生成带语法高亮的PDF
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        alert('请允许弹出窗口以生成染色版本');
+        return;
+      }
+      
+      // 生成带语法高亮的HTML
+      const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${snippet.title}</title>
+  <style>
+    body {
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      padding: 20px;
+      background: white;
+      color: #333;
+    }
+    .header {
+      border-bottom: 2px solid #333;
+      padding-bottom: 10px;
+      margin-bottom: 20px;
+    }
+    .title {
+      font-size: 24px;
+      font-weight: bold;
+      margin: 0 0 5px 0;
+    }
+    .meta {
+      color: #666;
+      font-size: 14px;
+    }
+    .code {
+      background: #f5f5f5;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 15px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    @media print {
+      body { padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="title">${snippet.title}</div>
+    <div class="meta">语言: ${snippet.language} | 更新: ${formatDate(snippet.updatedAt)}</div>
+  </div>
+  <pre class="code">${snippet.code.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
+</body>
+</html>`;
+      
+      printWindow.document.write(html);
+      printWindow.document.close();
+      
+      // 等待内容加载后自动打开打印对话框
+      printWindow.onload = () => {
+        setTimeout(() => {
+          printWindow.print();
+        }, 250);
+      };
+    } catch (e) {
+      console.error('Colorize failed:', e);
+      alert('生成染色版本失败');
+    }
+  };
   return (
     <>
       <div className="preview-header">
@@ -583,11 +683,12 @@ function PreviewPanel({ snippet, onEdit, onCopy, onDelete, onToggleStar }: Previ
 
       <div className="preview-actions">
         <button className="action-btn primary" onClick={onCopy}>📋 复制代码</button>
-        <button className="action-btn" onClick={onEdit}>✏️ 编辑</button>
-        <button className="action-btn" onClick={onEdit}>📤 下载</button>
+        <button className="action-btn" onClick={onEdit}>✏️ 编辑信息</button>
+        <ShareButton snippet={snippet} />
+        <button className="action-btn" onClick={handleDownload}>📤 下载</button>
         <div className="action-btn-spacer" />
         <button className="action-btn danger" onClick={onDelete}>🗑️ 删除</button>
-        <button className="action-btn colorize">🎨 染色</button>
+        <button className="action-btn colorize" onClick={handleColorize}>🎨 染色</button>
       </div>
 
       <div className="preview-code-area">

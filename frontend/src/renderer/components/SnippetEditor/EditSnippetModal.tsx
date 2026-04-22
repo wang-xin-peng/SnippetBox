@@ -5,7 +5,7 @@ import { ShareButton } from '../Share/ShareButton';
 import './NewSnippetModal.css'; // 复用同一套样式
 
 interface Props {
-  snippet: Snippet;
+  snippet: Snippet | null; // null表示新建
   onClose: () => void;
   onSaved: () => void;
 }
@@ -17,13 +17,14 @@ const LANGUAGES = [
 ];
 
 export const EditSnippetModal: React.FC<Props> = ({ snippet, onClose, onSaved }) => {
-  const [title, setTitle] = useState(snippet.title);
-  const [description, setDescription] = useState((snippet as any).description || '');
-  const [language, setLanguage] = useState(snippet.language || 'JavaScript');
-  const [category, setCategory] = useState(snippet.category || '');
+  const isEditing = !!snippet; // 是否是编辑模式
+  const [title, setTitle] = useState(snippet?.title || '');
+  const [description, setDescription] = useState((snippet as any)?.description || '');
+  const [language, setLanguage] = useState(snippet?.language || 'JavaScript');
+  const [category, setCategory] = useState(snippet?.category || '');
   const [tagInput, setTagInput] = useState('');
-  const [tags, setTags] = useState<string[]>(snippet.tags || []);
-  const [code, setCode] = useState(snippet.code || '');
+  const [tags, setTags] = useState<string[]>(snippet?.tags || []);
+  const [code, setCode] = useState(snippet?.code || '');
   const [titleError, setTitleError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
@@ -55,17 +56,27 @@ export const EditSnippetModal: React.FC<Props> = ({ snippet, onClose, onSaved })
 
   const handleSave = async () => {
     if (!title.trim()) { setTitleError('标题不能为空'); return; }
+    if (!isEditing && !code.trim()) { alert('代码不能为空'); return; }
     setIsSaving(true);
     try {
       const data: UpdateSnippetDTO = {
         title: title.trim(),
-        code,
         language,
         category: category || undefined,
         tags,
         description: description.trim() || undefined,
       } as any;
-      await (window as any).electronAPI.snippet.update(snippet.id, data);
+      
+      // 只有在新建或编辑模式下才包含code
+      if (!isEditing || code !== snippet?.code) {
+        data.code = code;
+      }
+      
+      if (isEditing && snippet) {
+        await (window as any).electronAPI.snippet.update(snippet.id, data);
+      } else {
+        await (window as any).electronAPI.snippet.create({ ...data, code });
+      }
       onSaved();
     } catch (e) {
       console.error('Save failed:', e);
@@ -81,8 +92,8 @@ export const EditSnippetModal: React.FC<Props> = ({ snippet, onClose, onSaved })
         {/* Header */}
         <div className="nsm-header">
           <div>
-            <div className="nsm-title">编辑代码片段</div>
-            <div className="nsm-subtitle">填写代码片段的详细信息，支持多种编程语言</div>
+            <div className="nsm-title">{isEditing ? '编辑片段信息' : '新建代码片段'}</div>
+            <div className="nsm-subtitle">{isEditing ? '修改片段的标题、描述、分类和标签' : '填写代码片段的详细信息，支持多种编程语言'}</div>
           </div>
           <button className="nsm-close" onClick={onClose}>×</button>
         </div>
@@ -152,23 +163,26 @@ export const EditSnippetModal: React.FC<Props> = ({ snippet, onClose, onSaved })
             )}
           </div>
 
-          <div className="nsm-field">
-            <label className="nsm-label">代码 <span className="nsm-required">*</span></label>
-            <div className="nsm-code-wrap">
-              <CodeEditor
-                value={code}
-                language={language.toLowerCase()}
-                onChange={setCode}
-                height="240px"
-                theme="vs-dark"
-              />
+          {/* 只在新建模式下显示代码编辑器 */}
+          {!isEditing && (
+            <div className="nsm-field">
+              <label className="nsm-label">代码 <span className="nsm-required">*</span></label>
+              <div className="nsm-code-wrap">
+                <CodeEditor
+                  value={code}
+                  language={language.toLowerCase()}
+                  onChange={setCode}
+                  height="240px"
+                  theme="vs-dark"
+                />
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Footer */}
         <div className="nsm-footer">
-          <ShareButton snippet={snippet} />
+          {isEditing && snippet && <ShareButton snippet={snippet} />}
           <div style={{ flex: 1 }} />
           <button className="nsm-btn" onClick={onClose}>取消</button>
           <button className="nsm-btn nsm-btn--primary" onClick={handleSave} disabled={isSaving}>

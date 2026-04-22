@@ -12,7 +12,7 @@ function Layout() {
   const [showingFavorites, setShowingFavorites] = useState(false);
   const [selectedSnippetId, setSelectedSnippetId] = useState<string | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(220);
-  const [previewWidth, setPreviewWidth] = useState(420);
+  const [previewWidth, setPreviewWidth] = useState(580); // 调整为580px，让片段列表默认约400px
   const [showNewModal, setShowNewModal] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const isDraggingLeft = useRef(false);
@@ -55,9 +55,11 @@ function Layout() {
     const startWidth = previewWidth;
 
     const onMove = (e: MouseEvent) => {
-      if (!isDraggingRight.current) return;
+      if (!isDraggingRight.current || !containerRef.current) return;
       const delta = startX - e.clientX;
-      setPreviewWidth(Math.max(280, Math.min(600, startWidth + delta)));
+      // 移除最大宽度限制，允许用户自由调整
+      // 最小宽度保持在350px，确保预览面板有足够空间
+      setPreviewWidth(Math.max(350, startWidth + delta));
     };
     const onUp = () => {
       isDraggingRight.current = false;

@@ -346,6 +346,127 @@ export const SettingsPage: React.FC = () => {
             </div>
           </div>
         </section>
+
+        {/* 数据管理 */}
+        <section className="settings-section">
+          <h2 className="section-title">数据管理</h2>
+          
+          <div className="setting-item">
+            <div className="setting-header">
+              <label className="setting-label">导入代码片段</label>
+              <p className="setting-description">
+                从 JSON 或 Markdown 文件导入代码片段
+              </p>
+            </div>
+            <div className="setting-control">
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  className="btn-secondary"
+                  onClick={async () => {
+                    try {
+                      const result = await window.electron.ipcRenderer.invoke('import:json', {
+                        skipDuplicates: true
+                      });
+                      if (result.success) {
+                        alert(`成功导入 ${result.imported} 个片段${result.skipped > 0 ? `，跳过 ${result.skipped} 个重复` : ''}`);
+                      } else {
+                        alert('导入失败: ' + result.error);
+                      }
+                    } catch (error: any) {
+                      alert('导入失败: ' + error.message);
+                    }
+                  }}
+                >
+                  从 JSON 导入
+                </button>
+                <button
+                  className="btn-secondary"
+                  onClick={async () => {
+                    try {
+                      const result = await window.electron.ipcRenderer.invoke('import:markdown', {
+                        skipDuplicates: true
+                      });
+                      if (result.success) {
+                        alert(`成功导入 ${result.imported} 个片段${result.skipped > 0 ? `，跳过 ${result.skipped} 个重复` : ''}`);
+                      } else {
+                        alert('导入失败: ' + result.error);
+                      }
+                    } catch (error: any) {
+                      alert('导入失败: ' + error.message);
+                    }
+                  }}
+                >
+                  从 Markdown 导入
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="setting-item">
+            <div className="setting-header">
+              <label className="setting-label">导出代码片段</label>
+              <p className="setting-description">
+                将所有代码片段导出为 JSON 或 Markdown 文件
+              </p>
+            </div>
+            <div className="setting-control">
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  className="btn-secondary"
+                  onClick={async () => {
+                    try {
+                      // 获取所有片段ID
+                      const snippets = await window.electron.ipcRenderer.invoke('snippet:list');
+                      const snippetIds = snippets.map((s: any) => s.id);
+                      
+                      if (snippetIds.length === 0) {
+                        alert('没有可导出的片段');
+                        return;
+                      }
+                      
+                      const result = await window.electron.ipcRenderer.invoke('export:json', snippetIds);
+                      if (result.success) {
+                        alert(`成功导出 ${result.count} 个片段到 ${result.filePath}`);
+                      } else {
+                        alert('导出失败: ' + result.error);
+                      }
+                    } catch (error: any) {
+                      alert('导出失败: ' + error.message);
+                    }
+                  }}
+                >
+                  导出为 JSON
+                </button>
+                <button
+                  className="btn-secondary"
+                  onClick={async () => {
+                    try {
+                      // 获取所有片段ID
+                      const snippets = await window.electron.ipcRenderer.invoke('snippet:list');
+                      const snippetIds = snippets.map((s: any) => s.id);
+                      
+                      if (snippetIds.length === 0) {
+                        alert('没有可导出的片段');
+                        return;
+                      }
+                      
+                      const result = await window.electron.ipcRenderer.invoke('export:batch-markdown', snippetIds);
+                      if (result.success) {
+                        alert(`成功导出 ${result.count} 个片段到 ${result.directory}`);
+                      } else {
+                        alert('导出失败: ' + result.error);
+                      }
+                    } catch (error: any) {
+                      alert('导出失败: ' + error.message);
+                    }
+                  }}
+                >
+                  导出为 Markdown
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
 
       <DownloadDialog
@@ -356,66 +477,6 @@ export const SettingsPage: React.FC = () => {
         }}
         onComplete={handleDownloadComplete}
       />
-
-      {/* 设置操作按钮 */}
-      <div style={{ marginTop: 24, display: 'flex', gap: 12 }}>
-        <button
-          className="btn-secondary"
-          onClick={async () => {
-            if (!confirm('确定要重置所有设置吗？')) return;
-            try {
-              const result = await window.electron.ipcRenderer.invoke('settings:reset');
-              if (result.success) {
-                alert('设置已重置');
-                loadSettings();
-              }
-            } catch (error) {
-              console.error('重置设置失败:', error);
-            }
-          }}
-        >
-          重置设置
-        </button>
-        <button
-          className="btn-secondary"
-          onClick={async () => {
-            const filePath = prompt('请输入导出文件路径:');
-            if (!filePath) return;
-            try {
-              const result = await window.electron.ipcRenderer.invoke('settings:export', filePath);
-              if (result.success) {
-                alert('设置已导出');
-              } else {
-                alert('导出失败: ' + result.error);
-              }
-            } catch (error) {
-              console.error('导出设置失败:', error);
-            }
-          }}
-        >
-          导出设置
-        </button>
-        <button
-          className="btn-secondary"
-          onClick={async () => {
-            const filePath = prompt('请输入导入文件路径:');
-            if (!filePath) return;
-            try {
-              const result = await window.electron.ipcRenderer.invoke('settings:import', filePath);
-              if (result.success) {
-                alert('设置已导入');
-                loadSettings();
-              } else {
-                alert('导入失败: ' + result.error);
-              }
-            } catch (error) {
-              console.error('导入设置失败:', error);
-            }
-          }}
-        >
-          导入设置
-        </button>
-      </div>
     </div>
   );
 };

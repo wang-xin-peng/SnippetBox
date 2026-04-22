@@ -1,11 +1,12 @@
 """
 云端向量同步 API
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Body
 import asyncpg
 from typing import List, Optional
 from datetime import datetime
 import logging
+from pydantic import BaseModel
 
 from middleware.auth import get_current_user
 from database.connection import get_db_connection
@@ -15,25 +16,22 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-class VectorUpload:
+class VectorUpload(BaseModel):
     """向量上传模型"""
-    def __init__(self, snippet_id: str, vector: List[float]):
-        self.snippet_id = snippet_id
-        self.vector = vector
+    snippet_id: str
+    vector: List[float]
 
 
-class VectorSearchRequest:
+class VectorSearchRequest(BaseModel):
     """向量搜索请求"""
-    def __init__(self, query_vector: List[float], limit: int = 10, threshold: float = 0.7):
-        self.query_vector = query_vector
-        self.limit = limit
-        self.threshold = threshold
+    query_vector: List[float]
+    limit: int = 10
+    threshold: float = 0.7
 
 
-@router.post("/vectors/upload")
+@router.post("/vector-sync/upload")
 async def upload_vector(
-    snippet_id: str,
-    vector: List[float],
+    data: VectorUpload,
     current_user: dict = Depends(get_current_user),
     conn: asyncpg.Connection = Depends(get_db_connection)
 ):
@@ -46,6 +44,8 @@ async def upload_vector(
     需要认证
     """
     user_id = current_user["user_id"]
+    snippet_id = data.snippet_id
+    vector = data.vector
     
     try:
         # 验证片段是否存在且属于当前用户
@@ -91,9 +91,9 @@ async def upload_vector(
         )
 
 
-@router.post("/vectors/batch-upload")
+@router.post("/vector-sync/batch-upload")
 async def batch_upload_vectors(
-    vectors: List[dict],
+    vectors: List[VectorUpload],
     current_user: dict = Depends(get_current_user),
     conn: asyncpg.Connection = Depends(get_db_connection)
 ):
@@ -112,13 +112,8 @@ async def batch_upload_vectors(
         errors = []
         
         for item in vectors:
-            snippet_id = item.get("snippet_id")
-            vector = item.get("vector")
-            
-            if not snippet_id or not vector:
-                error_count += 1
-                errors.append({"snippet_id": snippet_id, "error": "Missing snippet_id or vector"})
-                continue
+            snippet_id = item.snippet_id
+            vector = item.vector
             
             if len(vector) != 384:
                 error_count += 1
@@ -166,11 +161,9 @@ async def batch_upload_vectors(
         )
 
 
-@router.post("/vectors/search")
+@router.post("/vector-sync/search")
 async def search_vectors(
-    query_vector: List[float],
-    limit: int = 10,
-    threshold: float = 0.7,
+    request: VectorSearchRequest,
     current_user: dict = Depends(get_current_user),
     conn: asyncpg.Connection = Depends(get_db_connection)
 ):
@@ -184,6 +177,9 @@ async def search_vectors(
     需要认证
     """
     user_id = current_user["user_id"]
+    query_vector = request.query_vector
+    limit = request.limit
+    threshold = request.threshold
     
     try:
         # 验证向量维度
@@ -246,7 +242,7 @@ async def search_vectors(
         )
 
 
-@router.delete("/vectors/{snippet_id}")
+@router.delete("/vector-sync/{snippet_id}")
 async def delete_vector(
     snippet_id: str,
     current_user: dict = Depends(get_current_user),
