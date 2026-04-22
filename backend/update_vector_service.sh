@@ -19,20 +19,20 @@ echo ""
 
 # 2. 停止现有容器
 echo "2. 停止现有容器..."
-docker-compose down
+cd ~/SnippetBox/backend
+docker compose down
 echo "✓ 容器已停止"
 echo ""
 
 # 3. 重新构建镜像（包含新依赖）
 echo "3. 重新构建后端镜像..."
-cd ~/SnippetBox/backend
-docker-compose build --no-cache api
+docker compose build --no-cache api
 echo "✓ 镜像已重新构建"
 echo ""
 
 # 4. 启动容器
 echo "4. 启动容器..."
-docker-compose up -d
+docker compose up -d
 echo "✓ 容器已启动"
 echo ""
 
