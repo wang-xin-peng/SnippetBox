@@ -84,6 +84,17 @@ export default function HomePage() {
 
   useEffect(() => { loadSnippets(); }, [loadSnippets, refreshKey]);
 
+  // 监听登录后的刷新事件
+  useEffect(() => {
+    const handleRefresh = () => {
+      console.log('[HomePage] Received snippets-refresh event');
+      loadSnippets();
+    };
+    
+    window.addEventListener('snippets-refresh', handleRefresh);
+    return () => window.removeEventListener('snippets-refresh', handleRefresh);
+  }, [loadSnippets]);
+
   useEffect(() => {
     const el = document.getElementById('snippet-count');
     if (el) el.textContent = filtered.length ? `${filtered.length} 个片段` : '';
