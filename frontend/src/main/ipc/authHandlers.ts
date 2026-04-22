@@ -90,5 +90,22 @@ export function registerAuthHandlers() {
     }
   });
 
+  ipcMain.handle('auth:sendRegisterCode', async (_e, email: string) => {
+    try {
+      return await auth.sendRegisterCode(email);
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  });
+
+  ipcMain.handle('auth:verifyRegisterCode', async (_e, email: string, code: string, password: string, username: string) => {
+    try {
+      const result = await auth.verifyRegisterCode(email, code, password, username);
+      return { success: true, data: result };
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  });
+
   console.log('[AuthHandlers] Registered');
 }

@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { SocialAuthSection } from './AuthForm';
 import { useAuth } from '../../store/authStore';
 
 interface LoginDialogProps {
@@ -19,19 +18,12 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({ onClose, onSwitchToReg
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [capsLock, setCapsLock] = useState(false);
   const [cooldownUntil, setCooldownUntil] = useState(0);
-  const [capabilities, setCapabilities] = useState<any>(null);
 
   const [code, setCode] = useState('');
   const [codeSent, setCodeSent] = useState(false);
   const [codeCooldown, setCodeCooldown] = useState(0);
   const [sendingCode, setSendingCode] = useState(false);
   const [codeError, setCodeError] = useState('');
-
-  useEffect(() => {
-    window.electron.auth.getCapabilities().then((res) => {
-      if (res.success) setCapabilities(res.data);
-    }).catch(() => {});
-  }, []);
 
   const remainingCooldown = useMemo(
     () => Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000)),
@@ -254,8 +246,6 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({ onClose, onSwitchToReg
             {loading ? '登录中...' : '登录'}
           </button>
         </form>
-
-        <SocialAuthSection capabilities={capabilities} />
 
         <p className="auth-switch">
           还没有账户？

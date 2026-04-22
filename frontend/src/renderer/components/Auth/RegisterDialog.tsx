@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../../store/authStore';
 import './Auth.css';
 
@@ -7,35 +7,116 @@ interface RegisterDialogProps {
   onSwitchToLogin: () => void;
 }
 
+type RegisterStep = 'form' | 'verify';
+
 export const RegisterDialog: React.FC<RegisterDialogProps> = ({ onClose, onSwitchToLogin }) => {
   const { register, loading, error, clearError } = useAuth();
 
+  const [step, setStep] = useState<RegisterStep>('form');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const validate = () => {
+  const [code, setCode] = useState('');
+  const [codeSent, setCodeSent] = useState(false);
+  const [codeCooldown, setCodeCooldown] = useState(0);
+  const [sendingCode, setSendingCode] = useState(false);
+  const [codeError, setCodeError] = useState('');
+
+  useEffect(() => {
+    if (codeCooldown <= 0) return;
+    const timer = window.setInterval(() => {
+      setCodeCooldown((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [codeCooldown]);
+
+  const passwordStrength = useMemo(() => {
+    let score = 0;
+    if (password.length >= 8) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/[a-z]/.test(password)) score++;
+    if (/\d/.test(password)) score++;
+    if (/[^A-Za-z0-9]/.test(password)) score++;
+    return Math.min(score, 4);
+  }, [password]);
+
+  const validateForm = () => {
     const errs: Record<string, string> = {};
     if (!username.trim()) errs.username = '姓名不能为空';
     if (!email.trim()) errs.email = '邮箱不能为空';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = '请输入有效的邮箱地址';
     if (!password) errs.password = '密码不能为空';
     else if (password.length < 8) errs.password = '密码至少 8 位';
+    else if (passwordStrength < 3) errs.password = '密码强度不足，建议混合大小写、数字和符号';
     if (!confirm) errs.confirm = '请再次输入密码';
     else if (password && confirm !== password) errs.confirm = '两次密码不一致';
+    if (!acceptedTerms) errs.terms = '请先同意使用条款';
     setFieldErrors(errs);
     return Object.keys(errs).length === 0;
   };
 
+  const validateCode = () => {
+    const errs: Record<string, string> = {};
+    if (!code.trim()) errs.code = '验证码不能为空';
+    else if (!/^\d{6}$/.test(code.trim())) errs.code = '验证码应为6位数字';
+    setFieldErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
+  const handleSendCode = async () => {
+    if (!email.trim()) {
+      setFieldErrors((prev) => ({ ...prev, email: '请先输入邮箱地址' }));
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setFieldErrors((prev) => ({ ...prev, email: '请输入有效的邮箱地址' }));
+      return;
+    }
+    if (codeCooldown > 0) return;
+
+    setSendingCode(true);
+    setCodeError('');
+    try {
+      const res = await window.electron.ipcRenderer.invoke('auth:sendRegisterCode', email.trim());
+      if (res.success) {
+        setCodeSent(true);
+        setCodeCooldown(60);
+        setStep('verify');
+      } else {
+        setCodeError(res.error || '发送验证码失败');
+      }
+    } catch (err: any) {
+      setCodeError(err.message || '发送验证码失败');
+    } finally {
+      setSendingCode(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validate()) return;
-    const ok = await register(email, password, username);
-    if (ok) onClose();
+    if (step === 'form') {
+      if (!validateForm()) return;
+      await handleSendCode();
+    } else {
+      if (!validateCode()) return;
+      setCodeError('');
+      try {
+        const res = await window.electron.ipcRenderer.invoke('auth:verifyRegisterCode', email.trim(), code.trim(), password, username);
+        if (res.success) {
+          onClose();
+        } else {
+          setCodeError(res.error || '注册失败');
+        }
+      } catch (err: any) {
+        setCodeError(err.message || '注册失败');
+      }
+    }
   };
 
   const field = (
@@ -95,27 +176,89 @@ export const RegisterDialog: React.FC<RegisterDialogProps> = ({ onClose, onSwitc
         <button className="auth-dialog-close" onClick={onClose} aria-label="关闭">×</button>
 
         <form className="auth-form" onSubmit={handleSubmit} noValidate>
-          {field('username', '姓名', '👤', username, setUsername, 'text', '请输入姓名')}
-          {field('email', '邮箱', '✉', email, setEmail, 'email', '请输入邮箱地址')}
-          {field('password', '密码', '🔒', password, setPassword, 'password', '设置密码', { show: showPassword, onToggle: () => setShowPassword((v) => !v) })}
-          {field('confirm', '确认密码', '🔒', confirm, setConfirm, 'password', '再次输入密码', { show: showConfirm, onToggle: () => setShowConfirm((v) => !v) })}
+          <div className="auth-title-wrap">
+            <h2 className="auth-title">创建云端账户</h2>
+            <p className="auth-subtitle">
+              {step === 'form' ? '注册后即可同步片段、跨设备恢复和分享代码' : '请输入发送到邮箱的验证码'}
+            </p>
+          </div>
+
+          {step === 'form' ? (
+            <>
+              {field('username', '姓名', '👤', username, setUsername, 'text', '请输入姓名')}
+              {field('email', '邮箱', '✉', email, setEmail, 'email', '请输入邮箱地址')}
+              {field('password', '密码', '🔒', password, setPassword, 'password', '设置密码', { show: showPassword, onToggle: () => setShowPassword((v) => !v) })}
+              {field('confirm', '确认密码', '🔒', confirm, setConfirm, 'password', '再次输入密码', { show: showConfirm, onToggle: () => setShowConfirm((v) => !v) })}
+
+              <div className="auth-password-strength">
+                <span>密码强度</span>
+                <div className="auth-password-bars">
+                  {[0, 1, 2, 3].map((index) => (
+                    <span key={index} className={`auth-password-bar ${index < passwordStrength ? 'active' : ''}`} />
+                  ))}
+                </div>
+                <span className="auth-password-label">
+                  {['很弱', '较弱', '中等', '较强', '很强'][passwordStrength]}
+                </span>
+              </div>
+
+              <label className="auth-checkbox">
+                <input
+                  type="checkbox"
+                  checked={acceptedTerms}
+                  onChange={(e) => {
+                    setAcceptedTerms(e.target.checked);
+                    setFieldErrors((prev) => ({ ...prev, terms: '' }));
+                  }}
+                />
+                <span>我已阅读并同意本地使用条款与云同步协议</span>
+              </label>
+              {fieldErrors.terms && <span className="auth-field-error">{fieldErrors.terms}</span>}
+            </>
+          ) : (
+            <>
+              <div className="auth-field">
+                <label className="auth-label"><span className="auth-label-icon">✉</span>验证码</label>
+                <div className="auth-input-row">
+                  <input
+                    id="register_code"
+                    className={`auth-input${fieldErrors.code ? ' auth-input-error' : ''}`}
+                    type="text"
+                    value={code}
+                    onChange={(e) => { setCode(e.target.value.replace(/\D/g, '').slice(0, 6)); setFieldErrors((prev) => ({ ...prev, code: '' })); }}
+                    placeholder="输入6位验证码"
+                    autoComplete="one-time-code"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                  />
+                  <button
+                    type="button"
+                    className="auth-code-btn"
+                    onClick={handleSendCode}
+                    disabled={sendingCode || codeCooldown > 0}
+                  >
+                    {sendingCode ? '发送中...' : codeCooldown > 0 ? `${codeCooldown}秒` : '重新获取'}
+                  </button>
+                </div>
+                {fieldErrors.code && <span className="auth-field-error">{fieldErrors.code}</span>}
+                {codeError && <span className="auth-field-error">{codeError}</span>}
+              </div>
+              <button
+                type="button"
+                className="auth-link"
+                onClick={() => { setStep('form'); setCodeError(''); }}
+              >
+                ← 返回修改信息
+              </button>
+            </>
+          )}
 
           {error && <div className="auth-error-banner">{error}</div>}
 
           <button className="auth-submit-btn" type="submit" disabled={loading}>
-            {loading ? '处理中...' : '注册 →'}
+            {loading ? '注册中...' : step === 'form' ? '获取验证码' : '完成注册'}
           </button>
         </form>
-
-        <div className="auth-divider"><span>或使用第三方账号</span></div>
-        <div className="auth-oauth-row">
-          <button className="auth-oauth-btn" type="button" onClick={() => alert('GitHub 登录即将上线')}>
-            <span>⌥</span> Github
-          </button>
-          <button className="auth-oauth-btn" type="button" onClick={() => alert('Google 登录即将上线')}>
-            <span>✉</span> Google
-          </button>
-        </div>
 
         <p className="auth-switch">
           已有账户？

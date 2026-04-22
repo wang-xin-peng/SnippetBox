@@ -17,7 +17,7 @@ class EmailService:
 
     def __init__(self):
         self.smtp_host = getattr(settings, 'SMTP_HOST', None)
-        self.smtp_port = getattr(settings, 'SMTP_PORT', 587)
+        self.smtp_port = getattr(settings, 'SMTP_PORT', 465)
         self.smtp_user = getattr(settings, 'SMTP_USER', None)
         self.smtp_password = getattr(settings, 'SMTP_PASSWORD', None)
         self.from_email = getattr(settings, 'SMTP_FROM_EMAIL', self.smtp_user)
@@ -41,10 +41,16 @@ class EmailService:
 
             msg.attach(MIMEText(body, body_type, 'utf-8'))
 
-            with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
-                server.starttls()
-                server.login(self.smtp_user, self.smtp_password)
-                server.send_message(msg)
+            port = int(self.smtp_port)
+            if port == 465:
+                with smtplib.SMTP_SSL(self.smtp_host, port) as server:
+                    server.login(self.smtp_user, self.smtp_password)
+                    server.send_message(msg)
+            else:
+                with smtplib.SMTP(self.smtp_host, port) as server:
+                    server.starttls()
+                    server.login(self.smtp_user, self.smtp_password)
+                    server.send_message(msg)
 
             logger.info(f"Email sent to {to_email}: {subject}")
             return True
@@ -60,7 +66,7 @@ class EmailService:
 
 您的 SnippetBox 验证码是：
 
-{code}
+    {code}
 
 验证码有效期为 5 分钟，请尽快完成验证。
 

@@ -118,6 +118,39 @@ export class AuthService {
     };
   }
 
+  // ── 发送注册验证码 ─────────────────────────────────────
+  async sendRegisterCode(email: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      await this.http.post('/auth/send-register-code', { email });
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  }
+
+  // ── 验证注册验证码并完成注册 ─────────────────────────────
+  async verifyRegisterCode(email: string, code: string, password: string, username: string): Promise<LoginResult> {
+    const res = await this.http.post('/auth/register-with-code', { email, code, password, username });
+    const data = res.data;
+
+    const tokens: StoredTokens = {
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token,
+      expiresAt: Date.now() + (data.expires_in ?? 1800) * 1000,
+    };
+
+    this.tokens = tokens;
+    this.saveTokens(tokens);
+    this.scheduleRefresh(tokens.expiresAt);
+
+    const user = await this.getCurrentUser();
+    return {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      user: user!,
+    };
+  }
+
   // ── 登出 ──────────────────────────────────────────────
   async logout(): Promise<void> {
     try {

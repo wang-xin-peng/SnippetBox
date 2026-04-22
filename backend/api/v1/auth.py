@@ -8,7 +8,7 @@ from datetime import datetime
 import logging
 
 from models.user import UserCreate, UserLogin, UserResponse, TokenResponse, TokenRefresh
-from models.email_code import EmailCodeRequest, EmailCodeVerify, EmailCodeResponse
+from models.email_code import EmailCodeRequest, EmailCodeVerify, EmailCodeResponse, RegisterWithCodeRequest
 from services.auth import AuthService
 from services.email_code import email_code_service
 from services.email import email_service
@@ -300,4 +300,108 @@ async def login_with_code(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="登录失败"
+        )
+
+
+@router.post("/auth/send-register-code", response_model=EmailCodeResponse)
+async def send_register_code(
+    request: EmailCodeRequest,
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    """
+    发送注册验证码
+
+    - **email**: 邮箱地址（必须未注册）
+
+    返回验证码发送结果
+    """
+    email = request.email
+
+    existing = await conn.fetchrow("SELECT id FROM users WHERE email = $1", email)
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="该邮箱已注册，请直接登录"
+        )
+
+    allowed, wait_seconds = email_code_service.check_register_rate_limit(email)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"请求过于频繁，请在 {wait_seconds} 秒后重试"
+        )
+
+    count = email_code_service.increment_register_rate_limit(email)
+    if count > email_code_service.MAX_REQUESTS_PER_MINUTE:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="请求过于频繁，请稍后再试"
+        )
+
+    code = email_code_service.generate_and_store_register_code(email)
+    email_service.send_verification_code(email, code)
+
+    return EmailCodeResponse(
+        message="验证码已发送",
+        expires_in=300
+    )
+
+
+@router.post("/auth/register-with-code", response_model=TokenResponse)
+async def register_with_code(
+    register_data: RegisterWithCodeRequest,
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    """
+    使用验证码注册
+
+    - **email**: 邮箱地址
+    - **code**: 验证码
+    - **password**: 密码
+    - **username**: 用户名
+
+    验证码验证通过后自动注册并登录
+    """
+    success, error_msg = email_code_service.verify_register_code(register_data.email, register_data.code)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_msg
+        )
+
+    existing = await conn.fetchrow("SELECT id FROM users WHERE email = $1", register_data.email)
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="该邮箱已注册"
+        )
+
+    try:
+        user_data = UserCreate(
+            email=register_data.email,
+            password=register_data.password,
+            username=register_data.username
+        )
+        user = await AuthService.register_user(conn, user_data)
+
+        access_token, expires_in = AuthService.create_access_token(user.id, user.email)
+        refresh_token = AuthService.create_refresh_token(user.id, user.email)
+
+        return TokenResponse(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_type="bearer",
+            expires_in=expires_in
+        )
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Register with code error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="注册失败"
         )
