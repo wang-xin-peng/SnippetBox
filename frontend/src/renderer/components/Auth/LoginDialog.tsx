@@ -9,7 +9,7 @@ interface LoginDialogProps {
 type LoginMode = 'password' | 'code';
 
 export const LoginDialog: React.FC<LoginDialogProps> = ({ onClose, onSwitchToRegister }) => {
-  const { login, loading, error, clearError } = useAuth();
+  const { login, loading, error, clearError, checkAuth } = useAuth();
   const [loginMode, setLoginMode] = useState<LoginMode>('password');
   const [rememberMe, setRememberMe] = useState(false);
   const [email, setEmail] = useState('');
@@ -121,7 +121,18 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({ onClose, onSwitchToReg
     try {
       const res = await window.electron.ipcRenderer.invoke('auth:loginWithCode', email.trim(), code.trim());
       if (res.success) {
-        await login(email.trim(), code.trim(), rememberMe);
+        await checkAuth();
+        setTimeout(async () => {
+          try {
+            const pullResult = await window.electron.ipcRenderer.invoke('sync:pull');
+            if (pullResult.success) {
+              console.log(`[Auth] Successfully pulled ${pullResult.data?.pulled ?? 0} snippets from cloud`);
+            }
+            window.dispatchEvent(new Event('snippets-refresh'));
+          } catch (error) {
+            console.error('[Auth] Login post-processing failed:', error);
+          }
+        }, 300);
         onClose();
       } else {
         setCodeError(res.error || '验证码错误');

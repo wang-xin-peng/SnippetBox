@@ -10,7 +10,7 @@ interface RegisterDialogProps {
 type RegisterStep = 'form' | 'verify';
 
 export const RegisterDialog: React.FC<RegisterDialogProps> = ({ onClose, onSwitchToLogin }) => {
-  const { register, loading, error, clearError } = useAuth();
+  const { register, loading, error, clearError, checkAuth } = useAuth();
 
   const [step, setStep] = useState<RegisterStep>('form');
   const [username, setUsername] = useState('');
@@ -109,6 +109,18 @@ export const RegisterDialog: React.FC<RegisterDialogProps> = ({ onClose, onSwitc
       try {
         const res = await window.electron.ipcRenderer.invoke('auth:verifyRegisterCode', email.trim(), code.trim(), password, username);
         if (res.success) {
+          await checkAuth();
+          setTimeout(async () => {
+            try {
+              const pullResult = await window.electron.ipcRenderer.invoke('sync:pull');
+              if (pullResult.success) {
+                console.log(`[Auth] Successfully pulled ${pullResult.data?.pulled ?? 0} snippets from cloud`);
+              }
+              window.dispatchEvent(new Event('snippets-refresh'));
+            } catch (error) {
+              console.error('[Auth] Register post-processing failed:', error);
+            }
+          }, 300);
           onClose();
         } else {
           setCodeError(res.error || '注册失败');
