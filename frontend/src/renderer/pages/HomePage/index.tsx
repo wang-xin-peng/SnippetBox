@@ -17,7 +17,7 @@ interface OutletCtx {
   triggerRefresh: () => void;
 }
 
-type SearchMode = 'keyword' | 'semantic' | 'cloudSemantic';
+type SearchMode = 'keyword' | 'semantic';
 
 function getLangColor(lang: string) {
   const map: Record<string, string> = {
@@ -145,40 +145,6 @@ export default function HomePage() {
     }
   }, [snippets, applyKeywordFilter]);
 
-  // 云端语义搜索
-  const runCloudSemanticSearch = useCallback(async (query: string, category: string | null) => {
-    if (!query.trim()) {
-      setIsSearching(false);
-      applyKeywordFilter(snippets, '', category);
-      return;
-    }
-    setIsSearching(true);
-    try {
-      console.log('[HomePage] Starting cloud semantic search for:', query);
-      const results = await (window as any).electron.search.cloudSemantic(query);
-      console.log('[HomePage] Cloud semantic search returned:', results.length, 'results');
-
-      if (results.length === 0) {
-        console.warn('[HomePage] Cloud semantic search returned 0 results');
-        setFiltered([]);
-        return;
-      }
-
-      // 云端搜索返回的是完整片段，直接使用
-      let matched: Snippet[] = results.map((r: any) => r.snippet);
-      
-      console.log('[HomePage] Matched snippets:', matched.length);
-      if (category) matched = matched.filter(s => s.category === category);
-      setFiltered(matched);
-    } catch (e: any) {
-      console.error('Cloud semantic search failed:', e);
-      alert(e.message || '云端搜索失败，请检查网络连接和登录状态');
-      applyKeywordFilter(snippets, query, category);
-    } finally {
-      setIsSearching(false);
-    }
-  }, [snippets, applyKeywordFilter]);
-
   // 搜索 debounce
   useEffect(() => {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
@@ -190,24 +156,15 @@ export default function HomePage() {
       searchTimerRef.current = setTimeout(() => {
         runSemanticSearch(searchQuery, selectedCategory);
       }, 500);
-    } else if (searchMode === 'cloudSemantic') {
-      // 云端语义搜索 debounce 800ms（网络请求较慢）
-      searchTimerRef.current = setTimeout(() => {
-        runCloudSemanticSearch(searchQuery, selectedCategory);
-      }, 800);
     }
 
     return () => {
       if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     };
-  }, [snippets, selectedCategory, searchQuery, searchMode, applyKeywordFilter, runSemanticSearch, runCloudSemanticSearch, showingFavorites]);
+  }, [snippets, selectedCategory, searchQuery, searchMode, applyKeywordFilter, runSemanticSearch, showingFavorites]);
 
   const toggleSearchMode = () => {
-    setSearchMode(prev => {
-      if (prev === 'keyword') return 'semantic';
-      if (prev === 'semantic') return 'cloudSemantic';
-      return 'keyword';
-    });
+    setSearchMode(prev => prev === 'keyword' ? 'semantic' : 'keyword');
     setSearchQuery('');
   };
 
@@ -308,8 +265,7 @@ export default function HomePage() {
     }).catch(console.error);
   };
 
-  const isAiMode = searchMode === 'semantic' || searchMode === 'cloudSemantic';
-  const isCloudMode = searchMode === 'cloudSemantic';
+  const isAiMode = searchMode === 'semantic';
 
   return (
     <div className="home-page">
@@ -320,11 +276,7 @@ export default function HomePage() {
             <span className="search-icon">{isAiMode ? '🔮' : '🔍'}</span>
             <input
               className="search-input"
-              placeholder={
-                searchMode === 'keyword' ? '搜索代码片段...' :
-                searchMode === 'semantic' ? 'AI 本地语义搜索...' :
-                'AI 云端语义搜索...'
-              }
+              placeholder={isAiMode ? 'AI 语义搜索...' : '搜索代码片段...'}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
             />
@@ -332,11 +284,9 @@ export default function HomePage() {
             <button
               className={`search-mode-badge ${isAiMode ? 'search-mode-badge--ai' : ''}`}
               onClick={toggleSearchMode}
-              title="切换搜索模式：关键词 → 本地AI → 云端AI"
+              title={!hasSemanticSupport && !isAiMode ? '需要先下载模型才能使用 AI 搜索' : '切换搜索模式'}
             >
-              {searchMode === 'keyword' ? '✦ 关键词' :
-               searchMode === 'semantic' ? '✦ 本地AI' :
-               '✦ 云端AI'}
+              {isAiMode ? '✦ AI' : '✦ 关键词'}
             </button>
           </div>
           <button

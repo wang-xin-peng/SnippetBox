@@ -135,14 +135,6 @@ export class SyncService {
           ).run(cloudId ?? null, row.id);
 
           result.pushed++;
-
-          // 同步向量到云端（异步，不阻塞）
-          if (cloudId) {
-            const { getVectorSyncService } = await import('./VectorSyncService');
-            getVectorSyncService().syncSnippetVector(row.id, cloudId).catch(err => {
-              console.warn(`[SyncService] Failed to sync vector for ${row.id}:`, err);
-            });
-          }
         } catch (e: any) {
           const errMsg = e?.response?.data?.detail ?? e.message;
           result.errors.push({ snippetId: row.id, message: errMsg });

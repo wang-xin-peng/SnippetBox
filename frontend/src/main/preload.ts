@@ -87,7 +87,6 @@ contextBridge.exposeInMainWorld('electron', {
   search: {
     keyword: (query: string) => ipcRenderer.invoke('search:keyword', query),
     semantic: (query: string) => ipcRenderer.invoke('search:semantic', query),
-    cloudSemantic: (query: string) => ipcRenderer.invoke('search:cloudSemantic', query),
     capability: () => ipcRenderer.invoke('search:capability'),
   },
   batch: {
