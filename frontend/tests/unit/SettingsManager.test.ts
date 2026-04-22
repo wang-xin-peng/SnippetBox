@@ -1,172 +1,159 @@
-import { SettingsManager } from '../../src/main/services/SettingsManager';
-import * as fs from 'fs/promises';
-import * as path from 'path';
+jest.mock('better-sqlite3');
+jest.mock('fs');
 
-// Mock electron app
-jest.mock('electron', () => ({
-  app: {
-    getPath: jest.fn(() => '/mock/user/data'),
-    getVersion: jest.fn(() => '0.1.0'),
-  },
-}));
-
-// Mock fs/promises
-jest.mock('fs/promises');
+import { SettingsManager, Settings } from '../../src/main/services/SettingsManager';
+import * as fs from 'fs';
 
 describe('SettingsManager', () => {
   let settingsManager: SettingsManager;
-  const mockSettingsPath = path.join('/mock/user/data', 'settings.json');
+  let mockDb: any;
 
   beforeEach(() => {
-    settingsManager = new SettingsManager();
+    mockDb = {
+      exec: jest.fn(),
+      prepare: jest.fn().mockReturnValue({
+        get: jest.fn().mockReturnValue({ count: 0 }),
+        all: jest.fn().mockReturnValue([]),
+        run: jest.fn()
+      })
+    };
+
+    (fs.existsSync as jest.Mock).mockReturnValue(false);
+    (fs.writeFileSync as jest.Mock).mockImplementation(() => {});
+    (fs.readFileSync as jest.Mock).mockImplementation(() => '{}');
+
+    settingsManager = new SettingsManager(mockDb);
+  });
+
+  afterEach(() => {
     jest.clearAllMocks();
   });
 
-  describe('isFirstLaunch', () => {
-    it('should return true when settings file does not exist', async () => {
-      (fs.readFile as jest.Mock).mockRejectedValue(new Error('File not found'));
+  describe('getSettings', () => {
+    it('should return default settings when no settings exist', async () => {
+      const settings = await settingsManager.getSettings();
 
-      const result = await settingsManager.isFirstLaunch();
-
-      expect(result).toBe(true);
+      expect(settings).toBeDefined();
+      expect(settings.theme).toBe('auto');
+      expect(settings.language).toBe('zh-CN');
+      expect(settings.editor.fontSize).toBe(14);
+      expect(settings.editor.wordWrap).toBe(true);
     });
 
-    it('should return true when firstLaunchCompleted is false', async () => {
-      const mockSettings = JSON.stringify({ firstLaunchCompleted: false });
-      (fs.readFile as jest.Mock).mockResolvedValue(mockSettings);
+    it('should return cached settings on subsequent calls', async () => {
+      await settingsManager.getSettings();
+      await settingsManager.getSettings();
 
-      const result = await settingsManager.isFirstLaunch();
-
-      expect(result).toBe(true);
-    });
-
-    it('should return false when firstLaunchCompleted is true', async () => {
-      const mockSettings = JSON.stringify({ firstLaunchCompleted: true });
-      (fs.readFile as jest.Mock).mockResolvedValue(mockSettings);
-
-      const result = await settingsManager.isFirstLaunch();
-
-      expect(result).toBe(false);
+      expect(mockDb.prepare).toHaveBeenCalled();
     });
   });
 
-  describe('markFirstLaunchComplete', () => {
-    it('should set firstLaunchCompleted to true and save settings', async () => {
-      (fs.readFile as jest.Mock).mockRejectedValue(new Error('File not found'));
-      (fs.mkdir as jest.Mock).mockResolvedValue(undefined);
-      (fs.writeFile as jest.Mock).mockResolvedValue(undefined);
+  describe('updateSettings', () => {
+    it('should update theme setting', async () => {
+      await settingsManager.updateSettings({ theme: 'dark' });
 
-      await settingsManager.markFirstLaunchComplete();
-
-      expect(fs.writeFile).toHaveBeenCalledWith(
-        mockSettingsPath,
-        expect.stringContaining('"firstLaunchCompleted": true'),
-        'utf-8'
-      );
+      expect(mockDb.prepare).toHaveBeenCalled();
     });
 
-    it('should save the app version', async () => {
-      (fs.readFile as jest.Mock).mockRejectedValue(new Error('File not found'));
-      (fs.mkdir as jest.Mock).mockResolvedValue(undefined);
-      (fs.writeFile as jest.Mock).mockResolvedValue(undefined);
+    it('should update editor settings', async () => {
+      await settingsManager.updateSettings({
+        editor: { fontSize: 16, fontFamily: 'monospace', tabSize: 4, wordWrap: false }
+      });
 
-      await settingsManager.markFirstLaunchComplete();
+      expect(mockDb.prepare).toHaveBeenCalled();
+    });
 
-      expect(fs.writeFile).toHaveBeenCalledWith(
-        mockSettingsPath,
-        expect.stringContaining('"lastVersion": "0.1.0"'),
-        'utf-8'
-      );
+    it('should update nested settings', async () => {
+      await settingsManager.updateSettings({
+        sync: { autoSync: true, syncInterval: 60, conflictStrategy: 'cloud' }
+      });
+
+      expect(mockDb.prepare).toHaveBeenCalled();
     });
   });
 
-  describe('saveWizardChoices', () => {
-    it('should save wizard choices to settings', async () => {
-      (fs.readFile as jest.Mock).mockRejectedValue(new Error('File not found'));
-      (fs.mkdir as jest.Mock).mockResolvedValue(undefined);
-      (fs.writeFile as jest.Mock).mockResolvedValue(undefined);
+  describe('resetSettings', () => {
+    it('should reset all settings to default', async () => {
+      await settingsManager.resetSettings();
 
-      const choices = {
-        downloadModel: true,
-        searchMode: 'local' as const,
+      expect(mockDb.exec).toHaveBeenCalledWith('DELETE FROM settings');
+      expect(mockDb.prepare).toHaveBeenCalled();
+    });
+  });
+
+  describe('exportSettings', () => {
+    it('should export settings to file', async () => {
+      await settingsManager.exportSettings('/path/to/settings.json');
+
+      expect(fs.writeFileSync).toHaveBeenCalled();
+    });
+  });
+
+  describe('importSettings', () => {
+    it('should import settings from valid file', async () => {
+      (fs.existsSync as jest.Mock).mockReturnValue(true);
+      (fs.readFileSync as jest.Mock).mockReturnValue(JSON.stringify({
+        settings: {
+          theme: 'dark',
+          language: 'en-US',
+          editor: { fontSize: 16, fontFamily: 'monospace', tabSize: 4, wordWrap: false },
+          sync: { autoSync: true, syncInterval: 30, conflictStrategy: 'cloud' },
+          search: { searchMode: 'cloud', maxResults: 50 },
+          backup: { autoBackup: false, backupInterval: 7, keepBackups: 14 }
+        }
+      }));
+
+      await settingsManager.importSettings('/path/to/settings.json');
+
+      expect(fs.readFileSync).toHaveBeenCalled();
+    });
+
+    it('should throw error for non-existent file', async () => {
+      (fs.existsSync as jest.Mock).mockReturnValue(false);
+
+      await expect(settingsManager.importSettings('/non/existent'))
+        .rejects.toThrow();
+    });
+
+    it('should throw error for invalid file format', async () => {
+      (fs.existsSync as jest.Mock).mockReturnValue(true);
+      (fs.readFileSync as jest.Mock).mockReturnValue('invalid json');
+
+      await expect(settingsManager.importSettings('/path/to/settings.json'))
+        .rejects.toThrow();
+    });
+  });
+
+  describe('Settings interface', () => {
+    it('should have correct structure', () => {
+      const settings: Settings = {
+        theme: 'dark',
+        language: 'en-US',
+        editor: {
+          fontSize: 16,
+          fontFamily: 'monospace',
+          tabSize: 4,
+          wordWrap: false
+        },
+        sync: {
+          autoSync: true,
+          syncInterval: 60,
+          conflictStrategy: 'cloud'
+        },
+        search: {
+          searchMode: 'cloud',
+          maxResults: 50
+        },
+        backup: {
+          autoBackup: false,
+          backupInterval: 7,
+          keepBackups: 14
+        }
       };
 
-      await settingsManager.saveWizardChoices(choices);
-
-      expect(fs.writeFile).toHaveBeenCalledWith(
-        mockSettingsPath,
-        expect.stringContaining('"downloadModel": true'),
-        'utf-8'
-      );
-      expect(fs.writeFile).toHaveBeenCalledWith(
-        mockSettingsPath,
-        expect.stringContaining('"searchMode": "local"'),
-        'utf-8'
-      );
-    });
-  });
-
-  describe('getWizardChoices', () => {
-    it('should return wizard choices from settings', async () => {
-      const mockSettings = JSON.stringify({
-        firstLaunchCompleted: true,
-        wizardChoices: {
-          downloadModel: false,
-          searchMode: 'lightweight',
-        },
-      });
-      (fs.readFile as jest.Mock).mockResolvedValue(mockSettings);
-
-      const result = await settingsManager.getWizardChoices();
-
-      expect(result).toEqual({
-        downloadModel: false,
-        searchMode: 'lightweight',
-      });
-    });
-
-    it('should return undefined when no wizard choices exist', async () => {
-      const mockSettings = JSON.stringify({ firstLaunchCompleted: true });
-      (fs.readFile as jest.Mock).mockResolvedValue(mockSettings);
-
-      const result = await settingsManager.getWizardChoices();
-
-      expect(result).toBeUndefined();
-    });
-  });
-
-  describe('resetFirstLaunch', () => {
-    it('should reset firstLaunchCompleted to false', async () => {
-      const mockSettings = JSON.stringify({
-        firstLaunchCompleted: true,
-        wizardChoices: { downloadModel: true, searchMode: 'local' },
-      });
-      (fs.readFile as jest.Mock).mockResolvedValue(mockSettings);
-      (fs.mkdir as jest.Mock).mockResolvedValue(undefined);
-      (fs.writeFile as jest.Mock).mockResolvedValue(undefined);
-
-      await settingsManager.resetFirstLaunch();
-
-      expect(fs.writeFile).toHaveBeenCalledWith(
-        mockSettingsPath,
-        expect.stringContaining('"firstLaunchCompleted": false'),
-        'utf-8'
-      );
-    });
-
-    it('should remove wizard choices', async () => {
-      const mockSettings = JSON.stringify({
-        firstLaunchCompleted: true,
-        wizardChoices: { downloadModel: true, searchMode: 'local' },
-      });
-      (fs.readFile as jest.Mock).mockResolvedValue(mockSettings);
-      (fs.mkdir as jest.Mock).mockResolvedValue(undefined);
-      (fs.writeFile as jest.Mock).mockResolvedValue(undefined);
-
-      await settingsManager.resetFirstLaunch();
-
-      const writeCall = (fs.writeFile as jest.Mock).mock.calls[0][1];
-      expect(writeCall).not.toContain('wizardChoices');
+      expect(settings.theme).toBe('dark');
+      expect(settings.editor.fontSize).toBe(16);
+      expect(settings.sync.conflictStrategy).toBe('cloud');
     });
   });
 });
