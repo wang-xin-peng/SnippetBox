@@ -1,63 +1,66 @@
 import { ipcMain } from 'electron';
-import { SettingsManager } from '../services/SettingsManager';
+import SettingsManager, { Settings } from '../services/SettingsManager';
+import Database from 'better-sqlite3';
 
-const settingsManager = new SettingsManager();
+class SettingsHandlers {
+  private settingsManager: SettingsManager;
 
-export function registerSettingsHandlers() {
-  // 初始化设置管理器
-  settingsManager.initialize().catch(console.error);
+  constructor(db: Database.Database) {
+    this.settingsManager = new SettingsManager(db);
+    this.registerHandlers();
+  }
 
-  // 检测是否首次启动
-  ipcMain.handle('settings:isFirstLaunch', async () => {
-    try {
-      return await settingsManager.isFirstLaunch();
-    } catch (error) {
-      console.error('Failed to check first launch:', error);
-      return false;
-    }
-  });
+  private registerHandlers(): void {
+    // 获取设置
+    ipcMain.handle('settings:get', async () => {
+      try {
+        const settings = await this.settingsManager.getSettings();
+        return { success: true, data: settings };
+      } catch (error) {
+        return { success: false, error: (error as Error).message };
+      }
+    });
 
-  // 标记首次启动完成
-  ipcMain.handle('settings:markFirstLaunchComplete', async () => {
-    try {
-      await settingsManager.markFirstLaunchComplete();
-      return { success: true };
-    } catch (error) {
-      console.error('Failed to mark first launch complete:', error);
-      return { success: false, error: String(error) };
-    }
-  });
+    // 更新设置
+    ipcMain.handle('settings:update', async (_, settings: Partial<Settings>) => {
+      try {
+        await this.settingsManager.updateSettings(settings);
+        return { success: true };
+      } catch (error) {
+        return { success: false, error: (error as Error).message };
+      }
+    });
 
-  // 保存向导选择
-  ipcMain.handle('settings:saveWizardChoices', async (_, choices) => {
-    try {
-      await settingsManager.saveWizardChoices(choices);
-      return { success: true };
-    } catch (error) {
-      console.error('Failed to save wizard choices:', error);
-      return { success: false, error: String(error) };
-    }
-  });
+    // 重置设置
+    ipcMain.handle('settings:reset', async () => {
+      try {
+        await this.settingsManager.resetSettings();
+        return { success: true };
+      } catch (error) {
+        return { success: false, error: (error as Error).message };
+      }
+    });
 
-  // 获取向导选择
-  ipcMain.handle('settings:getWizardChoices', async () => {
-    try {
-      const choices = await settingsManager.getWizardChoices();
-      return { success: true, data: choices };
-    } catch (error) {
-      console.error('Failed to get wizard choices:', error);
-      return { success: false, error: String(error) };
-    }
-  });
+    // 导出设置
+    ipcMain.handle('settings:export', async (_, filePath: string) => {
+      try {
+        await this.settingsManager.exportSettings(filePath);
+        return { success: true };
+      } catch (error) {
+        return { success: false, error: (error as Error).message };
+      }
+    });
 
-  // 重置首次启动状态（用于测试）
-  ipcMain.handle('settings:resetFirstLaunch', async () => {
-    try {
-      await settingsManager.resetFirstLaunch();
-      return { success: true };
-    } catch (error) {
-      console.error('Failed to reset first launch:', error);
-      return { success: false, error: String(error) };
-    }
-  });
+    // 导入设置
+    ipcMain.handle('settings:import', async (_, filePath: string) => {
+      try {
+        await this.settingsManager.importSettings(filePath);
+        return { success: true };
+      } catch (error) {
+        return { success: false, error: (error as Error).message };
+      }
+    });
+  }
 }
+
+export default SettingsHandlers;
