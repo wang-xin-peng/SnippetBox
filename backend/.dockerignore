@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# 虚拟环境
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 测试
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# 脚本
+*.sh
+deploy_*.sh
+start_dev.*
+
+# 文档
+README.md
+*.md
+
+# 测试文件
+tests/
+test_*.py
+*_test.py
+
+# 临时文件
+*.tmp
+*.bak
+.DS_Store
