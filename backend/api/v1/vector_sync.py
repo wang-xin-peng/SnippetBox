@@ -19,12 +19,12 @@ router = APIRouter()
 class VectorUpload(BaseModel):
     """向量上传模型"""
     snippet_id: str
-    vector: List[float]
+    vector: List[float]  # 768 维向量（all-mpnet-base-v2）
 
 
 class VectorSearchRequest(BaseModel):
     """向量搜索请求"""
-    query_vector: List[float]
+    query_vector: List[float]  # 768 维向量（all-mpnet-base-v2）
     limit: int = 10
     threshold: float = 0.7
 
@@ -61,10 +61,10 @@ async def upload_vector(
             )
         
         # 验证向量维度
-        if len(vector) != 384:
+        if len(vector) != 768:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Vector dimension must be 384"
+                detail="Vector dimension must be 768"
             )
         
         # 将向量转换为字符串格式（pgvector需要）
@@ -118,7 +118,7 @@ async def batch_upload_vectors(
             snippet_id = item.snippet_id
             vector = item.vector
             
-            if len(vector) != 384:
+            if len(vector) != 768:
                 error_count += 1
                 errors.append({"snippet_id": snippet_id, "error": "Invalid vector dimension"})
                 continue
@@ -189,10 +189,10 @@ async def search_vectors(
     
     try:
         # 验证向量维度
-        if len(query_vector) != 384:
+        if len(query_vector) != 768:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Query vector dimension must be 384"
+                detail="Query vector dimension must be 768"
             )
         
         # 将查询向量转换为字符串格式（pgvector需要）

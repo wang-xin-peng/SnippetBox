@@ -51,6 +51,7 @@ declare global {
       search: {
         keyword: (query: string) => Promise<any[]>;
         semantic: (query: string) => Promise<any[]>;
+        cloudSemantic: (query: string) => Promise<any[]>;
         capability: () => Promise<{ hasKeywordSearch: boolean; hasSemanticSearch: boolean; hasHybridSearch: boolean }>;
       };
       batch: {

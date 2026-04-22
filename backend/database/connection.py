@@ -127,7 +127,7 @@ async def init_db():
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 snippet_id UUID NOT NULL REFERENCES cloud_snippets(id) ON DELETE CASCADE,
                 user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                vector vector(384),
+                vector vector(768),
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(snippet_id)
