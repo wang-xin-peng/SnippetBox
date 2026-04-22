@@ -1,0 +1,61 @@
+.download-controls {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.control-btn {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 100px;
+}
+
+.control-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.control-btn.primary {
+  background: #007bff;
+  color: white;
+}
+
+.control-btn.primary:hover:not(:disabled) {
+  background: #0056b3;
+}
+
+.control-btn.secondary {
+  background: #6c757d;
+  color: white;
+}
+
+.control-btn.secondary:hover:not(:disabled) {
+  background: #545b62;
+}
+
+.control-btn.danger {
+  background: #dc3545;
+  color: white;
+}
+
+.control-btn.danger:hover:not(:disabled) {
+  background: #c82333;
+}
+
+.completed-message {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 24px;
+  background: #d4edda;
+  color: #155724;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+}

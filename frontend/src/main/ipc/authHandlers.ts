@@ -1,0 +1,69 @@
+import { ipcMain } from 'electron';
+import { getAuthService } from '../services/AuthService';
+
+/** 将后端错误（可能是 Pydantic detail 数组或字符串）统一转为字符串 */
+function extractError(err: any): string {
+  const detail = err?.response?.data?.detail;
+  if (!detail) return err?.message ?? '未知错误';
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    return detail.map((d: any) => d?.msg ?? JSON.stringify(d)).join('；');
+  }
+  if (typeof detail === 'object') return detail.msg ?? JSON.stringify(detail);
+  return String(detail);
+}
+
+export function registerAuthHandlers() {
+  const auth = getAuthService();
+
+  ipcMain.handle('auth:register', async (_e, email: string, password: string, username: string) => {
+    try {
+      await auth.register(email, password, username);
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  });
+
+  ipcMain.handle('auth:login', async (_e, email: string, password: string, rememberMe = true) => {
+    try {
+      const result = await auth.login(email, password, rememberMe);
+      return { success: true, data: result };
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  });
+
+  ipcMain.handle('auth:logout', async () => {
+    try {
+      await auth.logout();
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('auth:refresh', async () => {
+    try {
+      const token = await auth.refreshToken();
+      return { success: true, accessToken: token };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('auth:getCurrentUser', async () => {
+    try {
+      const user = await auth.getCurrentUser();
+      return { success: true, user };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('auth:isLoggedIn', () => {
+    return { isLoggedIn: auth.isLoggedIn() };
+  });
+
+  console.log('[AuthHandlers] Registered');
+}
