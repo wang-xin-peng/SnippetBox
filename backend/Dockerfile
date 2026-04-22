@@ -17,9 +17,9 @@ RUN apt-get update && apt-get install -y \
 # 复制依赖文件（单独复制以利用 Docker 缓存）
 COPY requirements-docker.txt .
 
-# 配置 pip 使用国内镜像加速
-RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple && \
-    pip config set global.trusted-host pypi.tuna.tsinghua.edu.cn
+# 配置 pip 使用阿里云镜像（对 PyTorch 等大包更快）
+RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/ && \
+    pip config set install.trusted-host mirrors.aliyun.com
 
 # 升级 pip 并安装 Python 依赖
 # 使用 pip cache 加速重复构建
