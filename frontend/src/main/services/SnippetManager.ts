@@ -25,6 +25,7 @@ interface DbSnippet {
   storage_scope?: string | null;
   is_deleted?: number;
   deleted_at?: number | null;
+  category_name?: string | null;
 }
 
 export class SnippetManager {
@@ -422,7 +423,14 @@ export class SnippetManager {
    */
   private async dbSnippetToSnippet(dbSnippet: DbSnippet): Promise<Snippet> {
     const tags = this.getSnippetTags(dbSnippet.id);
-    const category = this.getCategoryName(dbSnippet.category_id);
+    let category: string;
+    if (dbSnippet.cloud_id && dbSnippet.category_name) {
+      category = dbSnippet.category_name;
+    } else if (dbSnippet.category_id) {
+      category = this.getCategoryName(dbSnippet.category_id) || '';
+    } else {
+      category = '';
+    }
 
     return {
       id: dbSnippet.id,

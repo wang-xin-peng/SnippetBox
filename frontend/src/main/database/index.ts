@@ -125,6 +125,9 @@ export class DatabaseManager {
       if (!cols.some(c => c.name === 'deleted_at')) {
         this.db.exec('ALTER TABLE snippets ADD COLUMN deleted_at INTEGER DEFAULT NULL');
       }
+      if (!cols.some(c => c.name === 'category_name')) {
+        this.db.exec("ALTER TABLE snippets ADD COLUMN category_name TEXT DEFAULT NULL");
+      }
     } catch (error) {
       console.error('[Database] snippets migration failed:', error);
     }

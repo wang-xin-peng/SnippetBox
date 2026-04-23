@@ -182,13 +182,14 @@ export class SyncService {
             const localUpdatedAt = existing.updated_at;
             if (cloudUpdatedAt > localUpdatedAt) {
               db.prepare(
-                `UPDATE snippets SET title=?, code=?, language=?, description=?, is_synced=1, updated_at=? WHERE cloud_id=?`
+                `UPDATE snippets SET title=?, code=?, language=?, description=?, is_synced=1, updated_at=?, category_name=? WHERE cloud_id=?`
               ).run(
                 cloud.title,
                 cloud.code,
                 cloud.language,
                 cloud.description ?? null,
                 cloudUpdatedAt,
+                cloud.category ?? null,
                 cloudId
               );
             }
@@ -196,7 +197,7 @@ export class SyncService {
             // 不存在：插入云端片段
             const { randomUUID } = await import('crypto');
             db.prepare(
-              `INSERT OR IGNORE INTO snippets (id, title, code, language, description, is_synced, cloud_id, created_at, updated_at, access_count, storage_scope) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 0, 'cloud')`
+              `INSERT OR IGNORE INTO snippets (id, title, code, language, description, is_synced, cloud_id, created_at, updated_at, access_count, storage_scope, category_name) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 0, 'cloud', ?)`
             ).run(
               randomUUID(),
               cloud.title,
@@ -205,7 +206,8 @@ export class SyncService {
               cloud.description ?? null,
               cloudId,
               Date.now(),
-              cloudUpdatedAt
+              cloudUpdatedAt,
+              cloud.category ?? null
             );
           }
           result.pulled++;
@@ -257,7 +259,7 @@ export class SyncService {
   clearCloudOnlySnippets(): number {
     const db = getDatabaseManager().getDb();
     const result = db
-      .prepare(`DELETE FROM snippets WHERE COALESCE(storage_scope, 'local') = 'cloud'`)
+      .prepare(`DELETE FROM snippets WHERE cloud_id IS NOT NULL OR COALESCE(storage_scope, 'local') = 'cloud'`)
       .run();
     this.updatePendingCount();
     this.notifyRenderer();

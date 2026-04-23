@@ -187,25 +187,25 @@ const CategoryTagManager: React.FC<CategoryTagManagerProps> = ({
                         {category.icon}
                       </span>
                       <span className="category-name">{category.name}</span>
-                      <div className="category-actions">
-                        <button
-                          className="action-btn edit"
-                          disabled={category.name === '未分类'}
-                          onClick={() => {
-                            setSelectedCategory(category);
-                            setNewCategory({ ...category });
-                          }}
-                        >
-                          编辑
-                        </button>
-                        <button
-                          className="action-btn delete"
-                          disabled={category.name === '未分类'}
-                          onClick={() => onDeleteCategory(category.id)}
-                        >
-                          删除
-                        </button>
-                      </div>
+                      {category.name !== '未分类' && (
+                        <div className="category-actions">
+                          <button
+                            className="action-btn edit"
+                            onClick={() => {
+                              setSelectedCategory(category);
+                              setNewCategory({ ...category });
+                            }}
+                          >
+                            编辑
+                          </button>
+                          <button
+                            className="action-btn delete"
+                            onClick={() => onDeleteCategory(category.id)}
+                          >
+                            删除
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))
                 )}
