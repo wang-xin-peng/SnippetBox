@@ -148,6 +148,52 @@ export class AuthService {
     }
   }
 
+  // ── 修改用户名 ──────────────────────────────────────
+  async updateUsername(newUsername: string): Promise<{ success: boolean; user?: User; error?: string }> {
+    try {
+      const res = await this.http.put('/auth/username', { username: newUsername }, {
+        headers: { Authorization: `Bearer ${this.tokens?.accessToken}` }
+      });
+      const d = res.data;
+      return {
+        success: true,
+        user: {
+          id: d.id ?? '',
+          email: d.email,
+          username: d.username,
+          avatar: d.avatar,
+        }
+      };
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  }
+
+  // ── 修改密码 ──────────────────────────────────────
+  async changePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      await this.http.put('/auth/password', { current_password: currentPassword, new_password: newPassword }, {
+        headers: { Authorization: `Bearer ${this.tokens?.accessToken}` }
+      });
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  }
+
+  // ── 注销账号 ──────────────────────────────────────
+  async deleteAccount(): Promise<{ success: boolean; error?: string }> {
+    try {
+      await this.http.delete('/auth/account', {
+        headers: { Authorization: `Bearer ${this.tokens?.accessToken}` }
+      });
+      this.clearTokens();
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  }
+
   // ── 验证注册验证码并完成注册 ─────────────────────────────
   async verifyRegisterCode(email: string, code: string, password: string, username: string): Promise<LoginResult> {
     const res = await this.http.post('/auth/register-with-code', { email, code, password, username });

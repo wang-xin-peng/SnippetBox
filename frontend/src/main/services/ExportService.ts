@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import * as fs from 'fs';
 import * as path from 'path';
+import archiver = require('archiver');
 
 export interface ExportOptions {
   includeMetadata?: boolean;
@@ -76,26 +77,42 @@ export class ExportService {
       errors: []
     };
 
-    try {
-      let allMarkdown = '';
+    const zipPath = filePath.endsWith('.zip') ? filePath : filePath.replace(/\.[^.]+$/, '.zip');
+
+    return new Promise((resolve) => {
+      const output = fs.createWriteStream(zipPath);
+      const archive = archiver('zip', { zlib: { level: 9 } });
+
+      output.on('close', () => {
+        result.filePath = zipPath;
+        resolve(result);
+      });
+
+      archive.on('error', (err) => {
+        result.errors.push({ snippetId: 'all', error: err.message });
+        result.failed = snippetIds.length - result.success;
+        resolve(result);
+      });
+
+      archive.pipe(output);
+
+      const usedNames = new Map<string, number>();
 
       for (const snippetId of snippetIds) {
         try {
           const snippet = this.db.prepare('SELECT * FROM snippets WHERE id = ?').get(snippetId) as any;
-          
+
           if (!snippet) {
             result.failed++;
             result.errors.push({ snippetId, error: 'Snippet not found' });
             continue;
           }
 
-          // 获取分类
           let category = null;
           if (snippet.category_id) {
             category = this.db.prepare('SELECT name FROM categories WHERE id = ?').get(snippet.category_id) as any;
           }
 
-          // 获取标签
           const tags = this.db.prepare(`
             SELECT t.name
             FROM tags t
@@ -103,10 +120,18 @@ export class ExportService {
             WHERE st.snippet_id = ?
           `).all(snippetId) as any[];
 
-          // 生成 Markdown 内容
           const markdown = this.generateMarkdown(snippet, category, tags, options);
-          allMarkdown += markdown + '\n\n---\n\n';
 
+          let baseName = snippet.title.replace(/[\\/:*?"<>|]/g, '_').trim() || 'untitled';
+          if (usedNames.has(baseName)) {
+            const count = usedNames.get(baseName)! + 1;
+            usedNames.set(baseName, count);
+            baseName = `${baseName}_${count}`;
+          } else {
+            usedNames.set(baseName, 1);
+          }
+
+          archive.append(markdown, { name: `${baseName}.md` });
           result.success++;
         } catch (error) {
           result.failed++;
@@ -114,17 +139,8 @@ export class ExportService {
         }
       }
 
-      // 写入文件
-      fs.writeFileSync(filePath, allMarkdown, 'utf-8');
-      result.filePath = filePath;
-
-      return result;
-    } catch (error) {
-      console.error('[ExportService] Batch export failed:', error);
-      result.failed = snippetIds.length - result.success;
-      result.errors.push({ snippetId: 'all', error: (error as Error).message });
-      return result;
-    }
+      archive.finalize();
+    });
   }
 
   /**

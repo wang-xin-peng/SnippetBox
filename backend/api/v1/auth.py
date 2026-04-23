@@ -7,7 +7,7 @@ import asyncpg
 from datetime import datetime
 import logging
 
-from models.user import UserCreate, UserLogin, UserResponse, TokenResponse, TokenRefresh
+from models.user import UserCreate, UserLogin, UserResponse, TokenResponse, TokenRefresh, UpdateUsernameRequest, ChangePasswordRequest
 from models.email_code import EmailCodeRequest, EmailCodeVerify, EmailCodeResponse, RegisterWithCodeRequest, ResetPasswordRequest
 from services.auth import AuthService
 from services.email_code import email_code_service
@@ -485,3 +485,61 @@ async def reset_password(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="重置密码失败"
         )
+
+
+@router.put("/auth/username")
+async def update_username(
+    request: UpdateUsernameRequest,
+    current_user: dict = Depends(get_current_user),
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    """修改用户名"""
+    try:
+        await AuthService.update_username(conn, current_user["user_id"], request.username)
+        row = await conn.fetchrow("SELECT id, email, username, created_at FROM users WHERE id = $1::uuid", current_user["user_id"])
+        return UserResponse(
+            id=str(row['id']),
+            email=row['email'],
+            username=row['username'],
+            created_at=row['created_at']
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Update username error: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="修改用户名失败")
+
+
+@router.put("/auth/password")
+async def change_password(
+    request: ChangePasswordRequest,
+    current_user: dict = Depends(get_current_user),
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    """修改密码"""
+    try:
+        await AuthService.change_password(conn, current_user["user_id"], request.current_password, request.new_password)
+        return {"message": "密码修改成功"}
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Change password error: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="修改密码失败")
+
+
+@router.delete("/auth/account", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_account(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user: dict = Depends(get_current_user),
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    """注销账号（永久删除）"""
+    try:
+        await AuthService.delete_account(conn, current_user["user_id"])
+        await AuthService.blacklist_token(conn, credentials.credentials)
+        logger.info(f"User {current_user['email']} deleted their account")
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Delete account error: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="注销账号失败")

@@ -23,6 +23,17 @@ class UserLogin(BaseModel):
     password: str
 
 
+class UpdateUsernameRequest(BaseModel):
+    """修改用户名模型"""
+    username: str = Field(..., min_length=3, max_length=50)
+
+
+class ChangePasswordRequest(BaseModel):
+    """修改密码模型"""
+    current_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=8, max_length=100)
+
+
 class UserResponse(UserBase):
     """用户响应模型"""
     id: str

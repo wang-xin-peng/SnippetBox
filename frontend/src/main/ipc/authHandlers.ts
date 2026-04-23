@@ -123,5 +123,29 @@ export function registerAuthHandlers() {
     }
   });
 
+  ipcMain.handle('auth:updateUsername', async (_e, newUsername: string) => {
+    try {
+      return await auth.updateUsername(newUsername);
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  });
+
+  ipcMain.handle('auth:changePassword', async (_e, currentPassword: string, newPassword: string) => {
+    try {
+      return await auth.changePassword(currentPassword, newPassword);
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  });
+
+  ipcMain.handle('auth:deleteAccount', async () => {
+    try {
+      return await auth.deleteAccount();
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  });
+
   console.log('[AuthHandlers] Registered');
 }

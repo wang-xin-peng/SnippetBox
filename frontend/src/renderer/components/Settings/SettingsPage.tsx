@@ -6,13 +6,21 @@ import './SettingsPage.css';
 
 export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
-  const { isLoggedIn, user, logout } = useAuth();
+  const { isLoggedIn, user, logout, checkAuth } = useAuth();
   const [showDownloadDialog, setShowDownloadDialog] = useState(false);
   const [isModelDownloaded, setIsModelDownloaded] = useState(false);
   const [modelPath, setModelPath] = useState<string>('');
   const [searchMode, setSearchMode] = useState<'local' | 'lightweight'>('lightweight');
   const [isGeneratingVectors, setIsGeneratingVectors] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [editingUsername, setEditingUsername] = useState(false);
+  const [newUsername, setNewUsername] = useState('');
+  const [savingUsername, setSavingUsername] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [savingPassword, setSavingPassword] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -256,6 +264,141 @@ export const SettingsPage: React.FC = () => {
 
               <div className="setting-item">
                 <div className="setting-header">
+                  <label className="setting-label">用户名</label>
+                  <p className="setting-description">修改您的显示名称</p>
+                </div>
+                <div className="setting-control">
+                  {editingUsername ? (
+                    <div className="inline-edit">
+                      <input
+                        className="setting-input"
+                        type="text"
+                        value={newUsername}
+                        onChange={(e) => setNewUsername(e.target.value)}
+                        placeholder="输入新用户名"
+                        minLength={3}
+                        maxLength={50}
+                      />
+                      <button
+                        className="btn-primary btn-sm"
+                        disabled={savingUsername || newUsername.length < 3}
+                        onClick={async () => {
+                          setSavingUsername(true);
+                          try {
+                            const res = await window.electron.ipcRenderer.invoke('auth:updateUsername', newUsername.trim());
+                            if (res.success) {
+                              await checkAuth();
+                              setEditingUsername(false);
+                              setNewUsername('');
+                              setNotification({ message: '用户名修改成功', type: 'success' });
+                            } else {
+                              setNotification({ message: res.error || '修改失败', type: 'error' });
+                            }
+                          } catch (err: any) {
+                            setNotification({ message: err.message || '修改失败', type: 'error' });
+                          } finally {
+                            setSavingUsername(false);
+                            setTimeout(() => setNotification(null), 3000);
+                          }
+                        }}
+                      >
+                        {savingUsername ? '保存中...' : '保存'}
+                      </button>
+                      <button
+                        className="btn-secondary btn-sm"
+                        onClick={() => { setEditingUsername(false); setNewUsername(''); }}
+                      >
+                        取消
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      className="btn-secondary btn-sm"
+                      onClick={() => { setEditingUsername(true); setNewUsername(user.username); }}
+                    >
+                      修改
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="setting-item">
+                <div className="setting-header">
+                  <label className="setting-label">密码</label>
+                  <p className="setting-description">修改您的登录密码</p>
+                </div>
+                <div className="setting-control">
+                  {changingPassword ? (
+                    <div className="inline-edit-col">
+                      <input
+                        className="setting-input"
+                        type="password"
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        placeholder="当前密码"
+                      />
+                      <input
+                        className="setting-input"
+                        type="password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="新密码（至少8位）"
+                      />
+                      <input
+                        className="setting-input"
+                        type="password"
+                        value={confirmNewPassword}
+                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                        placeholder="确认新密码"
+                      />
+                      <div className="inline-edit">
+                        <button
+                          className="btn-primary btn-sm"
+                          disabled={savingPassword || !currentPassword || newPassword.length < 8 || newPassword !== confirmNewPassword}
+                          onClick={async () => {
+                            setSavingPassword(true);
+                            try {
+                              const res = await window.electron.ipcRenderer.invoke('auth:changePassword', currentPassword, newPassword);
+                              if (res.success) {
+                                setChangingPassword(false);
+                                setCurrentPassword('');
+                                setNewPassword('');
+                                setConfirmNewPassword('');
+                                setNotification({ message: '密码修改成功', type: 'success' });
+                              } else {
+                                setNotification({ message: res.error || '修改失败', type: 'error' });
+                              }
+                            } catch (err: any) {
+                              setNotification({ message: err.message || '修改失败', type: 'error' });
+                            } finally {
+                              setSavingPassword(false);
+                              setTimeout(() => setNotification(null), 3000);
+                            }
+                          }}
+                        >
+                          {savingPassword ? '保存中...' : '保存'}
+                        </button>
+                        <button
+                          className="btn-secondary btn-sm"
+                          onClick={() => { setChangingPassword(false); setCurrentPassword(''); setNewPassword(''); setConfirmNewPassword(''); }}
+                        >
+                          取消
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      className="btn-secondary btn-sm"
+                      onClick={() => setChangingPassword(true)}
+                    >
+                      修改密码
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="setting-item">
+                <div className="setting-header">
                   <label className="setting-label">云同步</label>
                   <p className="setting-description">
                     已登录，片段将自动同步到云端
@@ -275,7 +418,7 @@ export const SettingsPage: React.FC = () => {
                 </div>
                 <div className="setting-control">
                   <button
-                    className="btn-danger"
+                    className="btn-danger btn-sm"
                     onClick={async () => {
                       if (confirm('确定要退出登录吗？')) {
                         await logout();
@@ -285,6 +428,46 @@ export const SettingsPage: React.FC = () => {
                     }}
                   >
                     退出登录
+                  </button>
+                </div>
+              </div>
+
+              <div className="setting-item">
+                <div className="setting-header">
+                  <label className="setting-label">注销账号</label>
+                  <p className="setting-description">
+                    永久删除您的账号和所有云端数据，此操作不可恢复
+                  </p>
+                </div>
+                <div className="setting-control">
+                  <button
+                    className="btn-danger btn-sm"
+                    onClick={async () => {
+                      const confirmed = confirm(
+                        '⚠️ 警告：注销账号将永久删除您的所有数据！\n\n' +
+                        '• 所有云端代码片段将被永久删除\n' +
+                        '• 您的账户信息将被永久删除\n' +
+                        '• 此操作不可恢复\n\n' +
+                        '确定要注销账号吗？'
+                      );
+                      if (!confirmed) return;
+                      const doubleConfirm = confirm('最后确认：您真的要注销账号吗？输入"确定"后此操作将不可撤销。');
+                      if (!doubleConfirm) return;
+                      try {
+                        const res = await window.electron.ipcRenderer.invoke('auth:deleteAccount');
+                        if (res.success) {
+                          await logout();
+                          setNotification({ message: '账号已注销', type: 'success' });
+                        } else {
+                          setNotification({ message: res.error || '注销失败', type: 'error' });
+                        }
+                      } catch (err: any) {
+                        setNotification({ message: err.message || '注销失败', type: 'error' });
+                      }
+                      setTimeout(() => setNotification(null), 3000);
+                    }}
+                  >
+                    注销账号
                   </button>
                 </div>
               </div>
@@ -519,7 +702,6 @@ export const SettingsPage: React.FC = () => {
                   className="btn-secondary"
                   onClick={async () => {
                     try {
-                      // 获取所有片段ID
                       const snippets = await window.electron.ipcRenderer.invoke('snippet:list');
                       const snippetIds = snippets.map((s: any) => s.id);
                       
@@ -529,17 +711,17 @@ export const SettingsPage: React.FC = () => {
                       }
                       
                       const result = await window.electron.ipcRenderer.invoke('export:batch-markdown', snippetIds);
-                      if (result.success) {
-                        alert(`成功导出 ${result.count} 个片段到 ${result.directory}`);
+                      if (result.success > 0) {
+                        alert(`成功导出 ${result.success} 个片段为 ZIP 压缩包`);
                       } else {
-                        alert('导出失败: ' + result.error);
+                        alert('导出失败: ' + (result.errors?.[0]?.error || '未知错误'));
                       }
                     } catch (error: any) {
                       alert('导出失败: ' + error.message);
                     }
                   }}
                 >
-                  导出为 Markdown
+                  导出为 Markdown (ZIP)
                 </button>
               </div>
             </div>

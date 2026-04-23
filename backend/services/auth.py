@@ -200,6 +200,37 @@ class AuthService:
         )
     
     @staticmethod
+    async def update_username(conn: asyncpg.Connection, user_id: str, new_username: str) -> None:
+        """修改用户名"""
+        existing = await conn.fetchrow("SELECT id FROM users WHERE username = $1 AND id != $2", new_username, user_id)
+        if existing:
+            raise ValueError("用户名已被占用")
+        await conn.execute("UPDATE users SET username = $1 WHERE id = $2::uuid", new_username, user_id)
+
+    @staticmethod
+    async def change_password(conn: asyncpg.Connection, user_id: str, current_password: str, new_password: str) -> None:
+        """修改密码"""
+        row = await conn.fetchrow("SELECT password_hash FROM users WHERE id = $1::uuid", user_id)
+        if not row:
+            raise ValueError("用户不存在")
+        if not AuthService.verify_password(current_password, row['password_hash']):
+            raise ValueError("当前密码错误")
+        password_hash = AuthService.hash_password(new_password)
+        await conn.execute(
+            "UPDATE users SET password_hash = $1 WHERE id = $2::uuid",
+            password_hash, user_id
+        )
+
+    @staticmethod
+    async def delete_account(conn: asyncpg.Connection, user_id: str) -> None:
+        """注销账号"""
+        row = await conn.fetchrow("SELECT id FROM users WHERE id = $1::uuid", user_id)
+        if not row:
+            raise ValueError("用户不存在")
+        await conn.execute("DELETE FROM snippets WHERE user_id = $1::uuid", user_id)
+        await conn.execute("DELETE FROM users WHERE id = $1::uuid", user_id)
+
+    @staticmethod
     async def reset_password(conn: asyncpg.Connection, email: str, new_password: str) -> None:
         """重置用户密码"""
         row = await conn.fetchrow("SELECT id FROM users WHERE email = $1", email)
