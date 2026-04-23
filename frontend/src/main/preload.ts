@@ -39,6 +39,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
     merge: (sourceId: string, targetId: string): Promise<void> =>
       ipcRenderer.invoke('tag:merge', sourceId, targetId),
   },
+  auth: {
+    register: (email: string, password: string, username: string) =>
+      ipcRenderer.invoke('auth:register', email, password, username),
+    login: (email: string, password: string) =>
+      ipcRenderer.invoke('auth:login', email, password),
+    logout: () => ipcRenderer.invoke('auth:logout'),
+    refresh: () => ipcRenderer.invoke('auth:refresh'),
+    getCurrentUser: () => ipcRenderer.invoke('auth:getCurrentUser'),
+    isLoggedIn: () => ipcRenderer.invoke('auth:isLoggedIn'),
+    getCapabilities: (): Promise<{ success: boolean; data?: AuthCapabilities; error?: string }> =>
+      ipcRenderer.invoke('auth:getCapabilities'),
+    deleteAccountSendCode: (email: string): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('auth:deleteAccountSendCode', email),
+    deleteAccountVerify: (email: string, code: string): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('auth:deleteAccountVerify', email, code),
+  },
 });
 
 // 暴露 IPC Renderer（用于直接调用）

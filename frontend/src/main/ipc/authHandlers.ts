@@ -148,10 +148,16 @@ export function registerAuthHandlers() {
   });
 
   ipcMain.handle('auth:deleteAccountSendCode', async (_event, email: string) => {
+    console.log('[AuthHandlers] deleteAccountSendCode called, email:', email);
     try {
       const res = await auth.sendDeleteAccountCode(email);
-      return { success: true, data: res };
+      console.log('[AuthHandlers] sendDeleteAccountCode result:', JSON.stringify(res));
+      if (!res.success) {
+        return { success: false, error: res.error };
+      }
+      return { success: true };
     } catch (err: any) {
+      console.error('[AuthHandlers] deleteAccountSendCode error:', err.message);
       return { success: false, error: extractError(err) };
     }
   });
@@ -159,7 +165,10 @@ export function registerAuthHandlers() {
   ipcMain.handle('auth:deleteAccountVerify', async (_event, email: string, code: string) => {
     try {
       const res = await auth.verifyDeleteAccountCode(email, code);
-      return { success: true, data: res };
+      if (!res.success) {
+        return { success: false, error: res.error };
+      }
+      return { success: true };
     } catch (err: any) {
       return { success: false, error: extractError(err) };
     }

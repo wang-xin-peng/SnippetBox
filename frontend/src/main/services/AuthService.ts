@@ -196,16 +196,22 @@ export class AuthService {
 
   async sendDeleteAccountCode(email: string): Promise<{ success: boolean; error?: string }> {
     try {
-      await this.http.post('/auth/delete-account/send-code', { email });
+      console.log('[AuthService] sendDeleteAccountCode, hasToken:', !!this.tokens, 'tokenPreview:', this.tokens?.accessToken?.slice(0, 20));
+      await this.http.post('/auth/delete-account/send-code', { email }, {
+        headers: { Authorization: `Bearer ${this.tokens?.accessToken}` }
+      });
       return { success: true };
     } catch (err: any) {
+      console.error('[AuthService] sendDeleteAccountCode failed:', err?.response?.status, err?.response?.data || err.message);
       return { success: false, error: extractError(err) };
     }
   }
 
   async verifyDeleteAccountCode(email: string, code: string): Promise<{ success: boolean; error?: string }> {
     try {
-      await this.http.post('/auth/delete-account/verify', { email, code });
+      await this.http.post('/auth/delete-account/verify', { email, code }, {
+        headers: { Authorization: `Bearer ${this.tokens?.accessToken}` }
+      });
       this.clearTokens();
       return { success: true };
     } catch (err: any) {

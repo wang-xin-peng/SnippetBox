@@ -25,6 +25,7 @@ export const SettingsPage: React.FC = () => {
   const [deleteCountdown, setDeleteCountdown] = useState(0);
   const [deleteSending, setDeleteSending] = useState(false);
   const [deleteVerifying, setDeleteVerifying] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [savingPassword, setSavingPassword] = useState(false);
 
@@ -719,18 +720,18 @@ export const SettingsPage: React.FC = () => {
       </div>
 
       {showDeleteVerifyDialog && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <h3 className="modal-title">注销账号</h3>
-            <p className="modal-warning">
-              ⚠️ 注销账号将永久删除您的所有云端数据，此操作不可恢复
+        <div className="delete-modal-overlay">
+          <div className="delete-modal-content">
+            <h3 className="delete-modal-title">注销账号</h3>
+            <p className="delete-modal-warning">
+              注销账号将永久删除您的所有云端数据，此操作不可恢复
             </p>
 
-            <div className="form-field">
-              <label>验证码将发送至：{deleteEmail}</label>
+            <div className="delete-modal-info">
+              验证码将发送至：<strong>{deleteEmail}</strong>
             </div>
 
-            <div className="form-field">
+            <div className="delete-modal-info" style={{ marginTop: '16px' }}>
               <label>邮箱验证码</label>
               <div className="code-input-row">
                 <input
@@ -742,12 +743,24 @@ export const SettingsPage: React.FC = () => {
                   className="code-input"
                 />
                 <button
-                  className="btn-secondary btn-sm"
+                  className={`send-code-btn ${deleteCountdown > 0 ? 'secondary' : 'primary'}`}
                   disabled={deleteCountdown > 0 || deleteSending}
                   onClick={async () => {
                     setDeleteSending(true);
+                    setDeleteError('');
                     try {
-                      const res = await (window as any).electronAPI?.auth?.deleteAccountSendCode?.(deleteEmail);
+                      const api = (window as any).electronAPI;
+                      console.log('[DeleteAccount] electronAPI exists:', !!api);
+                      console.log('[DeleteAccount] auth exists:', !!api?.auth);
+                      console.log('[DeleteAccount] deleteAccountSendCode type:', typeof api?.auth?.deleteAccountSendCode);
+                      console.log('[DeleteAccount] all auth keys:', api?.auth ? Object.keys(api.auth) : 'no auth');
+                      if (!api?.auth?.deleteAccountSendCode) {
+                        setDeleteError('electronAPI.auth.deleteAccountSendCode 不存在，请重启应用');
+                        setDeleteSending(false);
+                        return;
+                      }
+                      const res = await api.auth.deleteAccountSendCode(deleteEmail);
+                      console.log('[DeleteAccount] sendCode response:', JSON.stringify(res));
                       if (res?.success) {
                         setDeleteCountdown(60);
                         const timer = setInterval(() => {
@@ -757,9 +770,15 @@ export const SettingsPage: React.FC = () => {
                           });
                         }, 1000);
                       } else {
-                        setNotification({ message: res?.error || '发送失败', type: 'error' });
+                        const errMsg = res?.error || '发送失败（未知原因）';
+                        setDeleteError(errMsg);
+                        setNotification({ message: errMsg, type: 'error' });
                         setTimeout(() => setNotification(null), 3000);
                       }
+                    } catch (e: any) {
+                      const errMsg = e?.message || '发送异常';
+                      console.error('[DeleteAccount] sendCode exception:', errMsg);
+                      setDeleteError(errMsg);
                     } finally {
                       setDeleteSending(false);
                     }
@@ -768,6 +787,9 @@ export const SettingsPage: React.FC = () => {
                   {deleteCountdown > 0 ? `${deleteCountdown}s` : deleteSending ? '发送中...' : '发送验证码'}
                 </button>
               </div>
+              {deleteError && (
+                <div className="delete-modal-error">{deleteError}</div>
+              )}
             </div>
 
             <div className="modal-actions">
