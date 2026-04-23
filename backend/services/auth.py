@@ -227,7 +227,7 @@ class AuthService:
         row = await conn.fetchrow("SELECT id FROM users WHERE id = $1::uuid", user_id)
         if not row:
             raise ValueError("用户不存在")
-        await conn.execute("DELETE FROM snippets WHERE user_id = $1::uuid", user_id)
+        await conn.execute("DELETE FROM cloud_snippets WHERE user_id = $1::uuid", user_id)
         await conn.execute("DELETE FROM users WHERE id = $1::uuid", user_id)
 
     @staticmethod
