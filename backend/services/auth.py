@@ -200,6 +200,18 @@ class AuthService:
         )
     
     @staticmethod
+    async def reset_password(conn: asyncpg.Connection, email: str, new_password: str) -> None:
+        """重置用户密码"""
+        row = await conn.fetchrow("SELECT id FROM users WHERE email = $1", email)
+        if not row:
+            raise ValueError("用户不存在")
+        password_hash = AuthService.hash_password(new_password)
+        await conn.execute(
+            "UPDATE users SET password_hash = $1, failed_login_attempts = 0 WHERE email = $2",
+            password_hash, email
+        )
+
+    @staticmethod
     async def blacklist_token(conn: asyncpg.Connection, token: str):
         """
         将令牌加入黑名单（自动解析过期时间）

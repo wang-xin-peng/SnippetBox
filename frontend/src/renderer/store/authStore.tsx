@@ -62,7 +62,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const checkAuth = useCallback(async () => {
     dispatch({ type: 'SET_LOADING', payload: true });
     try {
-      const { isLoggedIn } = await window.electron.ipcRenderer.invoke('auth:isLoggedIn');
+      let { isLoggedIn } = await window.electron.ipcRenderer.invoke('auth:isLoggedIn');
+
+      // token 不在内存中，尝试从持久化文件刷新（token 可能已过期但 refresh token 仍有效）
+      if (!isLoggedIn) {
+        const refreshRes = await window.electron.ipcRenderer.invoke('auth:refresh');
+        if (refreshRes.success) {
+          isLoggedIn = true;
+        }
+      }
+
       if (isLoggedIn) {
         const res = await window.electron.ipcRenderer.invoke('auth:getCurrentUser');
         if (res.success && res.user) {
@@ -93,40 +102,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // 登录成功后的处理（异步，不阻塞UI）
         setTimeout(async () => {
           try {
-            // 1. 检查是否有本地未同步的片段
+            // 1. 检查是否有本地片段
             const localSnippets = await window.electron.ipcRenderer.invoke('snippet:list');
-            const unsyncedSnippets = localSnippets.filter((s: any) => !s.cloud_id && !s.deleted_at);
+            const localOnlySnippets = localSnippets.filter(
+              (s: any) => (s.storageScope ?? 'local') === 'local' && !s.cloudId
+            );
             
-            if (unsyncedSnippets.length > 0) {
-              // 提示用户是否迁移本地片段
-              const shouldMigrate = confirm(
-                `检测到 ${unsyncedSnippets.length} 个本地片段尚未同步到云端。\n\n` +
-                `是否将这些片段迁移到您的账户？\n\n` +
-                `• 点击"确定"：将本地片段同步到云端（推荐）\n` +
-                `• 点击"取消"：保留本地片段，不影响使用`
+            if (localOnlySnippets.length > 0) {
+              // 提示用户是否合并本地片段到云端
+              const shouldMerge = confirm(
+                `检测到 ${localOnlySnippets.length} 个本地片段。\n\n` +
+                `是否将这些片段合并到您的云端账户？\n\n` +
+                `• 点击"确定"：本地片段将上传到云端，登录后可查看\n` +
+                `• 点击"取消"：本地片段保留在本地，登录状态下不会显示\n\n` +
+                `退出登录后，本地片段仍可正常查看。`
               );
               
-              if (shouldMigrate) {
-                console.log('[Auth] Migrating local snippets to cloud...');
-                // 执行推送，将本地片段上传到云端
+              if (shouldMerge) {
+                console.log('[Auth] Merging local snippets to cloud...');
                 const pushResult = await window.electron.ipcRenderer.invoke('sync:push');
                 if (pushResult.success && pushResult.data.pushed > 0) {
-                  console.log(`[Auth] Successfully migrated ${pushResult.data.pushed} snippets`);
-                  alert(`✓ 成功迁移 ${pushResult.data.pushed} 个片段到云端！`);
-                } else if (pushResult.success) {
-                  console.log('[Auth] No snippets to migrate');
-                } else {
-                  console.error('[Auth] Migration failed:', pushResult.error);
-                  alert('⚠ 片段迁移失败: ' + pushResult.error);
+                  console.log(`[Auth] Successfully merged ${pushResult.data.pushed} snippets`);
+                } else if (!pushResult.success) {
+                  console.error('[Auth] Merge failed:', pushResult.error);
                 }
+              } else {
+                // 用户选择不合并，标记本地片段跳过同步
+                console.log('[Auth] User chose not to merge, marking local snippets as skip_sync...');
+                await window.electron.ipcRenderer.invoke('sync:markLocalSnippetsSkipSync');
               }
             }
             
-            // 2. 拉取云端片段（合并到本地）
+            // 2. 拉取云端片段
             console.log('[Auth] Pulling cloud snippets...');
             const pullResult = await window.electron.ipcRenderer.invoke('sync:pull');
             if (pullResult.success) {
-              console.log(`[Auth] Successfully pulled ${pullResult.data.pulled} snippets from cloud`);
+              console.log(`[Auth] Successfully pulled ${pullResult.data?.pulled ?? 0} snippets from cloud`);
             }
             
             // 3. 触发片段列表刷新
@@ -171,6 +182,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async () => {
     await window.electron.ipcRenderer.invoke('auth:logout');
+    await window.electron.ipcRenderer.invoke('sync:clearCloudOnlySnippets');
+    await window.electron.ipcRenderer.invoke('sync:clearSkipSync');
     dispatch({ type: 'LOGOUT' });
     
     // 退出登录后刷新片段列表（显示本地片段）

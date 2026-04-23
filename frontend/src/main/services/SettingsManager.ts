@@ -33,6 +33,7 @@ export interface Settings {
   sync: SyncSettings;
   search: SearchSettings;
   backup: BackupSettings;
+  [key: string]: any;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -299,6 +300,7 @@ export class SettingsManager {
    */
   private mergeWithDefaults(settingsMap: Record<string, any>): Settings {
     return {
+      ...settingsMap,
       theme: settingsMap.theme || DEFAULT_SETTINGS.theme,
       language: settingsMap.language || DEFAULT_SETTINGS.language,
       editor: { ...DEFAULT_SETTINGS.editor, ...settingsMap.editor },

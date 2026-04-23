@@ -12,7 +12,6 @@ export const SyncSettings: React.FC<Props> = ({ onClose }) => {
   const { isLoggedIn } = useAuth();
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
   const [intervalMinutes, setIntervalMinutes] = useState(15);
-  const [conflictStrategy, setConflictStrategy] = useState<'local' | 'cloud' | 'latest'>('latest');
   const [queueStatus, setQueueStatus] = useState<any>(null);
   const [saving, setSaving] = useState(false);
 
@@ -89,25 +88,6 @@ export const SyncSettings: React.FC<Props> = ({ onClose }) => {
                 </select>
               </div>
             )}
-          </div>
-
-          {/* 冲突策略 */}
-          <div className="sync-setting-group">
-            <div className="sync-setting-title">默认冲突解决策略</div>
-            <div className="sync-radio-group">
-              {(['local', 'cloud', 'latest'] as const).map((s) => (
-                <label key={s} className="sync-radio-label">
-                  <input
-                    type="radio"
-                    name="conflict-strategy"
-                    value={s}
-                    checked={conflictStrategy === s}
-                    onChange={() => setConflictStrategy(s)}
-                  />
-                  {s === 'local' ? '优先本地' : s === 'cloud' ? '优先云端' : '取最新修改'}
-                </label>
-              ))}
-            </div>
           </div>
 
           {/* 离线队列状态 */}

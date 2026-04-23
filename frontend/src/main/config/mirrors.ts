@@ -2,16 +2,17 @@ import { MirrorInfo, ModelInfo } from '../../shared/types/model';
 
 // 模型信息 - 使用多语言模型（支持中文）
 export const MODEL_INFO: ModelInfo = {
-  name: 'paraphrase-multilingual-MiniLM-L12-v2',
-  fileName: 'paraphrase-multilingual-MiniLM-L12-v2.onnx',
+  name: 'multilingual-e5-small',
+  fileName: 'multilingual-e5-small.onnx',
   expectedHash: 'skip-verification',
-  size: 120000000 // 约 120MB
+  size: 118000000 // 量化 ONNX 约 118MB
 };
 
 // 模型文件列表（需要下载的所有文件）
 // 注意：tokenizer.json 已包含词汇表，不需要额外的 vocab.txt
 export const MODEL_FILES = [
-  { name: 'model.onnx', url: 'onnx/model.onnx' },
+  { name: 'model.onnx', url: 'onnx/model_uint8.onnx' },
+  { name: 'sentencepiece.bpe.model', url: 'sentencepiece.bpe.model' },
   { name: 'tokenizer.json', url: 'tokenizer.json' },
   { name: 'tokenizer_config.json', url: 'tokenizer_config.json' },
   { name: 'config.json', url: 'config.json' },
@@ -22,14 +23,14 @@ export const MODEL_FILES = [
 export const MODEL_MIRRORS: MirrorInfo[] = [
   {
     // Hugging Face 国内镜像（优先使用，国内速度快）
-    url: 'https://hf-mirror.com/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2/resolve/main/',
+    url: 'https://hf-mirror.com/Xenova/multilingual-e5-small/resolve/main/',
     name: 'Hugging Face 镜像',
     location: '中国',
     priority: 1
   },
   {
     // Hugging Face 官方
-    url: 'https://huggingface.co/sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2/resolve/main/',
+    url: 'https://huggingface.co/Xenova/multilingual-e5-small/resolve/main/',
     name: 'Hugging Face 官方',
     location: '全球',
     priority: 2

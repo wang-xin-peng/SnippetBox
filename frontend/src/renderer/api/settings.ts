@@ -1,11 +1,27 @@
 import type { WizardChoices } from '@shared/types/wizard';
 
 export const settingsApi = {
+  async getSettings(): Promise<Record<string, any>> {
+    const result = await window.electron.ipcRenderer.invoke('settings:get');
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to get settings');
+    }
+    return result.data || {};
+  },
+
+  async updateSettings(settings: Record<string, any>): Promise<void> {
+    const result = await window.electron.ipcRenderer.invoke('settings:update', settings);
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to update settings');
+    }
+  },
+
   /**
    * 检测是否首次启动
    */
   async isFirstLaunch(): Promise<boolean> {
-    return window.electron.ipcRenderer.invoke('settings:isFirstLaunch');
+    const result = await window.electron.ipcRenderer.invoke('settings:isFirstLaunch');
+    return result?.isFirstLaunch ?? true;
   },
 
   /**

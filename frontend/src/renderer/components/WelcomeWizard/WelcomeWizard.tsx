@@ -24,6 +24,16 @@ export function WelcomeWizard({ onComplete, onSkip }: WelcomeWizardProps) {
     searchMode: 'lightweight',
   });
 
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    document.body.style.pointerEvents = 'auto';
+
+    return () => {
+      document.body.style.overflow = 'unset';
+      document.body.style.pointerEvents = 'auto';
+    };
+  }, []);
+
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1);

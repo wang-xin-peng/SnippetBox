@@ -76,5 +76,23 @@ class EmailService:
 """
         return self.send_email(to_email, subject, body)
 
+    def send_reset_code(self, to_email: str, code: str) -> bool:
+        """发送重置密码验证码邮件"""
+        subject = "SnippetBox 重置密码验证码"
+        body = f"""
+您好！
+
+您正在重置 SnippetBox 账户密码，验证码是：
+
+    {code}
+
+验证码有效期为 5 分钟，请尽快完成验证。
+
+如果您没有请求重置密码，请忽略此邮件，您的账户不会被修改。
+
+- SnippetBox 团队
+"""
+        return self.send_email(to_email, subject, body)
+
 
 email_service = EmailService()

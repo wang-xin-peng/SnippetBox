@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DownloadDialog } from '../ModelDownload';
+import { useAuth } from '../../store/authStore';
 import './SettingsPage.css';
 
 export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
+  const { isLoggedIn, user, logout } = useAuth();
   const [showDownloadDialog, setShowDownloadDialog] = useState(false);
   const [isModelDownloaded, setIsModelDownloaded] = useState(false);
   const [modelPath, setModelPath] = useState<string>('');
@@ -226,6 +228,82 @@ export const SettingsPage: React.FC = () => {
           <h1 className="settings-title">设置</h1>
         </div>
 
+        {/* 账户设置 */}
+        <section className="settings-section">
+          <h2 className="section-title">账户</h2>
+          
+          {isLoggedIn && user ? (
+            <>
+              <div className="setting-item">
+                <div className="setting-header">
+                  <div className="account-info">
+                    <div className="account-avatar">
+                      {user.avatar ? (
+                        <img src={user.avatar} alt={user.username} className="account-avatar-img" />
+                      ) : (
+                        <span className="account-avatar-initials">
+                          {user.username.slice(0, 2).toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    <div className="account-details">
+                      <span className="account-username">{user.username}</span>
+                      <span className="account-email">{user.email}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="setting-item">
+                <div className="setting-header">
+                  <label className="setting-label">云同步</label>
+                  <p className="setting-description">
+                    已登录，片段将自动同步到云端
+                  </p>
+                </div>
+                <div className="setting-control">
+                  <span className="status-badge success">✓ 已连接</span>
+                </div>
+              </div>
+
+              <div className="setting-item">
+                <div className="setting-header">
+                  <label className="setting-label">退出登录</label>
+                  <p className="setting-description">
+                    退出后云端片段将从本地移除，本地片段不受影响
+                  </p>
+                </div>
+                <div className="setting-control">
+                  <button
+                    className="btn-danger"
+                    onClick={async () => {
+                      if (confirm('确定要退出登录吗？')) {
+                        await logout();
+                        setNotification({ message: '已退出登录', type: 'success' });
+                        setTimeout(() => setNotification(null), 3000);
+                      }
+                    }}
+                  >
+                    退出登录
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="setting-item">
+              <div className="setting-header">
+                <label className="setting-label">登录账户</label>
+                <p className="setting-description">
+                  登录后可将片段同步到云端，在多设备间共享
+                </p>
+              </div>
+              <div className="setting-control">
+                <span className="status-badge warning">未登录</span>
+              </div>
+            </div>
+          )}
+        </section>
+
         {/* 搜索设置 */}
         <section className="settings-section">
           <h2 className="section-title">搜索设置</h2>
@@ -275,12 +353,12 @@ export const SettingsPage: React.FC = () => {
           <h2 className="section-title">模型管理</h2>
           
           <div className="setting-item">
-            <div className="setting-header">
-              <label className="setting-label">本地搜索模型</label>
-              <p className="setting-description">
-                下载并管理用于语义搜索的 AI 模型（约 90MB）
-              </p>
-            </div>
+              <div className="setting-header">
+                <label className="setting-label">本地搜索模型</label>
+                <p className="setting-description">
+                  下载并管理用于语义搜索的 AI 模型（约 118MB，量化版）
+                </p>
+              </div>
             <div className="setting-control">
               {isModelDownloaded ? (
                 <div className="model-status">

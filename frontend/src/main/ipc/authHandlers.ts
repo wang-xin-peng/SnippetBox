@@ -107,5 +107,21 @@ export function registerAuthHandlers() {
     }
   });
 
+  ipcMain.handle('auth:sendResetCode', async (_e, email: string) => {
+    try {
+      return await auth.sendResetCode(email);
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  });
+
+  ipcMain.handle('auth:resetPassword', async (_e, email: string, code: string, newPassword: string) => {
+    try {
+      return await auth.resetPassword(email, code, newPassword);
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  });
+
   console.log('[AuthHandlers] Registered');
 }

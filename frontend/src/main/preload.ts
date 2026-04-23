@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import { Snippet, CreateSnippetDTO, UpdateSnippetDTO, SnippetFilter, Category, Tag } from '../shared/types';
 import { MirrorInfo, DownloadProgress } from '../shared/types/model';
 import { ConflictResolution, Conflict } from '../shared/types/sync';
+import { AuthCapabilities } from './services/AuthService';
 
 // 暴露 Electron API
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -107,6 +108,8 @@ contextBridge.exposeInMainWorld('electron', {
     refresh: () => ipcRenderer.invoke('auth:refresh'),
     getCurrentUser: () => ipcRenderer.invoke('auth:getCurrentUser'),
     isLoggedIn: () => ipcRenderer.invoke('auth:isLoggedIn'),
+    getCapabilities: (): Promise<{ success: boolean; data?: AuthCapabilities; error?: string }> =>
+      ipcRenderer.invoke('auth:getCapabilities'),
   },
   sync: {
     push: () => ipcRenderer.invoke('sync:push'),

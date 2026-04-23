@@ -8,7 +8,7 @@ from datetime import datetime
 import logging
 
 from models.user import UserCreate, UserLogin, UserResponse, TokenResponse, TokenRefresh
-from models.email_code import EmailCodeRequest, EmailCodeVerify, EmailCodeResponse, RegisterWithCodeRequest
+from models.email_code import EmailCodeRequest, EmailCodeVerify, EmailCodeResponse, RegisterWithCodeRequest, ResetPasswordRequest
 from services.auth import AuthService
 from services.email_code import email_code_service
 from services.email import email_service
@@ -404,4 +404,84 @@ async def register_with_code(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="注册失败"
+        )
+
+
+@router.post("/auth/send-reset-code", response_model=EmailCodeResponse)
+async def send_reset_code(
+    request: EmailCodeRequest,
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    """
+    发送重置密码验证码
+
+    - **email**: 邮箱地址（必须已注册）
+    """
+    email = request.email
+
+    user_exists = await conn.fetchrow("SELECT id FROM users WHERE email = $1", email)
+    if not user_exists:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="该邮箱尚未注册"
+        )
+
+    allowed, wait_seconds = email_code_service.check_reset_rate_limit(email)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"请求过于频繁，请在 {wait_seconds} 秒后重试"
+        )
+
+    count = email_code_service.increment_reset_rate_limit(email)
+    if count > email_code_service.MAX_REQUESTS_PER_MINUTE:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="请求过于频繁，请稍后再试"
+        )
+
+    code = email_code_service.generate_and_store_reset_code(email)
+    email_service.send_reset_code(email, code)
+
+    return EmailCodeResponse(
+        message="验证码已发送",
+        expires_in=300
+    )
+
+
+@router.post("/auth/reset-password", response_model=EmailCodeResponse)
+async def reset_password(
+    reset_data: ResetPasswordRequest,
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    """
+    重置密码
+
+    - **email**: 邮箱地址
+    - **code**: 验证码
+    - **new_password**: 新密码
+    """
+    success, error_msg = email_code_service.verify_reset_code(reset_data.email, reset_data.code)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_msg
+        )
+
+    try:
+        await AuthService.reset_password(conn, reset_data.email, reset_data.new_password)
+        return EmailCodeResponse(
+            message="密码重置成功",
+            expires_in=0
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Reset password error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="重置密码失败"
         )

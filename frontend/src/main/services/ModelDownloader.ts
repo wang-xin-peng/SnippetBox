@@ -23,6 +23,7 @@ export class ModelDownloader {
   private webContents: WebContents | null = null;
   private isPausing: boolean = false;
   private currentWriter: fs.WriteStream | null = null;
+  private readonly legacyModelDirs: string[];
 
   constructor() {
     this.axiosInstance = axios.create({
@@ -35,6 +36,10 @@ export class ModelDownloader {
     this.modelPath = this.modelDir; // 模型目录
     this.tempPath = `${this.modelDir}.tmp`;
     this.stateFilePath = path.join(app.getPath('userData'), 'models', `${MODEL_INFO.name}.state`);
+    this.legacyModelDirs = [
+      path.join(app.getPath('userData'), 'models', 'paraphrase-multilingual-MiniLM-L12-v2'),
+      path.join(app.getPath('userData'), 'models', 'all-MiniLM-L6-v2'),
+    ];
 
     // 确保目录存在
     const modelsRoot = path.join(app.getPath('userData'), 'models');
@@ -79,6 +84,8 @@ export class ModelDownloader {
     }
 
     try {
+      this.cleanupLegacyModels();
+
       // 选择镜像源
       const baseUrl = mirrorUrl || this.selectMirror();
       this.currentMirrorUrl = baseUrl;
@@ -360,10 +367,24 @@ export class ModelDownloader {
     if (fs.existsSync(this.tempPath)) {
       fs.rmSync(this.tempPath, { recursive: true, force: true });
     }
+    this.cleanupLegacyModels();
     this.clearDownloadState();
     this.progress.status = 'idle';
     this.progress.downloaded = 0;
     this.progress.percentage = 0;
+  }
+
+  private cleanupLegacyModels(): void {
+    for (const legacyDir of this.legacyModelDirs) {
+      if (legacyDir !== this.modelPath && fs.existsSync(legacyDir)) {
+        try {
+          fs.rmSync(legacyDir, { recursive: true, force: true });
+          console.log('[ModelDownloader] Removed legacy model directory:', legacyDir);
+        } catch (error) {
+          console.warn('[ModelDownloader] Failed to remove legacy model directory:', legacyDir, error);
+        }
+      }
+    }
   }
 
   /**

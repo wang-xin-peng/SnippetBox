@@ -271,3 +271,51 @@
 .settings-notification {
   animation: slideIn 0.3s ease-out;
 }
+
+/* Account Info */
+.account-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.account-avatar {
+  flex-shrink: 0;
+}
+
+.account-avatar-img {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.account-avatar-initials {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.account-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.account-username {
+  font-size: 18px;
+  font-weight: 600;
+  color: #212529;
+}
+
+.account-email {
+  font-size: 14px;
+  color: #6c757d;
+}

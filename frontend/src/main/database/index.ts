@@ -111,8 +111,14 @@ export class DatabaseManager {
       if (!cols.some(c => c.name === 'starred')) {
         this.db.exec('ALTER TABLE snippets ADD COLUMN starred INTEGER DEFAULT 0');
       }
+      if (!cols.some(c => c.name === 'storage_scope')) {
+        this.db.exec("ALTER TABLE snippets ADD COLUMN storage_scope TEXT DEFAULT 'local'");
+      }
+      if (!cols.some(c => c.name === 'skip_sync')) {
+        this.db.exec('ALTER TABLE snippets ADD COLUMN skip_sync INTEGER DEFAULT 0');
+      }
     } catch (error) {
-      console.error('[Database] starred migration failed:', error);
+      console.error('[Database] snippets migration failed:', error);
     }
 
     // 迁移：为 categories 表添加 color、icon、updated_at 列

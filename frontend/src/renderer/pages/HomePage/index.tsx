@@ -4,6 +4,7 @@ import { CodeEditor } from '../../components/CodeEditor';
 import { EditSnippetModal } from '../../components/SnippetEditor/EditSnippetModal';
 import { ShareButton } from '../../components/Share/ShareButton';
 import { Snippet } from '../../../shared/types';
+import { useAuth } from '../../store/authStore';
 import './HomePage.css';
 
 interface OutletCtx {
@@ -36,6 +37,7 @@ function formatDate(d: any) {
 
 export default function HomePage() {
   const { selectedCategory, previewWidth, startDragRight, refreshKey, showingFavorites, selectedSnippetId, triggerRefresh } = useOutletContext<OutletCtx>();
+  const { isLoggedIn } = useAuth();
 
   const [snippets, setSnippets] = useState<Snippet[]>([]);
   const [filtered, setFiltered] = useState<Snippet[]>([]);
@@ -54,11 +56,8 @@ export default function HomePage() {
       setLoading(true);
       const data: Snippet[] = await (window as any).electronAPI.snippet.list();
       setSnippets(data);
-      // 加载完后直接更新 filtered，避免依赖 useEffect 链的时序问题
-      setFiltered(prev => {
-        // 如果当前没有搜索条件，直接用新数据
-        return data.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-      });
+      const sorted = data.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+      setFiltered(sorted);
     } catch (e) {
       console.error('Failed to load snippets:', e);
     } finally {
@@ -103,6 +102,12 @@ export default function HomePage() {
   // 关键词过滤（本地，无需 IPC）
   const applyKeywordFilter = useCallback((allSnippets: Snippet[], query: string, category: string | null) => {
     let result = [...allSnippets];
+    // 登录时只显示云端片段，未登录时只显示本地片段
+    if (isLoggedIn) {
+      result = result.filter(s => (s.storageScope ?? 'local') === 'cloud' || s.cloudId);
+    } else {
+      result = result.filter(s => (s.storageScope ?? 'local') === 'local' && !s.cloudId);
+    }
     if (showingFavorites) result = result.filter(s => s.starred);
     if (category) result = result.filter(s => s.category === category);
     if (query.trim()) {
@@ -115,7 +120,7 @@ export default function HomePage() {
     }
     result.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
     setFiltered(result);
-  }, [showingFavorites]);
+  }, [showingFavorites, isLoggedIn]);
 
   // 语义搜索（IPC）
   const runSemanticSearch = useCallback(async (query: string, category: string | null) => {
@@ -173,6 +178,11 @@ export default function HomePage() {
       if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     };
   }, [snippets, selectedCategory, searchQuery, searchMode, applyKeywordFilter, runSemanticSearch, showingFavorites]);
+
+  // 登录状态变化时重新过滤片段
+  useEffect(() => {
+    applyKeywordFilter(snippets, searchQuery, selectedCategory);
+  }, [isLoggedIn]);
 
   const toggleSearchMode = () => {
     setSearchMode(prev => prev === 'keyword' ? 'semantic' : 'keyword');

@@ -22,6 +22,7 @@ interface DbSnippet {
   is_synced: number;
   cloud_id: string | null;
   starred: number;
+  storage_scope?: string | null;
 }
 
 export class SnippetManager {
@@ -378,6 +379,7 @@ export class SnippetManager {
       accessCount: dbSnippet.access_count,
       isSynced: dbSnippet.is_synced === 1,
       cloudId: dbSnippet.cloud_id || undefined,
+      storageScope: dbSnippet.storage_scope === 'cloud' ? 'cloud' : 'local',
     };
   }
 

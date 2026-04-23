@@ -124,6 +124,7 @@ export function registerEmbeddingHandlers(): void {
         try {
           const { BrowserWindow } = await import('electron');
           const win = BrowserWindow.fromWebContents(event.sender);
+          win?.webContents.send('embedding:generateVectorsState', { active: true });
 
           const { clearAllVectors } = await import('../scripts/clearVectors');
           clearAllVectors();
@@ -142,6 +143,7 @@ export function registerEmbeddingHandlers(): void {
           }
           
           console.log('[EmbeddingHandlers] Cleanup complete, sending notification');
+          win?.webContents.send('embedding:generateVectorsState', { active: false });
           win?.webContents.send('embedding:generateVectorsComplete', { success: true });
         } catch (err: any) {
           console.error('[EmbeddingHandlers] Vector generation failed:', err);
@@ -150,6 +152,7 @@ export function registerEmbeddingHandlers(): void {
           await new Promise(resolve => setTimeout(resolve, 1000));
           
           const { BrowserWindow } = await import('electron');
+          BrowserWindow.getAllWindows()[0]?.webContents.send('embedding:generateVectorsState', { active: false });
           BrowserWindow.getAllWindows()[0]?.webContents.send('embedding:generateVectorsComplete', {
             success: false,
             error: err.message,

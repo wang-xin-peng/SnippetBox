@@ -38,7 +38,6 @@ export class ConflictResolver {
     const conflicts: Conflict[] = [];
     const cloudMap = new Map(cloudSnippets.map((s) => [s.id, s]));
 
-    // 已解决过的片段 ID，不再重复报冲突
     const resolvedIds = new Set<string>();
     try {
       const rows = this.db
@@ -48,15 +47,20 @@ export class ConflictResolver {
     } catch { /* ignore */ }
 
     for (const local of localSnippets) {
-      const cloudId = local.cloudId ?? local.id;
+      const cloudId = local.cloudId ?? local.cloud_id ?? local.id;
       const cloud = cloudMap.get(cloudId);
       if (!cloud) continue;
       if (resolvedIds.has(local.id)) continue;
 
-      const localUpdated = new Date(local.updatedAt).getTime();
+      // 只有本地有未同步修改（is_synced=0）且云端也有该片段时，才可能是冲突
+      const isSynced = local.is_synced ?? local.isSynced;
+      if (isSynced === 1 || isSynced === true) continue;
+
+      const localUpdated = new Date(local.updatedAt ?? local.updated_at).getTime();
       const cloudUpdated = new Date(cloud.updated_at ?? cloud.updatedAt).getTime();
 
-      if (Math.abs(localUpdated - cloudUpdated) > 1000) {
+      // 本地修改时间早于云端，说明云端也有新修改 → 真正的冲突
+      if (localUpdated < cloudUpdated - 1000) {
         conflicts.push({
           snippetId: local.id,
           localVersion: local,
@@ -90,24 +94,20 @@ export class ConflictResolver {
 
     switch (resolution) {
       case 'use-local':
-        // 标记为未同步，下次推送时会用本地版本覆盖云端
         this.db
           .prepare(`UPDATE snippets SET is_synced = 0 WHERE id = ?`)
           .run(conflict.snippetId);
         break;
       case 'use-cloud':
         if (conflict.type === 'delete') {
-          // 云端有修改，恢复本地删除
           await manager.createSnippet(conflict.cloudVersion);
         } else {
-          // 用云端版本覆盖本地
           await manager.updateSnippet(conflict.snippetId, {
             title: conflict.cloudVersion.title,
             code: conflict.cloudVersion.code,
             language: conflict.cloudVersion.language,
             description: conflict.cloudVersion.description,
           });
-          // 标记为已同步，避免下次再检测到冲突
           this.db
             .prepare(`UPDATE snippets SET is_synced = 1 WHERE id = ?`)
             .run(conflict.snippetId);
@@ -143,9 +143,8 @@ export class ConflictResolver {
       } else if (strategy === 'cloud') {
         resolution = 'use-cloud';
       } else {
-        // latest: 比较时间戳，选择最新的
         const localTime = conflict.localVersion
-          ? new Date(conflict.localVersion.updatedAt).getTime()
+          ? new Date(conflict.localVersion.updatedAt ?? conflict.localVersion.updated_at).getTime()
           : 0;
         const cloudTime = conflict.cloudVersion
           ? new Date(

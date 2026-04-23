@@ -18,6 +18,7 @@ class EmailCodeService:
 
     REDIS_KEY_PREFIX = "email_code:"
     REGISTER_CODE_PREFIX = "register_code:"
+    RESET_CODE_PREFIX = "reset_code:"
     CODE_LENGTH = 6
     CODE_EXPIRE_MINUTES = 5
     MAX_ATTEMPTS = 5
@@ -186,6 +187,61 @@ class EmailCodeService:
     def increment_register_rate_limit(self, email: str) -> int:
         """增加注册验证码频率限制计数"""
         key = self._get_register_rate_key(email)
+        pipe = self.redis_client.pipeline()
+        pipe.incr(key)
+        pipe.expire(key, 60)
+        results = pipe.execute()
+        return results[0]
+
+    def _get_reset_code_key(self, email: str) -> str:
+        return f"{self.RESET_CODE_PREFIX}{email}"
+
+    def _get_reset_attempts_key(self, email: str) -> str:
+        return f"reset_code_attempts:{email}"
+
+    def _get_reset_rate_key(self, email: str) -> str:
+        return f"reset_code_rate:{email}"
+
+    def generate_and_store_reset_code(self, email: str) -> str:
+        code = self._generate_code()
+        code_key = self._get_reset_code_key(email)
+        attempts_key = self._get_reset_attempts_key(email)
+        pipe = self.redis_client.pipeline()
+        pipe.setex(code_key, timedelta(minutes=self.CODE_EXPIRE_MINUTES), code)
+        pipe.setex(attempts_key, timedelta(minutes=self.CODE_EXPIRE_MINUTES), 0)
+        pipe.execute()
+        logger.info(f"Generated reset password verification code for {email}")
+        return code
+
+    def verify_reset_code(self, email: str, code: str) -> tuple[bool, str]:
+        code_key = self._get_reset_code_key(email)
+        attempts_key = self._get_reset_attempts_key(email)
+        stored_code = self.redis_client.get(code_key)
+        if stored_code is None:
+            return False, "验证码已过期，请重新获取"
+        attempts = self.redis_client.get(attempts_key)
+        if attempts and int(attempts) >= self.MAX_ATTEMPTS:
+            return False, "验证码尝试次数过多，请重新获取"
+        if stored_code != code:
+            pipe = self.redis_client.pipeline()
+            pipe.incr(attempts_key)
+            pipe.expire(attempts_key, timedelta(minutes=self.CODE_EXPIRE_MINUTES))
+            pipe.execute()
+            return False, "验证码错误"
+        self.redis_client.delete(code_key)
+        self.redis_client.delete(attempts_key)
+        return True, ""
+
+    def check_reset_rate_limit(self, email: str) -> tuple[bool, int]:
+        key = self._get_reset_rate_key(email)
+        current = self.redis_client.get(key)
+        if current is None:
+            return True, 0
+        ttl = self.redis_client.ttl(key)
+        return False, max(0, ttl)
+
+    def increment_reset_rate_limit(self, email: str) -> int:
+        key = self._get_reset_rate_key(email)
         pipe = self.redis_client.pipeline()
         pipe.incr(key)
         pipe.expire(key, 60)

@@ -4,14 +4,15 @@ import { useAuth } from '../../store/authStore';
 interface LoginDialogProps {
   onClose: () => void;
   onSwitchToRegister: () => void;
+  onSwitchToResetPassword: () => void;
 }
 
 type LoginMode = 'password' | 'code';
 
-export const LoginDialog: React.FC<LoginDialogProps> = ({ onClose, onSwitchToRegister }) => {
+export const LoginDialog: React.FC<LoginDialogProps> = ({ onClose, onSwitchToRegister, onSwitchToResetPassword }) => {
   const { login, loading, error, clearError, checkAuth } = useAuth();
   const [loginMode, setLoginMode] = useState<LoginMode>('password');
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -124,6 +125,32 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({ onClose, onSwitchToReg
         await checkAuth();
         setTimeout(async () => {
           try {
+            // 检查是否有本地片段
+            const localSnippets = await window.electron.ipcRenderer.invoke('snippet:list');
+            const localOnlySnippets = localSnippets.filter(
+              (s: any) => (s.storageScope ?? 'local') === 'local' && !s.cloudId
+            );
+
+            if (localOnlySnippets.length > 0) {
+              const shouldMerge = confirm(
+                `检测到 ${localOnlySnippets.length} 个本地片段。\n\n` +
+                `是否将这些片段合并到您的云端账户？\n\n` +
+                `• 点击"确定"：本地片段将上传到云端，登录后可查看\n` +
+                `• 点击"取消"：本地片段保留在本地，登录状态下不会显示\n\n` +
+                `退出登录后，本地片段仍可正常查看。`
+              );
+
+              if (shouldMerge) {
+                console.log('[Auth] Merging local snippets to cloud...');
+                const pushResult = await window.electron.ipcRenderer.invoke('sync:push');
+                if (pushResult.success && pushResult.data.pushed > 0) {
+                  console.log(`[Auth] Successfully merged ${pushResult.data.pushed} snippets`);
+                }
+              } else {
+                await window.electron.ipcRenderer.invoke('sync:markLocalSnippetsSkipSync');
+              }
+            }
+
             const pullResult = await window.electron.ipcRenderer.invoke('sync:pull');
             if (pullResult.success) {
               console.log(`[Auth] Successfully pulled ${pullResult.data?.pulled ?? 0} snippets from cloud`);
@@ -244,7 +271,9 @@ export const LoginDialog: React.FC<LoginDialogProps> = ({ onClose, onSwitchToReg
                 />
                 记住我
               </label>
-              <span className="auth-muted-link" title="当前后端未开放找回密码接口">忘记密码暂未开放</span>
+              <button type="button" className="auth-link" onClick={() => { clearError(); onSwitchToResetPassword(); }}>
+                忘记密码
+              </button>
             </div>
           )}
 

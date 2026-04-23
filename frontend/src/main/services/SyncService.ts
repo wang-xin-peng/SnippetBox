@@ -3,15 +3,12 @@ import { BrowserWindow } from 'electron';
 import { getDatabaseManager } from '../database';
 import { getAuthService } from './AuthService';
 import { getOfflineQueue } from './OfflineQueue';
-import { getConflictResolver } from './ConflictResolver';
 import {
   SyncResult,
   PushResult,
   PullResult,
   SyncStatus,
   SyncStatusType,
-  SyncError,
-  Conflict,
 } from '../../shared/types/sync';
 
 const BASE_URL = 'http://8.141.108.146:8000/api/v1';
@@ -33,9 +30,7 @@ export class SyncService {
     this.setupNetworkMonitor();
   }
 
-  // ── 网络状态监测 ──────────────────────────────────────
   private setupNetworkMonitor(): void {
-    // 每 30 秒检测一次网络
     setInterval(() => this.checkOnlineStatus(), 30000);
     this.checkOnlineStatus();
   }
@@ -47,7 +42,6 @@ export class SyncService {
       this.isOnline = true;
       this.status.isOnline = true;
 
-      // 网络恢复时自动处理离线队列
       if (wasOffline) {
         console.log('[SyncService] Network restored, processing offline queue...');
         this.processOfflineQueue();
@@ -88,7 +82,6 @@ export class SyncService {
     this.notifyRenderer();
   }
 
-  // ── 推送本地变更 ──────────────────────────────────────
   async pushChanges(): Promise<PushResult> {
     const result: PushResult = { pushed: 0, errors: [] };
     const token = getAuthService().getAccessToken();
@@ -104,9 +97,8 @@ export class SyncService {
 
     try {
       const db = getDatabaseManager().getDb();
-      // 获取未同步的片段
       const unsynced = db
-        .prepare(`SELECT * FROM snippets WHERE is_synced = 0`)
+        .prepare(`SELECT * FROM snippets WHERE is_synced = 0 AND COALESCE(skip_sync, 0) = 0 AND COALESCE(storage_scope, 'local') = 'local'`)
         .all() as any[];
 
       const headers = { Authorization: `Bearer ${token}` };
@@ -129,9 +121,8 @@ export class SyncService {
             cloudId = res.data?.id ?? res.data?.snippet_id;
           }
 
-          // 标记为已同步
           db.prepare(
-            `UPDATE snippets SET is_synced = 1, cloud_id = ? WHERE id = ?`
+            `UPDATE snippets SET is_synced = 1, cloud_id = ?, storage_scope = COALESCE(storage_scope, 'local') WHERE id = ?`
           ).run(cloudId ?? null, row.id);
 
           result.pushed++;
@@ -139,7 +130,6 @@ export class SyncService {
           const errMsg = e?.response?.data?.detail ?? e.message;
           result.errors.push({ snippetId: row.id, message: errMsg });
 
-          // 加入离线队列
           if (!this.isOnline) {
             await getOfflineQueue().enqueue({
               type: row.cloud_id ? 'update' : 'create',
@@ -158,7 +148,6 @@ export class SyncService {
     return result;
   }
 
-  // ── 拉取云端变更 ──────────────────────────────────────
   async pullChanges(): Promise<PullResult> {
     const result: PullResult = { pulled: 0, conflicts: [], errors: [] };
     const token = getAuthService().getAccessToken();
@@ -178,47 +167,36 @@ export class SyncService {
       const cloudSnippets: any[] = res.data?.snippets ?? res.data ?? [];
 
       const db = getDatabaseManager().getDb();
-      const localSnippets = db.prepare(`SELECT * FROM snippets`).all() as any[];
-
-      // 检测冲突
-      const resolver = getConflictResolver();
-      const conflicts = resolver.detectConflicts(
-        localSnippets.map((s) => ({
-          ...s,
-          cloudId: s.cloud_id,
-          updatedAt: new Date(s.updated_at),
-        })),
-        cloudSnippets
-      );
-      result.conflicts = conflicts;
-
-      const conflictIds = new Set(conflicts.map((c) => c.snippetId));
 
       for (const cloud of cloudSnippets) {
         const cloudId = cloud.id ?? cloud.snippet_id;
-        if (conflictIds.has(cloudId)) continue;
+        const cloudUpdatedAt = new Date(cloud.updated_at ?? cloud.updatedAt).getTime();
 
         try {
           const existing = db
-            .prepare(`SELECT id FROM snippets WHERE cloud_id = ?`)
-            .get(cloudId) as { id: string } | undefined;
+            .prepare(`SELECT * FROM snippets WHERE cloud_id = ?`)
+            .get(cloudId) as any | undefined;
 
           if (existing) {
-            db.prepare(
-              `UPDATE snippets SET title=?, code=?, language=?, description=?, is_synced=1, updated_at=? WHERE cloud_id=?`
-            ).run(
-              cloud.title,
-              cloud.code,
-              cloud.language,
-              cloud.description ?? null,
-              Date.now(),
-              cloudId
-            );
+            // 已存在：比较时间戳，云端更新则覆盖本地
+            const localUpdatedAt = existing.updated_at;
+            if (cloudUpdatedAt > localUpdatedAt) {
+              db.prepare(
+                `UPDATE snippets SET title=?, code=?, language=?, description=?, is_synced=1, updated_at=? WHERE cloud_id=?`
+              ).run(
+                cloud.title,
+                cloud.code,
+                cloud.language,
+                cloud.description ?? null,
+                cloudUpdatedAt,
+                cloudId
+              );
+            }
           } else {
+            // 不存在：插入云端片段
             const { randomUUID } = await import('crypto');
             db.prepare(
-              `INSERT OR IGNORE INTO snippets (id, title, code, language, description, is_synced, cloud_id, created_at, updated_at, access_count)
-               VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 0)`
+              `INSERT OR IGNORE INTO snippets (id, title, code, language, description, is_synced, cloud_id, created_at, updated_at, access_count, storage_scope) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 0, 'cloud')`
             ).run(
               randomUUID(),
               cloud.title,
@@ -227,7 +205,7 @@ export class SyncService {
               cloud.description ?? null,
               cloudId,
               Date.now(),
-              Date.now()
+              cloudUpdatedAt
             );
           }
           result.pulled++;
@@ -242,7 +220,6 @@ export class SyncService {
     return result;
   }
 
-  // ── 完整同步 ──────────────────────────────────────────
   async sync(): Promise<SyncResult> {
     this.setStatus('syncing');
     this.notifyRenderer();
@@ -254,14 +231,13 @@ export class SyncService {
       const result: SyncResult = {
         pushed: pushResult.pushed,
         pulled: pullResult.pulled,
-        conflicts: pullResult.conflicts,
+        conflicts: [],
         errors: [...pushResult.errors, ...pullResult.errors],
       };
 
       this.status.lastSyncAt = Date.now();
       this.setStatus(result.errors.length > 0 ? 'error' : 'success');
-      this.status.error =
-        result.errors.length > 0 ? result.errors[0].message : null;
+      this.status.error = result.errors.length > 0 ? result.errors[0].message : null;
 
       this.notifyRenderer();
       return result;
@@ -273,10 +249,19 @@ export class SyncService {
     }
   }
 
-  // ── 同步状态 ──────────────────────────────────────────
   getSyncStatus(): SyncStatus {
     this.updatePendingCount();
     return { ...this.status };
+  }
+
+  clearCloudOnlySnippets(): number {
+    const db = getDatabaseManager().getDb();
+    const result = db
+      .prepare(`DELETE FROM snippets WHERE COALESCE(storage_scope, 'local') = 'cloud'`)
+      .run();
+    this.updatePendingCount();
+    this.notifyRenderer();
+    return result.changes;
   }
 
   private setStatus(s: SyncStatusType): void {
@@ -296,7 +281,6 @@ export class SyncService {
     }
   }
 
-  // ── 自动同步 ──────────────────────────────────────────
   enableAutoSync(intervalMinutes: number): void {
     this.disableAutoSync();
     const ms = intervalMinutes * 60 * 1000;
@@ -315,7 +299,6 @@ export class SyncService {
     }
   }
 
-  // ── 通知渲染进程 ──────────────────────────────────────
   private notifyRenderer(): void {
     try {
       const wins = BrowserWindow.getAllWindows();

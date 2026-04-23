@@ -13,6 +13,7 @@ export interface Snippet {
   accessCount: number;
   isSynced: boolean;
   cloudId?: string;
+  storageScope?: 'local' | 'cloud';
 }
 
 export interface CreateSnippetDTO {

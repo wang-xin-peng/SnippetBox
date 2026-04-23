@@ -114,19 +114,19 @@ class EmbeddingWorker {
         encoded.attention_mask.dims
       );
 
-      // token_type_ids: 全零（BERT 系模型需要）
-      const tokenTypeIds = new ort.Tensor(
-        'int64',
-        new BigInt64Array(encoded.input_ids.data.length).fill(0n),
-        encoded.input_ids.dims
-      );
-
       // 模型推理
-      const feeds = {
+      const feeds: Record<string, ort.Tensor> = {
         input_ids: inputIds,
         attention_mask: attentionMask,
-        token_type_ids: tokenTypeIds,
       };
+
+      if (this.session.inputNames.includes('token_type_ids')) {
+        feeds.token_type_ids = new ort.Tensor(
+          'int64',
+          new BigInt64Array(encoded.input_ids.data.length).fill(0n),
+          encoded.input_ids.dims
+        );
+      }
 
       const results = await this.session.run(feeds);
       const lastHiddenState = results.last_hidden_state;
