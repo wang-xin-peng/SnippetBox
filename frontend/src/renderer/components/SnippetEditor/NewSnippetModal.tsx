@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CodeEditor } from '../CodeEditor';
 import { CreateSnippetDTO } from '../../../shared/types';
+import { useAuth } from '../../store/authStore';
 import './NewSnippetModal.css';
 
 interface Props {
@@ -15,6 +16,7 @@ const LANGUAGES = [
 ];
 
 export const NewSnippetModal: React.FC<Props> = ({ onClose, onSaved }) => {
+  const { isLoggedIn, user } = useAuth();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [language, setLanguage] = useState('JavaScript');
@@ -27,7 +29,8 @@ export const NewSnippetModal: React.FC<Props> = ({ onClose, onSaved }) => {
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
-    (window as any).electronAPI?.category?.list()
+    const userId = isLoggedIn && user ? user.id : 'local';
+    (window as any).electronAPI?.category?.list(userId)
       .then((cats: any[]) => {
         setCategories(cats);
         // 默认按语言匹配分类

@@ -23,6 +23,8 @@ interface DbSnippet {
   cloud_id: string | null;
   starred: number;
   storage_scope?: string | null;
+  is_deleted?: number;
+  deleted_at?: number | null;
 }
 
 export class SnippetManager {
@@ -89,7 +91,7 @@ export class SnippetManager {
         SELECT DISTINCT s.*
         FROM snippets s
         LEFT JOIN snippet_tags st ON s.id = st.snippet_id
-        WHERE 1=1
+        WHERE (s.is_deleted = 0 OR s.is_deleted IS NULL)
       `;
       const params: any[] = [];
 
@@ -245,16 +247,72 @@ export class SnippetManager {
    */
   async deleteSnippet(id: string): Promise<void> {
     try {
-      const result = this.db.prepare('DELETE FROM snippets WHERE id = ?').run(id);
+      const now = Date.now();
+      const result = this.db
+        .prepare('UPDATE snippets SET is_deleted = 1, deleted_at = ? WHERE id = ?')
+        .run(now, id);
 
       if (result.changes === 0) {
         throw new Error('Snippet not found');
       }
-
-      // 自动删除向量
-      await this.vectorStore.deleteVector(id);
     } catch (error) {
       console.error('Failed to delete snippet:', error);
+      throw error;
+    }
+  }
+
+  async listTrash(): Promise<Snippet[]> {
+    try {
+      const dbSnippets = this.db
+        .prepare('SELECT * FROM snippets WHERE is_deleted = 1 ORDER BY deleted_at DESC')
+        .all() as DbSnippet[];
+      return Promise.all(dbSnippets.map((s) => this.dbSnippetToSnippet(s)));
+    } catch (error) {
+      console.error('Failed to list trash:', error);
+      throw error;
+    }
+  }
+
+  async restoreSnippet(id: string): Promise<Snippet> {
+    try {
+      this.db
+        .prepare('UPDATE snippets SET is_deleted = 0, deleted_at = NULL WHERE id = ?')
+        .run(id);
+      return await this.getSnippet(id);
+    } catch (error) {
+      console.error('Failed to restore snippet:', error);
+      throw error;
+    }
+  }
+
+  async permanentDelete(id: string): Promise<void> {
+    try {
+      const result = this.db.prepare('DELETE FROM snippets WHERE id = ? AND is_deleted = 1').run(id);
+      if (result.changes === 0) {
+        throw new Error('Snippet not found in trash');
+      }
+      await this.vectorStore.deleteVector(id);
+    } catch (error) {
+      console.error('Failed to permanently delete snippet:', error);
+      throw error;
+    }
+  }
+
+  async emptyTrash(): Promise<void> {
+    try {
+      const trashSnippets = this.db
+        .prepare('SELECT id FROM snippets WHERE is_deleted = 1')
+        .all() as Array<{ id: string }>;
+      const transaction = this.db.transaction(() => {
+        this.db.prepare('DELETE FROM snippet_tags WHERE snippet_id IN (SELECT id FROM snippets WHERE is_deleted = 1)').run();
+        this.db.prepare('DELETE FROM snippets WHERE is_deleted = 1').run();
+      });
+      transaction();
+      for (const s of trashSnippets) {
+        await this.vectorStore.deleteVector(s.id).catch(() => {});
+      }
+    } catch (error) {
+      console.error('Failed to empty trash:', error);
       throw error;
     }
   }
@@ -393,14 +451,20 @@ export class SnippetManager {
       errors: []
     };
 
-    for (const snippetId of snippetIds) {
-      try {
-        await this.deleteSnippet(snippetId);
-        result.success++;
-      } catch (error) {
-        result.failed++;
-        result.errors.push({ snippetId, error: (error as Error).message });
+    const now = Date.now();
+    const transaction = this.db.transaction((ids: string[]) => {
+      const stmt = this.db.prepare('UPDATE snippets SET is_deleted = 1, deleted_at = ? WHERE id = ? AND (is_deleted = 0 OR is_deleted IS NULL)');
+      for (const id of ids) {
+        const r = stmt.run(now, id);
+        if (r.changes > 0) result.success++;
+        else { result.failed++; result.errors.push({ snippetId: id, error: 'Not found or already deleted' }); }
       }
+    });
+
+    try {
+      transaction(snippetIds);
+    } catch (error) {
+      result.failed = snippetIds.length - result.success;
     }
 
     return result;

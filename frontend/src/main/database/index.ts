@@ -117,6 +117,12 @@ export class DatabaseManager {
       if (!cols.some(c => c.name === 'skip_sync')) {
         this.db.exec('ALTER TABLE snippets ADD COLUMN skip_sync INTEGER DEFAULT 0');
       }
+      if (!cols.some(c => c.name === 'is_deleted')) {
+        this.db.exec('ALTER TABLE snippets ADD COLUMN is_deleted INTEGER DEFAULT 0');
+      }
+      if (!cols.some(c => c.name === 'deleted_at')) {
+        this.db.exec('ALTER TABLE snippets ADD COLUMN deleted_at INTEGER DEFAULT NULL');
+      }
     } catch (error) {
       console.error('[Database] snippets migration failed:', error);
     }
@@ -133,6 +139,9 @@ export class DatabaseManager {
       }
       if (!catColNames.includes('updated_at')) {
         this.db.exec('ALTER TABLE categories ADD COLUMN updated_at INTEGER DEFAULT 0');
+      }
+      if (!catColNames.includes('user_id')) {
+        this.db.exec("ALTER TABLE categories ADD COLUMN user_id TEXT DEFAULT 'local'");
       }
     } catch (error) {
       console.error('[Database] categories migration failed:', error);

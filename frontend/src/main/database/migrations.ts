@@ -4,28 +4,32 @@
  */
 
 import Database from 'better-sqlite3';
-import { DEFAULT_CATEGORIES } from './schema';
 
 /**
- * 初始化默认分类
- * 如果分类表为空，则插入默认分类
+ * 初始化默认分类（仅当分类表完全为空时，为本地用户创建默认分类）
  */
 export function initializeDefaultCategories(db: Database.Database): void {
   try {
-    // 检查是否已有分类
     const count = db.prepare('SELECT COUNT(*) as count FROM categories').get() as { count: number };
     
     if (count.count === 0) {
-      console.log('[Migration] Initializing default categories...');
+      console.log('[Migration] Initializing default categories for local user...');
       
       const insertStmt = db.prepare(`
-        INSERT INTO categories (id, name, description, color, icon, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO categories (id, name, description, color, icon, created_at, updated_at, user_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `);
       
       const now = Date.now();
+      const defaults = [
+        { id: 'cat_local_default', name: '未分类', description: '未分类的代码片段', color: '#6B7280', icon: '📁' },
+        { id: 'cat_local_algorithm', name: '算法', description: '排序、搜索、动态规划等', color: '#3B82F6', icon: '🧮' },
+        { id: 'cat_local_ui', name: 'UI组件', description: '可复用的界面组件和样式', color: '#8B5CF6', icon: '🎨' },
+        { id: 'cat_local_utils', name: '工具函数', description: '通用工具函数和辅助方法', color: '#F59E0B', icon: '🔧' },
+        { id: 'cat_local_api', name: 'API接口', description: 'HTTP请求、接口调用', color: '#06B6D4', icon: '🌐' },
+      ];
       
-      for (const category of DEFAULT_CATEGORIES) {
+      for (const category of defaults) {
         insertStmt.run(
           category.id,
           category.name,
@@ -33,11 +37,12 @@ export function initializeDefaultCategories(db: Database.Database): void {
           category.color,
           category.icon,
           now,
-          now
+          now,
+          'local'
         );
       }
       
-      console.log(`[Migration] Initialized ${DEFAULT_CATEGORIES.length} default categories`);
+      console.log(`[Migration] Initialized ${defaults.length} default categories for local user`);
     } else {
       console.log(`[Migration] Categories already exist (${count.count} categories), skipping initialization`);
     }

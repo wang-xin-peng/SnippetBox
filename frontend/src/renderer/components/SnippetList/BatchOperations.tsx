@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Category, Tag } from '../../../shared/types';
+import { useAuth } from '../../store/authStore';
 
 interface BatchResult {
   success: number;
@@ -21,6 +22,7 @@ export const BatchOperations: React.FC<BatchOperationsProps> = ({
   selectedIds,
   onOperationComplete,
 }) => {
+  const { isLoggedIn, user } = useAuth();
   const [dialog, setDialog] = useState<DialogType>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<BatchResult | null>(null);
@@ -43,7 +45,8 @@ export const BatchOperations: React.FC<BatchOperationsProps> = ({
       window.electronAPI.tag.list().then(setAvailableTags).catch(console.error);
     }
     if (dialog === 'category') {
-      window.electronAPI.category.list().then(setCategories).catch(console.error);
+      const userId = isLoggedIn && user ? user.id : 'local';
+      window.electronAPI.category.list(userId).then(setCategories).catch(console.error);
     }
   }, [dialog]);
 

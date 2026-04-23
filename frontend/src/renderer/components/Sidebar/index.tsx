@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import CategoryTagManager from '../CategoryTagManager';
+import { useAuth } from '../../store/authStore';
 import './Sidebar.css';
 
 interface Category {
@@ -23,7 +24,9 @@ interface SidebarProps {
   selectedCategory?: string | null;
   onSnippetSelect?: (snippetId: string) => void;
   onFavoritesSelect?: () => void;
+  onTrashSelect?: () => void;
   showingFavorites?: boolean;
+  showingTrash?: boolean;
   refreshKey?: number;
 }
 
@@ -32,11 +35,14 @@ function Sidebar({
   selectedCategory,
   onSnippetSelect,
   onFavoritesSelect,
+  onTrashSelect,
   showingFavorites,
+  showingTrash,
   refreshKey,
 }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isLoggedIn, user } = useAuth();
 
   const goHomeFirst = (cb: () => void) => {
     if (location.pathname !== '/') {
@@ -50,16 +56,21 @@ function Sidebar({
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [tags, setTags] = useState<any[]>([]);
 
+  const [trashCount, setTrashCount] = useState(0);
+
   const loadData = useCallback(async () => {
     try {
       const api = (window as any).electronAPI;
+      const userId = isLoggedIn && user ? user.id : 'local';
+      
+      await api.category.ensureDefaults(userId);
+      
       const [cats, snips, tagList] = await Promise.all([
-        api.category.list(), 
+        api.category.list(userId), 
         api.snippet.list(),
         api.tag.list()
       ]);
       
-      // 将"未分类"放到最后
       const sortedCats = cats.sort((a: Category, b: Category) => {
         if (a.name === '未分类') return 1;
         if (b.name === '未分类') return -1;
@@ -70,10 +81,15 @@ function Sidebar({
       setSnippets(snips);
       setTags(tagList || []);
       setExpanded(new Set(sortedCats.map((c: Category) => c.id)));
+
+      try {
+        const trashItems = await (window as any).electronAPI.trash.list();
+        setTrashCount(trashItems.length);
+      } catch {}
     } catch (e) {
       console.error('Sidebar load failed:', e);
     }
-  }, []);
+  }, [isLoggedIn, user]);
 
   useEffect(() => { loadData(); }, [loadData, refreshKey]);
 
@@ -85,14 +101,31 @@ function Sidebar({
     });
   };
 
-  const getSnippets = (catId: string, catName: string) => snippets.filter(s => s.category === catName || s.category === catId);
+  const getSnippets = (catId: string, catName: string) => {
+    return snippets.filter(s => {
+      if (isLoggedIn) {
+        if ((s as any).storageScope !== 'cloud' && !(s as any).cloudId) return false;
+      } else {
+        if ((s as any).storageScope === 'cloud' || (s as any).cloudId) return false;
+      }
+      return s.category === catName || s.category === catId;
+    });
+  };
   const getCount = (catId: string, catName: string) => getSnippets(catId, catName).length;
-  const favCount = snippets.filter(s => s.starred).length;
+  const favCount = snippets.filter(s => {
+    if (!s.starred) return false;
+    if (isLoggedIn) {
+      return (s as any).storageScope === 'cloud' || (s as any).cloudId;
+    } else {
+      return (s as any).storageScope !== 'cloud' && !(s as any).cloudId;
+    }
+  }).length;
 
   // 分类管理操作
   const handleAddCategory = async (category: Omit<Category, 'id'>) => {
     try {
-      await (window as any).electronAPI.category.create(category);
+      const userId = isLoggedIn && user ? user.id : 'local';
+      await (window as any).electronAPI.category.create(category, userId);
       await loadData();
     } catch (e) {
       console.error('Failed to add category:', e);
@@ -115,7 +148,7 @@ function Sidebar({
   };
 
   const handleDeleteCategory = async (categoryId: string) => {
-    if (!confirm('确定要删除这个分类吗？该分类下的代码片段会被移到"未分类"。')) {
+    if (!confirm('确定要删除这个分类吗？该分类下的代码片段将变为无分类状态。')) {
       return;
     }
     try {
@@ -170,6 +203,17 @@ function Sidebar({
         <span className="sidebar-fav-icon">{showingFavorites ? '★' : '☆'}</span>
         <span className="sidebar-fav-label">收藏夹</span>
         <span className="sidebar-section-badge">{favCount}</span>
+      </div>
+
+      <div className="sidebar-divider" />
+
+      <div
+        className={`sidebar-favorites ${showingTrash ? 'active' : ''}`}
+        onClick={() => goHomeFirst(() => onTrashSelect?.())}
+      >
+        <span className="sidebar-fav-icon">🗑️</span>
+        <span className="sidebar-fav-label">回收站</span>
+        {trashCount > 0 && <span className="sidebar-section-badge">{trashCount}</span>}
       </div>
 
       <div className="sidebar-divider" />

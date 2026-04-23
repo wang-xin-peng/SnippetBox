@@ -123,16 +123,62 @@ export function registerSnippetHandlers() {
     }
   });
 
-  // 删除片段
+  // 删除片段（移到回收站）
   ipcMain.handle('snippet:delete', async (_event, id: string) => {
     try {
-      console.log('[SnippetHandlers] Deleting snippet:', id);
+      console.log('[SnippetHandlers] Moving snippet to trash:', id);
       if (!snippetManager) throw new Error('SnippetManager not initialized');
       await snippetManager.deleteSnippet(id);
-      console.log('[SnippetHandlers] Snippet deleted successfully');
+      console.log('[SnippetHandlers] Snippet moved to trash successfully');
       return true;
     } catch (error) {
       console.error('[SnippetHandlers] Failed to delete snippet:', error);
+      throw error;
+    }
+  });
+
+  // 列出回收站片段
+  ipcMain.handle('trash:list', async () => {
+    try {
+      if (!snippetManager) throw new Error('SnippetManager not initialized');
+      return await snippetManager.listTrash();
+    } catch (error) {
+      console.error('[SnippetHandlers] Failed to list trash:', error);
+      throw error;
+    }
+  });
+
+  // 恢复回收站片段
+  ipcMain.handle('trash:restore', async (_event, id: string) => {
+    try {
+      if (!snippetManager) throw new Error('SnippetManager not initialized');
+      return await snippetManager.restoreSnippet(id);
+    } catch (error) {
+      console.error('[SnippetHandlers] Failed to restore snippet:', error);
+      throw error;
+    }
+  });
+
+  // 永久删除片段
+  ipcMain.handle('trash:permanentDelete', async (_event, id: string) => {
+    try {
+      if (!snippetManager) throw new Error('SnippetManager not initialized');
+      await snippetManager.permanentDelete(id);
+      return true;
+    } catch (error) {
+      console.error('[SnippetHandlers] Failed to permanently delete snippet:', error);
+      throw error;
+    }
+  });
+
+  // 清空回收站
+  ipcMain.handle('trash:empty', async () => {
+    try {
+      if (!snippetManager) throw new Error('SnippetManager not initialized');
+      await snippetManager.emptyTrash();
+      return true;
+    } catch (error) {
+      console.error('[SnippetHandlers] Failed to empty trash:', error);
       throw error;
     }
   });

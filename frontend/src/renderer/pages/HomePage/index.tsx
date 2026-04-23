@@ -14,6 +14,7 @@ interface OutletCtx {
   startDragRight: (e: React.MouseEvent) => void;
   refreshKey: number;
   showingFavorites: boolean;
+  showingTrash: boolean;
   selectedSnippetId: string | null;
   triggerRefresh: () => void;
 }
@@ -36,7 +37,7 @@ function formatDate(d: any) {
 }
 
 export default function HomePage() {
-  const { selectedCategory, previewWidth, startDragRight, refreshKey, showingFavorites, selectedSnippetId, triggerRefresh } = useOutletContext<OutletCtx>();
+  const { selectedCategory, previewWidth, startDragRight, refreshKey, showingFavorites, showingTrash, selectedSnippetId, triggerRefresh } = useOutletContext<OutletCtx>();
   const { isLoggedIn } = useAuth();
 
   const [snippets, setSnippets] = useState<Snippet[]>([]);
@@ -49,6 +50,8 @@ export default function HomePage() {
   const [isSearching, setIsSearching] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [loading, setLoading] = useState(true);
+  const [trashSnippets, setTrashSnippets] = useState<Snippet[]>([]);
+  const [trashSelected, setTrashSelected] = useState<Snippet | null>(null);
   const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const loadSnippets = useCallback(async () => {
@@ -82,6 +85,15 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => { loadSnippets(); }, [loadSnippets, refreshKey]);
+
+  useEffect(() => {
+    if (showingTrash) {
+      (window as any).electronAPI.trash.list().then((data: Snippet[]) => {
+        setTrashSnippets(data);
+        setTrashSelected(null);
+      }).catch(console.error);
+    }
+  }, [showingTrash, refreshKey]);
 
   // 监听登录后的刷新事件
   useEffect(() => {
@@ -182,6 +194,7 @@ export default function HomePage() {
   // 登录状态变化时重新过滤片段
   useEffect(() => {
     applyKeywordFilter(snippets, searchQuery, selectedCategory);
+    setSelected(null);
   }, [isLoggedIn]);
 
   const toggleSearchMode = () => {
@@ -287,6 +300,134 @@ export default function HomePage() {
   };
 
   const isAiMode = searchMode === 'semantic';
+
+  const handleRestoreSnippet = async (id: string) => {
+    try {
+      await (window as any).electronAPI.trash.restore(id);
+      setTrashSnippets(prev => prev.filter(s => s.id !== id));
+      if (trashSelected?.id === id) setTrashSelected(null);
+      triggerRefresh();
+    } catch (e) {
+      console.error('Restore failed:', e);
+    }
+  };
+
+  const handlePermanentDelete = async (id: string) => {
+    if (!confirm('永久删除后无法恢复，确定要彻底删除这个片段吗？')) return;
+    try {
+      await (window as any).electronAPI.trash.permanentDelete(id);
+      setTrashSnippets(prev => prev.filter(s => s.id !== id));
+      if (trashSelected?.id === id) setTrashSelected(null);
+    } catch (e) {
+      console.error('Permanent delete failed:', e);
+    }
+  };
+
+  const handleEmptyTrash = async () => {
+    if (!confirm('确定要清空回收站吗？所有片段将被永久删除，无法恢复！')) return;
+    try {
+      await (window as any).electronAPI.trash.empty();
+      setTrashSnippets([]);
+      setTrashSelected(null);
+    } catch (e) {
+      console.error('Empty trash failed:', e);
+    }
+  };
+
+  if (showingTrash) {
+    return (
+      <div className="home-page">
+        <div className="snippet-panel">
+          <div className="snippet-panel-toolbar">
+            <div className="search-box" style={{ flex: 1 }}>
+              <span className="search-icon">🗑️</span>
+              <span style={{ color: '#8b949e', fontSize: 14 }}>回收站 ({trashSnippets.length})</span>
+            </div>
+            {trashSnippets.length > 0 && (
+              <button className="batch-bar-btn batch-bar-btn--danger" onClick={handleEmptyTrash}>
+                清空回收站
+              </button>
+            )}
+          </div>
+          {trashSnippets.length === 0 ? (
+            <div className="no-snippets">
+              <div className="no-snippets-icon">🗑️</div>
+              <div>回收站为空</div>
+            </div>
+          ) : (
+            <div className="snippet-list">
+              {trashSnippets.map(snippet => (
+                <div
+                  key={snippet.id}
+                  className={`snippet-list-item ${trashSelected?.id === snippet.id ? 'selected' : ''}`}
+                  onClick={() => setTrashSelected(snippet)}
+                >
+                  <div className="list-item-header">
+                    <span className="list-item-lang-icon" style={{ color: getLangColor(snippet.language?.toLowerCase() || '') }}>{'</>'}</span>
+                    <span className="list-item-title">{snippet.title}</span>
+                  </div>
+                  <div className="list-item-code-preview">
+                    {snippet.code.split('\n').slice(0, 3).join('\n')}
+                  </div>
+                  <div className="list-item-footer">
+                    <span className="list-item-lang-badge">{snippet.language?.toLowerCase()}</span>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button
+                        className="action-btn"
+                        style={{ fontSize: 12, padding: '2px 8px' }}
+                        onClick={e => { e.stopPropagation(); handleRestoreSnippet(snippet.id); }}
+                      >♻️ 恢复</button>
+                      <button
+                        className="action-btn danger"
+                        style={{ fontSize: 12, padding: '2px 8px' }}
+                        onClick={e => { e.stopPropagation(); handlePermanentDelete(snippet.id); }}
+                      >彻底删除</button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="resize-handle-right" onMouseDown={startDragRight} />
+        <div className="preview-panel" style={{ width: previewWidth }}>
+          {!trashSelected ? (
+            <div className="preview-empty">
+              <div className="preview-empty-icon">🗑️</div>
+              <div className="preview-empty-title">回收站</div>
+              <div className="preview-empty-sub">选择一个片段查看详情，或恢复/永久删除</div>
+            </div>
+          ) : (
+            <>
+              <div className="preview-header">
+                <div className="preview-title-row">
+                  <h2 className="preview-title">{trashSelected.title}</h2>
+                </div>
+                <div className="preview-meta-row">
+                  <span className="preview-meta-item">{trashSelected.language}</span>
+                  <span className="preview-meta-item">📅 删除于: {formatDate((trashSelected as any).deletedAt || trashSelected.updatedAt)}</span>
+                </div>
+              </div>
+              <div className="preview-actions">
+                <button className="action-btn primary" onClick={() => handleRestoreSnippet(trashSelected.id)}>♻️ 恢复片段</button>
+                <button className="action-btn danger" onClick={() => handlePermanentDelete(trashSelected.id)}>彻底删除</button>
+              </div>
+              <div className="preview-code-area">
+                <CodeEditor
+                  value={trashSelected.code}
+                  language={trashSelected.language?.toLowerCase() || 'plaintext'}
+                  readOnly
+                  height="100%"
+                  theme="vs-dark"
+                />
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="home-page">
@@ -444,7 +585,7 @@ export default function HomePage() {
         <div className="confirm-overlay" onClick={() => setDeleteConfirmId(null)}>
           <div className="confirm-dialog" onClick={e => e.stopPropagation()}>
             <div className="confirm-title">确认删除</div>
-            <div className="confirm-msg">删除后无法恢复，确定要删除这个片段吗？</div>
+            <div className="confirm-msg">片段将被移到回收站，确定要删除吗？</div>
             <div className="confirm-actions">
               <button className="confirm-btn" onClick={() => setDeleteConfirmId(null)}>取消</button>
               <button className="confirm-btn confirm-btn--danger" onClick={confirmDelete}>删除</button>
@@ -471,6 +612,15 @@ interface CardProps {
 function SnippetCard({ snippet, isSelected, onClick, onDelete, onToggleStar, batchMode, checked, onToggleCheck }: CardProps) {
   const lang = snippet.language?.toLowerCase() || '';
   const color = getLangColor(lang);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(snippet.code).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
 
   const handleClick = () => {
     if (batchMode) onToggleCheck?.(snippet.id, { stopPropagation: () => {} } as any);
@@ -487,9 +637,14 @@ function SnippetCard({ snippet, isSelected, onClick, onDelete, onToggleStar, bat
         )}
         <span className="card-title">{snippet.title}</span>
         {!batchMode && (
-          <button className={`card-star ${snippet.starred ? 'starred' : ''}`} onClick={e => onToggleStar(snippet, e)}>
-            {snippet.starred ? '★' : '☆'}
-          </button>
+          <>
+            <button className="card-copy-btn" onClick={handleCopy} title="复制代码">
+              {copied ? '✅' : '📋'}
+            </button>
+            <button className={`card-star ${snippet.starred ? 'starred' : ''}`} onClick={e => onToggleStar(snippet, e)}>
+              {snippet.starred ? '★' : '☆'}
+            </button>
+          </>
         )}
       </div>
 
@@ -522,6 +677,15 @@ function SnippetCard({ snippet, isSelected, onClick, onDelete, onToggleStar, bat
 function SnippetListItem({ snippet, isSelected, onClick, onToggleStar, batchMode, checked, onToggleCheck }: CardProps) {
   const lang = snippet.language?.toLowerCase() || '';
   const color = getLangColor(lang);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(snippet.code).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
 
   const handleClick = () => {
     if (batchMode) onToggleCheck?.(snippet.id, { stopPropagation: () => {} } as any);
@@ -538,9 +702,14 @@ function SnippetListItem({ snippet, isSelected, onClick, onToggleStar, batchMode
         )}
         <span className="list-item-title">{snippet.title}</span>
         {!batchMode && (
-          <button className={`card-star ${snippet.starred ? 'starred' : ''}`} onClick={e => onToggleStar(snippet, e)}>
-            {snippet.starred ? '★' : '☆'}
-          </button>
+          <>
+            <button className="card-copy-btn" onClick={handleCopy} title="复制代码">
+              {copied ? '✅' : '📋'}
+            </button>
+            <button className={`card-star ${snippet.starred ? 'starred' : ''}`} onClick={e => onToggleStar(snippet, e)}>
+              {snippet.starred ? '★' : '☆'}
+            </button>
+          </>
         )}
       </div>
 
