@@ -7,8 +7,11 @@ import asyncpg
 from datetime import datetime
 import logging
 
-from models.user import UserCreate, UserLogin, UserResponse, TokenResponse, TokenRefresh
+from models.user import UserCreate, UserLogin, UserResponse, TokenResponse, TokenRefresh, UpdateUsernameRequest, ChangePasswordRequest
+from models.email_code import EmailCodeRequest, EmailCodeVerify, EmailCodeResponse, RegisterWithCodeRequest, ResetPasswordRequest, DeleteAccountVerifyRequest
 from services.auth import AuthService
+from services.email_code import email_code_service
+from services.email import email_service
 from database.connection import get_db_connection
 from middleware.auth import get_current_user, security
 
@@ -198,3 +201,397 @@ async def get_current_user_info(
         username=row['username'],
         created_at=row['created_at']
     )
+
+
+@router.post("/auth/send-code", response_model=EmailCodeResponse)
+async def send_verification_code(
+    request: EmailCodeRequest,
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    """
+    发送邮箱验证码
+
+    - **email**: 邮箱地址
+
+    返回验证码发送结果
+    """
+    email = request.email
+
+    allowed, wait_seconds = email_code_service.check_rate_limit(email)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"请求过于频繁，请在 {wait_seconds} 秒后重试"
+        )
+
+    count = email_code_service.increment_rate_limit(email)
+    if count > email_code_service.MAX_REQUESTS_PER_MINUTE:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="请求过于频繁，请稍后再试"
+        )
+
+    user_exists = await conn.fetchrow("SELECT id FROM users WHERE email = $1", email)
+    if not user_exists:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="该邮箱尚未注册"
+        )
+
+    code = email_code_service.generate_and_store_code(email)
+    email_service.send_verification_code(email, code)
+
+    return EmailCodeResponse(
+        message="验证码已发送",
+        expires_in=300
+    )
+
+
+@router.post("/auth/login-with-code", response_model=TokenResponse)
+async def login_with_code(
+    verify_data: EmailCodeVerify,
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    """
+    使用邮箱验证码登录
+
+    - **email**: 邮箱地址
+    - **code**: 验证码
+
+    返回访问令牌和刷新令牌
+    """
+    email = verify_data.email
+    code = verify_data.code
+
+    success, error_msg = email_code_service.verify_code(email, code)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_msg
+        )
+
+    try:
+        user = await AuthService.authenticate_user_by_email(conn, email)
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="用户不存在",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        access_token, expires_in = AuthService.create_access_token(user.id, user.email)
+        refresh_token = AuthService.create_refresh_token(user.id, user.email)
+
+        return TokenResponse(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_type="bearer",
+            expires_in=expires_in
+        )
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Login with code error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="登录失败"
+        )
+
+
+@router.post("/auth/send-register-code", response_model=EmailCodeResponse)
+async def send_register_code(
+    request: EmailCodeRequest,
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    """
+    发送注册验证码
+
+    - **email**: 邮箱地址（必须未注册）
+
+    返回验证码发送结果
+    """
+    email = request.email
+
+    existing = await conn.fetchrow("SELECT id FROM users WHERE email = $1", email)
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="该邮箱已注册，请直接登录"
+        )
+
+    allowed, wait_seconds = email_code_service.check_register_rate_limit(email)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"请求过于频繁，请在 {wait_seconds} 秒后重试"
+        )
+
+    count = email_code_service.increment_register_rate_limit(email)
+    if count > email_code_service.MAX_REQUESTS_PER_MINUTE:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="请求过于频繁，请稍后再试"
+        )
+
+    code = email_code_service.generate_and_store_register_code(email)
+    email_service.send_verification_code(email, code)
+
+    return EmailCodeResponse(
+        message="验证码已发送",
+        expires_in=300
+    )
+
+
+@router.post("/auth/register-with-code", response_model=TokenResponse)
+async def register_with_code(
+    register_data: RegisterWithCodeRequest,
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    """
+    使用验证码注册
+
+    - **email**: 邮箱地址
+    - **code**: 验证码
+    - **password**: 密码
+    - **username**: 用户名
+
+    验证码验证通过后自动注册并登录
+    """
+    success, error_msg = email_code_service.verify_register_code(register_data.email, register_data.code)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_msg
+        )
+
+    existing = await conn.fetchrow("SELECT id FROM users WHERE email = $1", register_data.email)
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="该邮箱已注册"
+        )
+
+    try:
+        user_data = UserCreate(
+            email=register_data.email,
+            password=register_data.password,
+            username=register_data.username
+        )
+        user = await AuthService.register_user(conn, user_data)
+
+        access_token, expires_in = AuthService.create_access_token(user.id, user.email)
+        refresh_token = AuthService.create_refresh_token(user.id, user.email)
+
+        return TokenResponse(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_type="bearer",
+            expires_in=expires_in
+        )
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Register with code error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="注册失败"
+        )
+
+
+@router.post("/auth/send-reset-code", response_model=EmailCodeResponse)
+async def send_reset_code(
+    request: EmailCodeRequest,
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    """
+    发送重置密码验证码
+
+    - **email**: 邮箱地址（必须已注册）
+    """
+    email = request.email
+
+    user_exists = await conn.fetchrow("SELECT id FROM users WHERE email = $1", email)
+    if not user_exists:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="该邮箱尚未注册"
+        )
+
+    allowed, wait_seconds = email_code_service.check_reset_rate_limit(email)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"请求过于频繁，请在 {wait_seconds} 秒后重试"
+        )
+
+    count = email_code_service.increment_reset_rate_limit(email)
+    if count > email_code_service.MAX_REQUESTS_PER_MINUTE:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="请求过于频繁，请稍后再试"
+        )
+
+    code = email_code_service.generate_and_store_reset_code(email)
+    email_service.send_reset_code(email, code)
+
+    return EmailCodeResponse(
+        message="验证码已发送",
+        expires_in=300
+    )
+
+
+@router.post("/auth/reset-password", response_model=EmailCodeResponse)
+async def reset_password(
+    reset_data: ResetPasswordRequest,
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    """
+    重置密码
+
+    - **email**: 邮箱地址
+    - **code**: 验证码
+    - **new_password**: 新密码
+    """
+    success, error_msg = email_code_service.verify_reset_code(reset_data.email, reset_data.code)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_msg
+        )
+
+    try:
+        await AuthService.reset_password(conn, reset_data.email, reset_data.new_password)
+        return EmailCodeResponse(
+            message="密码重置成功",
+            expires_in=0
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Reset password error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="重置密码失败"
+        )
+
+
+@router.put("/auth/username")
+async def update_username(
+    request: UpdateUsernameRequest,
+    current_user: dict = Depends(get_current_user),
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    """修改用户名"""
+    try:
+        await AuthService.update_username(conn, current_user["user_id"], request.username)
+        row = await conn.fetchrow("SELECT id, email, username, created_at FROM users WHERE id = $1::uuid", current_user["user_id"])
+        return UserResponse(
+            id=str(row['id']),
+            email=row['email'],
+            username=row['username'],
+            created_at=row['created_at']
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Update username error: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="修改用户名失败")
+
+
+@router.put("/auth/password")
+async def change_password(
+    request: ChangePasswordRequest,
+    current_user: dict = Depends(get_current_user),
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    """修改密码"""
+    try:
+        await AuthService.change_password(conn, current_user["user_id"], request.current_password, request.new_password)
+        return {"message": "密码修改成功"}
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Change password error: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="修改密码失败")
+
+
+@router.delete("/auth/account", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_account(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user: dict = Depends(get_current_user),
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    """注销账号（永久删除）"""
+    try:
+        await AuthService.delete_account(conn, current_user["user_id"])
+        await AuthService.blacklist_token(conn, credentials.credentials)
+        logger.info(f"User {current_user['email']} deleted their account")
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/auth/delete-account/send-code", status_code=status.HTTP_200_OK)
+async def send_delete_account_code(
+    current_user: dict = Depends(get_current_user)
+):
+    """发送注销账号验证码（需已登录）"""
+    email = current_user["email"]
+
+    allowed, wait_seconds = email_code_service.check_delete_rate_limit(email)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"请求过于频繁，请在 {wait_seconds} 秒后重试"
+        )
+
+    count = email_code_service.increment_delete_rate_limit(email)
+    if count > email_code_service.MAX_REQUESTS_PER_MINUTE:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="请求过于频繁，请稍后再试"
+        )
+
+    code = email_code_service.generate_and_store_delete_code(email)
+    email_service.send_verification_code(email, code)
+
+    return EmailCodeResponse(message="验证码已发送", expires_in=300)
+
+
+@router.post("/auth/delete-account/verify", status_code=status.HTTP_200_OK)
+async def verify_delete_account_code(
+    verify_data: DeleteAccountVerifyRequest,
+    current_user: dict = Depends(get_current_user),
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    """验证注销账号验证码（需已登录）"""
+    email = current_user["email"]
+    code = verify_data.code
+
+    if verify_data.email != email:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="邮箱不匹配")
+
+    success, error_msg = email_code_service.verify_delete_code(email, code)
+    if not success:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
+
+    user = await conn.fetchrow("SELECT id FROM users WHERE email = $1", email)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
+
+    await AuthService.delete_account(conn, str(user["id"]))
+    await AuthService.blacklist_all_tokens(conn, str(user["id"]))
+    logger.info(f"User {email} deleted their account via code verification")
+
+    return {"message": "账号已注销"}

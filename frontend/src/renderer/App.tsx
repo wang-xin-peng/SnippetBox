@@ -2,17 +2,33 @@ import { useState, useEffect } from 'react';
 import { Router } from './router';
 import { WelcomeWizard } from './components/WelcomeWizard';
 import { settingsApi } from './api/settings';
-import { AuthProvider } from './store/authStore';
+import { AuthProvider, useAuth } from './store/authStore';
 import { SyncProvider } from './store/syncStore';
 import type { WizardChoices } from '@shared/types/wizard';
 
-function App() {
+function restoreGlobalInteraction() {
+  document.body.style.overflow = 'unset';
+  document.body.style.pointerEvents = 'auto';
+
+  const overlays = document.querySelectorAll(
+    '.download-dialog-overlay, .modal-overlay, .confirm-overlay, .nsm-overlay, .saving-overlay, .auth-dialog-overlay, .share-overlay, .sync-overlay, .batch-dialog-overlay'
+  );
+
+  overlays.forEach((overlay) => {
+    const element = overlay as HTMLElement;
+    if (element.dataset.preserve === 'true') return;
+    if (!element.closest('.welcome-wizard')) {
+      element.style.pointerEvents = 'none';
+    }
+  });
+}
+
+function AppContent() {
   const [showWizard, setShowWizard] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const { isLoggedIn, user, loading: authLoading } = useAuth();
 
   useEffect(() => {
-    checkFirstLaunch();
-    
     // 添加全局快捷键 Ctrl+Shift+F 来修复输入框问题
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey && e.key === 'F') {
@@ -53,27 +69,108 @@ function App() {
     };
     
     document.addEventListener('keydown', handleKeyDown);
+
+    const removeEmbeddingState = window.electron.ipcRenderer.on(
+      'embedding:generateVectorsState',
+      (_event: any, payload: { active: boolean }) => {
+        if (!payload.active) {
+          restoreGlobalInteraction();
+        }
+      }
+    );
+
+    const removeEmbeddingComplete = window.electron.ipcRenderer.on(
+      'embedding:generateVectorsComplete',
+      () => {
+        restoreGlobalInteraction();
+      }
+    );
     
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
+      removeEmbeddingState();
+      removeEmbeddingComplete();
     };
   }, []);
 
-  const checkFirstLaunch = async () => {
+  useEffect(() => {
+    if (authLoading) {
+      return;
+    }
+
+    checkWizardVisibility();
+  }, [authLoading, isLoggedIn, user?.id]);
+
+  useEffect(() => {
+    if (!showWizard) {
+      restoreGlobalInteraction();
+    }
+
+    return () => {
+      restoreGlobalInteraction();
+    };
+  }, [showWizard]);
+
+  const checkWizardVisibility = async () => {
     try {
-      const isFirst = await settingsApi.isFirstLaunch();
-      setShowWizard(isFirst);
+      const settings = await settingsApi.getSettings();
+      const onboardedUserIds: string[] = Array.isArray(settings.onboardedUserIds)
+        ? settings.onboardedUserIds
+        : [];
+
+      if (!isLoggedIn) {
+        const shouldShow = !(settings.localUsageOnboardingCompleted === true);
+        setShowWizard(shouldShow);
+        return;
+      }
+
+      if (!user?.id) {
+        setShowWizard(false);
+        return;
+      }
+
+      if (onboardedUserIds.includes(user.id)) {
+        setShowWizard(false);
+        return;
+      }
+
+      const snippets = await window.electron.ipcRenderer.invoke('snippet:list');
+      const cloudSnippetCount = snippets.filter(
+        (snippet: any) => snippet.cloudId || snippet.isSynced || snippet.storageScope === 'cloud'
+      ).length;
+
+      setShowWizard(cloudSnippetCount === 0);
     } catch (error) {
-      console.error('Failed to check first launch:', error);
+      console.error('Failed to check wizard visibility:', error);
+      setShowWizard(false);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const markWizardSeen = async () => {
+    const settings = await settingsApi.getSettings();
+
+    if (isLoggedIn && user?.id) {
+      const currentIds: string[] = Array.isArray(settings.onboardedUserIds) ? settings.onboardedUserIds : [];
+      if (!currentIds.includes(user.id)) {
+        await settingsApi.updateSettings({
+          onboardedUserIds: [...currentIds, user.id],
+        });
+      }
+    } else {
+      await settingsApi.updateSettings({
+        localUsageOnboardingCompleted: true,
+      });
+    }
+
+    await settingsApi.markFirstLaunchComplete();
+  };
+
   const handleWizardComplete = async (choices: WizardChoices) => {
     try {
       await settingsApi.saveWizardChoices(choices);
-      await settingsApi.markFirstLaunchComplete();
+      await markWizardSeen();
       setShowWizard(false);
     } catch (error) {
       console.error('Failed to complete wizard:', error);
@@ -82,7 +179,7 @@ function App() {
 
   const handleWizardSkip = async () => {
     try {
-      await settingsApi.markFirstLaunchComplete();
+      await markWizardSeen();
       setShowWizard(false);
     } catch (error) {
       console.error('Failed to skip wizard:', error);
@@ -94,12 +191,20 @@ function App() {
   }
 
   return (
+    <>
+      {showWizard && (
+        <WelcomeWizard onComplete={handleWizardComplete} onSkip={handleWizardSkip} />
+      )}
+      <Router />
+    </>
+  );
+}
+
+function App() {
+  return (
     <AuthProvider>
       <SyncProvider>
-        {showWizard && (
-          <WelcomeWizard onComplete={handleWizardComplete} onSkip={handleWizardSkip} />
-        )}
-        <Router />
+        <AppContent />
       </SyncProvider>
     </AuthProvider>
   );

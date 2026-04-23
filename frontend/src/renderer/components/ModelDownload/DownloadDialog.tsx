@@ -27,6 +27,11 @@ export const DownloadDialog: React.FC<DownloadDialogProps> = ({
   const [selectedMirror, setSelectedMirror] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
 
+  const resetPageInteraction = () => {
+    document.body.style.overflow = 'unset';
+    document.body.style.pointerEvents = 'auto';
+  };
+
   // 调试日志
   useEffect(() => {
     console.log('[DownloadDialog] isOpen changed:', isOpen);
@@ -36,6 +41,7 @@ export const DownloadDialog: React.FC<DownloadDialogProps> = ({
     if (isOpen) {
       // 防止背景滚动
       document.body.style.overflow = 'hidden';
+      document.body.style.pointerEvents = 'auto';
       
       loadProgress();
       
@@ -45,18 +51,17 @@ export const DownloadDialog: React.FC<DownloadDialogProps> = ({
         
         // 下载完成时通知
         if (newProgress.status === 'completed' && onComplete) {
+          resetPageInteraction();
           onComplete();
         }
       });
 
       return () => {
         removeListener();
-        // 恢复背景滚动
-        document.body.style.overflow = 'unset';
+        resetPageInteraction();
       };
     } else {
-      // 确保关闭时恢复滚动
-      document.body.style.overflow = 'unset';
+      resetPageInteraction();
     }
   }, [isOpen, onComplete]);
 
@@ -119,8 +124,7 @@ export const DownloadDialog: React.FC<DownloadDialogProps> = ({
   };
 
   const handleClose = () => {
-    // 强制清理 body 样式
-    document.body.style.overflow = 'unset';
+    resetPageInteraction();
     console.log('[DownloadDialog] Closing dialog, body overflow reset');
     onClose();
   };

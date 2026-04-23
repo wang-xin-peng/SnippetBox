@@ -40,10 +40,11 @@ class Settings(BaseSettings):
     REDIS_CACHE_TTL: int = 300  # 5 分钟
     
     # 嵌入模型配置
-    MODEL_NAME: str = "sentence-transformers/all-MiniLM-L6-v2"
+    # 云端使用更大更强的模型（768维，约420MB）
+    MODEL_NAME: str = "sentence-transformers/all-mpnet-base-v2"
     MODEL_CACHE_DIR: str = "./models"
     MODEL_DEVICE: str = "cpu"  # cpu 或 cuda
-    EMBEDDING_DIMENSION: int = 384
+    EMBEDDING_DIMENSION: int = 768  # all-mpnet-base-v2 使用 768 维
     
     # Hugging Face 镜像配置（国内访问）
     HF_ENDPOINT: str = "https://hf-mirror.com"  # 可选: https://hf-mirror.com 或 https://huggingface.co
@@ -65,6 +66,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "allow"  # 允许额外的字段
 
 
 settings = Settings()

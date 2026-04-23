@@ -65,5 +65,105 @@ export function registerAuthHandlers() {
     return { isLoggedIn: auth.isLoggedIn() };
   });
 
+  ipcMain.handle('auth:getCapabilities', async () => {
+    try {
+      return { success: true, data: await auth.getCapabilities() };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('auth:sendCode', async (_e, email: string) => {
+    try {
+      return await auth.sendCode(email);
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  });
+
+  ipcMain.handle('auth:loginWithCode', async (_e, email: string, code: string) => {
+    try {
+      const result = await auth.loginWithCode(email, code);
+      return { success: true, data: result };
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  });
+
+  ipcMain.handle('auth:sendRegisterCode', async (_e, email: string) => {
+    try {
+      return await auth.sendRegisterCode(email);
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  });
+
+  ipcMain.handle('auth:verifyRegisterCode', async (_e, email: string, code: string, password: string, username: string) => {
+    try {
+      const result = await auth.verifyRegisterCode(email, code, password, username);
+      return { success: true, data: result };
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  });
+
+  ipcMain.handle('auth:sendResetCode', async (_e, email: string) => {
+    try {
+      return await auth.sendResetCode(email);
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  });
+
+  ipcMain.handle('auth:resetPassword', async (_e, email: string, code: string, newPassword: string) => {
+    try {
+      return await auth.resetPassword(email, code, newPassword);
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  });
+
+  ipcMain.handle('auth:updateUsername', async (_e, newUsername: string) => {
+    try {
+      return await auth.updateUsername(newUsername);
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  });
+
+  ipcMain.handle('auth:changePassword', async (_e, currentPassword: string, newPassword: string) => {
+    try {
+      return await auth.changePassword(currentPassword, newPassword);
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  });
+
+  ipcMain.handle('auth:deleteAccount', async () => {
+    try {
+      return await auth.deleteAccount();
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  });
+
+  ipcMain.handle('auth:deleteAccountSendCode', async (_event, email: string) => {
+    try {
+      const res = await auth.sendDeleteAccountCode(email);
+      return { success: true, data: res };
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  });
+
+  ipcMain.handle('auth:deleteAccountVerify', async (_event, email: string, code: string) => {
+    try {
+      const res = await auth.verifyDeleteAccountCode(email, code);
+      return { success: true, data: res };
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  });
+
   console.log('[AuthHandlers] Registered');
 }

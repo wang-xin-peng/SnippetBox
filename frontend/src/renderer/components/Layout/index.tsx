@@ -10,6 +10,7 @@ function Layout() {
   const navigate = useNavigate();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showingFavorites, setShowingFavorites] = useState(false);
+  const [showingTrash, setShowingTrash] = useState(false);
   const [selectedSnippetId, setSelectedSnippetId] = useState<string | null>(null);
   const [sidebarWidth, setSidebarWidth] = useState(220);
   const [previewWidth, setPreviewWidth] = useState(580); // 调整为580px，让片段列表默认约400px
@@ -99,11 +100,13 @@ function Layout() {
         <aside className="layout-sidebar" style={{ width: sidebarWidth }}>
           <Sidebar
             onNewSnippet={handleNewSnippet}
-            onCategorySelect={id => { setSelectedCategory(id); setShowingFavorites(false); }}
+            onCategorySelect={id => { setSelectedCategory(id); setShowingFavorites(false); setShowingTrash(false); }}
             selectedCategory={selectedCategory}
             onSnippetSelect={setSelectedSnippetId}
-            onFavoritesSelect={() => { setShowingFavorites(true); setSelectedCategory(null); }}
+            onFavoritesSelect={() => { setShowingFavorites(true); setSelectedCategory(null); setShowingTrash(false); }}
+            onTrashSelect={() => { setShowingTrash(true); setShowingFavorites(false); setSelectedCategory(null); }}
             showingFavorites={showingFavorites}
+            showingTrash={showingTrash}
             refreshKey={refreshKey}
           />
         </aside>
@@ -113,7 +116,7 @@ function Layout() {
 
         {/* 中间+右侧内容 */}
         <main className="layout-main">
-          <Outlet context={{ selectedCategory, setSelectedCategory, previewWidth, startDragRight, refreshKey, showingFavorites, selectedSnippetId, triggerRefresh }} />
+          <Outlet context={{ selectedCategory, setSelectedCategory, previewWidth, startDragRight, refreshKey, showingFavorites, showingTrash, selectedSnippetId, triggerRefresh }} />
         </main>
       </div>
 

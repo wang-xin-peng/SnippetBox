@@ -1,11 +1,11 @@
 import * as ort from 'onnxruntime-node';
 import * as path from 'path';
 import * as fs from 'fs';
-import { app } from 'electron';
+import { getEmbeddingModelDir } from './embeddingModel';
 
 /**
  * 本地嵌入服务
- * 使用 ONNX Runtime 和 all-MiniLM-L6-v2 模型生成文本向量
+ * 使用 ONNX Runtime 和多语言检索模型生成文本向量
  */
 export class LocalEmbeddingService {
   private session: ort.InferenceSession | null = null;
@@ -16,9 +16,7 @@ export class LocalEmbeddingService {
   private transformers: any = null;
 
   constructor() {
-    // 模型存储路径 - 使用多语言模型
-    const userDataPath = app.getPath('userData');
-    this.modelPath = path.join(userDataPath, 'models', 'paraphrase-multilingual-MiniLM-L12-v2');
+    this.modelPath = getEmbeddingModelDir();
   }
 
   /**
@@ -67,8 +65,7 @@ export class LocalEmbeddingService {
         console.log('[LocalEmbedding] Transformers library loaded successfully');
       }
 
-      // 关键：设置 cacheDir 为模型父目录，这样 from_pretrained('all-MiniLM-L6-v2') 
-      // 就会直接在 cacheDir 下查找，而不是拼在 node_modules 路径后面
+      // 关键：设置 cacheDir 为模型父目录，避免运行时拼出错误路径
       const modelsDir = path.dirname(this.modelPath);
       const modelName = path.basename(this.modelPath);
       this.transformers.env.cacheDir = modelsDir;
@@ -163,19 +160,19 @@ export class LocalEmbeddingService {
         encoded.attention_mask.dims
       );
 
-      // token_type_ids: 全零，形状与 input_ids 相同（BERT 系模型需要此输入）
-      const tokenTypeIds = new ort.Tensor(
-        'int64',
-        new BigInt64Array(encoded.input_ids.data.length).fill(0n),
-        encoded.input_ids.dims
-      );
-
       // 模型推理
       const feeds: Record<string, ort.Tensor> = {
         input_ids: inputIds,
         attention_mask: attentionMask,
-        token_type_ids: tokenTypeIds,
       };
+
+      if (this.session!.inputNames.includes('token_type_ids')) {
+        feeds.token_type_ids = new ort.Tensor(
+          'int64',
+          new BigInt64Array(encoded.input_ids.data.length).fill(0n),
+          encoded.input_ids.dims
+        );
+      }
 
       const results = await this.session!.run(feeds);
       
@@ -284,7 +281,7 @@ export class LocalEmbeddingService {
    */
   getModelInfo(): { name: string; path: string; loaded: boolean } {
     return {
-      name: 'paraphrase-multilingual-MiniLM-L12-v2',
+      name: 'multilingual-e5-small',
       path: this.modelPath,
       loaded: this.isModelLoaded(),
     };

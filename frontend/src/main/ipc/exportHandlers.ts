@@ -46,18 +46,17 @@ export function registerExportHandlers() {
     }
   });
 
-  // 批量导出为 Markdown
+  // 批量导出为 Markdown（ZIP 压缩包）
   ipcMain.handle('export:batch-markdown', async (_event, snippetIds: string[]) => {
     try {
       console.log('[ExportHandlers] Batch export to Markdown:', snippetIds.length, 'snippets');
       if (!exportService) throw new Error('ExportService not initialized');
 
-      // 显示保存对话框
       const result = await dialog.showSaveDialog({
         title: '批量导出为 Markdown',
-        defaultPath: 'snippets.md',
+        defaultPath: 'snippets.zip',
         filters: [
-          { name: 'Markdown Files', extensions: ['md'] }
+          { name: 'ZIP Archives', extensions: ['zip'] }
         ]
       });
 

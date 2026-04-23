@@ -6,6 +6,7 @@ export interface Snippet {
   language: string;
   description?: string;
   category: string;
+  categoryId?: string;
   tags: string[];
   starred: boolean;
   createdAt: Date;
@@ -13,6 +14,7 @@ export interface Snippet {
   accessCount: number;
   isSynced: boolean;
   cloudId?: string;
+  storageScope?: 'local' | 'cloud';
 }
 
 export interface CreateSnippetDTO {

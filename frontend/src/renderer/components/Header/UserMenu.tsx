@@ -1,14 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../store/authStore';
 import { LoginDialog } from '../Auth/LoginDialog';
 import { RegisterDialog } from '../Auth/RegisterDialog';
+import { ResetPasswordDialog } from '../Auth/ResetPasswordDialog';
 import '../Auth/Auth.css';
 import './UserMenu.css';
 
-type AuthModal = 'login' | 'register' | null;
+type AuthModal = 'login' | 'register' | 'resetPassword' | null;
 
 export const UserMenu: React.FC = () => {
   const { isLoggedIn, user, logout, loading } = useAuth();
+  const navigate = useNavigate();
   const [modal, setModal] = useState<AuthModal>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -42,12 +45,19 @@ export const UserMenu: React.FC = () => {
           <LoginDialog
             onClose={() => setModal(null)}
             onSwitchToRegister={() => setModal('register')}
+            onSwitchToResetPassword={() => setModal('resetPassword')}
           />
         )}
         {modal === 'register' && (
           <RegisterDialog
             onClose={() => setModal(null)}
             onSwitchToLogin={() => setModal('login')}
+          />
+        )}
+        {modal === 'resetPassword' && (
+          <ResetPasswordDialog
+            onClose={() => setModal(null)}
+            onBackToLogin={() => setModal('login')}
           />
         )}
       </>
@@ -82,7 +92,7 @@ export const UserMenu: React.FC = () => {
           <hr className="user-dropdown-divider" />
           <button
             className="user-dropdown-item"
-            onClick={() => { setMenuOpen(false); alert('账户设置即将上线'); }}
+            onClick={() => { setMenuOpen(false); navigate('/settings'); }}
           >
             ⚙ 账户设置
           </button>

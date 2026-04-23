@@ -62,4 +62,65 @@ export function registerSettingsHandlers(): void {
       return { success: false, error: (error as Error).message };
     }
   });
+
+  // 检查是否首次启动
+  ipcMain.handle('settings:isFirstLaunch', async () => {
+    try {
+      const settings = await getSettingsManager().getSettings();
+      // 检查是否已标记首次启动完成
+      const isFirst = !(settings as any)?.firstLaunchComplete;
+      return { success: true, isFirstLaunch: isFirst };
+    } catch (error) {
+      return { success: true, isFirstLaunch: true }; // 出错时默认为首次启动
+    }
+  });
+
+  // 获取向导选择（搜索模式等）
+  ipcMain.handle('settings:getWizardChoices', async () => {
+    try {
+      const settings = await getSettingsManager().getSettings();
+      return { 
+        success: true, 
+        data: {
+          searchMode: (settings as any)?.searchMode || 'lightweight',
+          downloadModel: (settings as any)?.downloadModel || false
+        }
+      };
+    } catch (error) {
+      return { 
+        success: true, 
+        data: { searchMode: 'lightweight', downloadModel: false }
+      };
+    }
+  });
+
+  // 保存向导选择
+  ipcMain.handle('settings:saveWizardChoices', async (_, choices: { searchMode?: string; downloadModel?: boolean }) => {
+    try {
+      const currentSettings = await getSettingsManager().getSettings();
+      await getSettingsManager().updateSettings({
+        ...currentSettings,
+        ...choices
+      } as any);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
+  // 标记首次启动完成
+  ipcMain.handle('settings:markFirstLaunchComplete', async () => {
+    try {
+      const currentSettings = await getSettingsManager().getSettings();
+      await getSettingsManager().updateSettings({
+        ...currentSettings,
+        firstLaunchComplete: true
+      } as any);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  });
+
+  console.log('[SettingsHandlers] Registered');
 }

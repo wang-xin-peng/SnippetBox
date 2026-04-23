@@ -8,12 +8,14 @@ export interface Category {
   icon: string;
   createdAt: Date;
   count?: number;
+  userId?: string;
 }
 
 export interface CreateCategoryDto {
   name: string;
   color?: string;
   icon?: string;
+  description?: string;
 }
 
 export interface UpdateCategoryDto {
@@ -29,14 +31,14 @@ export class CategoryManager {
     this.db = db;
   }
 
-  async createCategory(dto: CreateCategoryDto): Promise<Category> {
+  async createCategory(dto: CreateCategoryDto, userId: string = 'local'): Promise<Category> {
     if (!dto.name.trim()) {
       throw new Error('Category name cannot be empty');
     }
 
     const existingCategory = this.db
-      .prepare('SELECT id FROM categories WHERE name = ?')
-      .get(dto.name.trim()) as { id: string } | undefined;
+      .prepare('SELECT id FROM categories WHERE name = ? AND user_id = ?')
+      .get(dto.name.trim(), userId) as { id: string } | undefined;
 
     if (existingCategory) {
       throw new Error(`Category with name "${dto.name}" already exists`);
@@ -50,9 +52,9 @@ export class CategoryManager {
 
     this.db
       .prepare(
-        'INSERT INTO categories (id, name, color, icon, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
+        'INSERT INTO categories (id, name, description, color, icon, created_at, updated_at, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
       )
-      .run(id, name, color, icon, createdAt, createdAt);
+      .run(id, name, dto.description || null, color, icon, createdAt, createdAt, userId);
 
     return {
       id,
@@ -63,20 +65,27 @@ export class CategoryManager {
     };
   }
 
-  async getCategories(): Promise<Category[]> {
+  async getCategories(userId: string = 'local'): Promise<Category[]> {
+    const isLocalUser = userId === 'local';
+    const storageCondition = isLocalUser
+      ? "(s.storage_scope IS NULL OR s.storage_scope = 'local')"
+      : "s.storage_scope = 'cloud'";
+
     const categories = this.db
       .prepare(
         `
-      SELECT 
-        c.*, 
-        COUNT(s.id) as snippet_count
+      SELECT
+        c.*,
+        (SELECT COUNT(*) FROM snippets s
+         WHERE (s.category_id = c.id OR (s.category_name = c.name AND s.category_id IS NULL))
+           AND (s.is_deleted = 0 OR s.is_deleted IS NULL)
+           AND ${storageCondition}) as snippet_count
       FROM categories c
-      LEFT JOIN snippets s ON c.id = s.category_id
-      GROUP BY c.id
+      WHERE c.user_id = ?
       ORDER BY c.created_at DESC
     `
       )
-      .all() as any[];
+      .all(userId) as any[];
 
     return categories.map((cat: any) => ({
       id: cat.id,
@@ -103,6 +112,7 @@ export class CategoryManager {
       color: category.color,
       icon: category.icon,
       createdAt: new Date(category.created_at),
+      userId: category.user_id,
     };
   }
 
@@ -112,11 +122,6 @@ export class CategoryManager {
       throw new Error(`Category with id "${id}" not found`);
     }
 
-    // 防止修改"未分类"的名称
-    if (existingCategory.name === '未分类' && dto.name && dto.name !== '未分类') {
-      throw new Error('Cannot rename the "未分类" category');
-    }
-
     if (dto.name) {
       const trimmedName = dto.name.trim();
       if (!trimmedName) {
@@ -124,8 +129,8 @@ export class CategoryManager {
       }
 
       const duplicateCategory = this.db
-        .prepare('SELECT id FROM categories WHERE name = ? AND id != ?')
-        .get(trimmedName, id) as { id: string } | undefined;
+        .prepare('SELECT id FROM categories WHERE name = ? AND id != ? AND user_id = ?')
+        .get(trimmedName, id, existingCategory.userId) as { id: string } | undefined;
 
       if (duplicateCategory) {
         throw new Error(`Category "${trimmedName}" already exists`);
@@ -169,11 +174,6 @@ export class CategoryManager {
       throw new Error(`Category with id "${id}" not found`);
     }
 
-    // 防止删除"未分类"
-    if (existingCategory.name === '未分类') {
-      throw new Error('Cannot delete the "未分类" category');
-    }
-
     const transaction = this.db.transaction(() => {
       this.db.prepare('UPDATE snippets SET category_id = NULL WHERE category_id = ?').run(id);
       this.db.prepare('DELETE FROM categories WHERE id = ?').run(id);
@@ -204,29 +204,31 @@ export class CategoryManager {
       .run(icon, Date.now(), id);
   }
 
-  async getCategoriesWithSnippetCount(): Promise<Category[]> {
-    return this.getCategories();
+  async getCategoriesWithSnippetCount(userId: string = 'local'): Promise<Category[]> {
+    return this.getCategories(userId);
   }
 
-  async getOrCreateDefaultCategory(): Promise<Category> {
-    const defaultCategory = this.db
-      .prepare('SELECT * FROM categories WHERE name = ?')
-      .get('默认分类') as any | undefined;
+  async ensureDefaultCategories(userId: string = 'local'): Promise<void> {
+    const defaults = [
+      { id: `cat_${userId}_default`, name: '未分类', description: '未分类的代码片段', color: '#6B7280', icon: '📁' },
+      { id: `cat_${userId}_algorithm`, name: '算法', description: '排序、搜索、动态规划等', color: '#3B82F6', icon: '🧮' },
+      { id: `cat_${userId}_ui`, name: 'UI组件', description: '可复用的界面组件和样式', color: '#8B5CF6', icon: '🎨' },
+      { id: `cat_${userId}_utils`, name: '工具函数', description: '通用工具函数和辅助方法', color: '#F59E0B', icon: '🔧' },
+      { id: `cat_${userId}_api`, name: 'API接口', description: 'HTTP请求、接口调用', color: '#06B6D4', icon: '🌐' },
+    ];
 
-    if (defaultCategory) {
-      return {
-        id: defaultCategory.id,
-        name: defaultCategory.name,
-        color: defaultCategory.color,
-        icon: defaultCategory.icon,
-        createdAt: new Date(defaultCategory.created_at),
-      };
-    }
+    const insertStmt = this.db.prepare(`
+      INSERT OR IGNORE INTO categories (id, name, description, color, icon, created_at, updated_at, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
 
-    return this.createCategory({
-      name: '默认分类',
-      color: '#6c757d',
-      icon: '📁',
+    const now = Date.now();
+    const transaction = this.db.transaction(() => {
+      for (const cat of defaults) {
+        insertStmt.run(cat.id, cat.name, cat.description, cat.color, cat.icon, now, now, userId);
+      }
     });
+
+    transaction();
   }
 }

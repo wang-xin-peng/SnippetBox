@@ -1,6 +1,7 @@
 import { VectorDatabase } from '../database/vector';
 import { DatabaseManager } from '../database';
 import { getEmbeddingWorkerManager } from './EmbeddingWorkerManager';
+import { prepareRetrievalText } from './embeddingModel';
 
 interface SearchResult {
   snippetId: string;
@@ -32,7 +33,7 @@ export class VectorStore {
     this.initDb();
     await this.ensureWorker();
 
-    const embedding = await this.workerManager.embed(content);
+    const embedding = await this.workerManager.embed(prepareRetrievalText(content, 'passage'));
     console.log(`[VectorStore] Generated embedding for snippet: ${snippetId}, dim: ${embedding.length}`);
 
     const vectorId = `vector_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -48,7 +49,7 @@ export class VectorStore {
     this.initDb();
     await this.ensureWorker();
 
-    const queryEmbedding = await this.workerManager.embed(query);
+    const queryEmbedding = await this.workerManager.embed(prepareRetrievalText(query, 'query'));
     const vectors = this.vectorDb!.getAllVectors();
     console.log(`[VectorStore] Found ${vectors.length} vectors in database`);
     if (vectors.length === 0) return [];
@@ -65,12 +66,9 @@ export class VectorStore {
       allResults.map(r => ({ id: r.snippetId.substring(0, 8), score: r.score.toFixed(4) }))
     );
 
-    // 使用更宽松的阈值，因为中文模型的相似度普遍较低
-    const results = allResults
-      .filter(r => r.score >= 0.03) // 非常宽松的阈值
-      .slice(0, limit);
+    const results = allResults.slice(0, limit);
 
-    console.log(`[VectorStore] Returning ${results.length} results after filtering (threshold: 0.03)`);
+    console.log(`[VectorStore] Returning ${results.length} results after ranking`);
     return results;
   }
 

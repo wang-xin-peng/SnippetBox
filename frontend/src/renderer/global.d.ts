@@ -1,6 +1,6 @@
 import { Snippet, CreateSnippetDTO, UpdateSnippetDTO, SnippetFilter, Category, Tag, BatchResult } from '../shared/types';
 import { MirrorInfo, DownloadProgress } from '../shared/types/model';
-import { User, LoginResult } from '../main/services/AuthService';
+import { User, LoginResult, AuthCapabilities } from '../main/services/AuthService';
 import { SyncResult, PushResult, PullResult, SyncStatus, Conflict, ConflictResolution, QueueStatus, ConflictHistoryEntry } from '../shared/types/sync';
 
 declare global {
@@ -66,6 +66,7 @@ declare global {
         refresh: () => Promise<{ success: boolean; accessToken?: string; error?: string }>;
         getCurrentUser: () => Promise<{ success: boolean; user?: User | null; error?: string }>;
         isLoggedIn: () => Promise<{ isLoggedIn: boolean }>;
+        getCapabilities: () => Promise<{ success: boolean; data?: AuthCapabilities; error?: string }>;
       };
       sync: {
         push: () => Promise<{ success: boolean; data?: PushResult; error?: string }>;
