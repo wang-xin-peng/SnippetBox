@@ -42,11 +42,11 @@ export const BatchOperations: React.FC<BatchOperationsProps> = ({
 
   useEffect(() => {
     if (dialog === 'tags') {
-      window.electronAPI.tag.list().then(setAvailableTags).catch(console.error);
+      window.electronAPI?.tag?.list?.().then(setAvailableTags).catch(console.error);
     }
     if (dialog === 'category') {
       const userId = isLoggedIn && user ? user.id : 'local';
-      window.electronAPI.category.list(userId).then(setCategories).catch(console.error);
+      window.electronAPI?.category?.list?.(userId).then(setCategories).catch(console.error);
     }
   }, [dialog]);
 

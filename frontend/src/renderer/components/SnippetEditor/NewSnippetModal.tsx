@@ -72,7 +72,7 @@ export const NewSnippetModal: React.FC<Props> = ({ onClose, onSaved }) => {
         tags,
         description: description.trim() || undefined,
       } as any;
-      await (window as any).electronAPI.snippet.create(data);
+      await (window as any).electronAPI?.snippet?.create?.(data);
       onSaved();
     } catch (e) {
       console.error('Save failed:', e);

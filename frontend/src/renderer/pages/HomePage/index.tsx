@@ -88,7 +88,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (showingTrash) {
-      (window as any).electronAPI.trash.list().then((data: Snippet[]) => {
+      (window as any).electronAPI?.trash?.list()?.then((data: Snippet[]) => {
         setTrashSnippets(data);
         setTrashSelected(null);
       }).catch(console.error);
@@ -303,7 +303,7 @@ export default function HomePage() {
 
   const handleRestoreSnippet = async (id: string) => {
     try {
-      await (window as any).electronAPI.trash.restore(id);
+      await (window as any).electronAPI?.trash?.restore(id);
       setTrashSnippets(prev => prev.filter(s => s.id !== id));
       if (trashSelected?.id === id) setTrashSelected(null);
       triggerRefresh();
@@ -315,7 +315,7 @@ export default function HomePage() {
   const handlePermanentDelete = async (id: string) => {
     if (!confirm('永久删除后无法恢复，确定要彻底删除这个片段吗？')) return;
     try {
-      await (window as any).electronAPI.trash.permanentDelete(id);
+      await (window as any).electronAPI?.trash?.permanentDelete(id);
       setTrashSnippets(prev => prev.filter(s => s.id !== id));
       if (trashSelected?.id === id) setTrashSelected(null);
     } catch (e) {
@@ -326,7 +326,7 @@ export default function HomePage() {
   const handleEmptyTrash = async () => {
     if (!confirm('确定要清空回收站吗？所有片段将被永久删除，无法恢复！')) return;
     try {
-      await (window as any).electronAPI.trash.empty();
+      await (window as any).electronAPI?.trash?.empty();
       setTrashSnippets([]);
       setTrashSelected(null);
     } catch (e) {

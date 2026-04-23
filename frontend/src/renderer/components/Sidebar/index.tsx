@@ -61,14 +61,15 @@ function Sidebar({
   const loadData = useCallback(async () => {
     try {
       const api = (window as any).electronAPI;
+      if (!api) return;
       const userId = isLoggedIn && user ? user.id : 'local';
       
-      await api.category.ensureDefaults(userId);
+      await api.category?.ensureDefaults?.(userId);
       
       const [cats, snips, tagList] = await Promise.all([
-        api.category.list(userId), 
-        api.snippet.list(),
-        api.tag.list()
+        api.category?.list?.(userId) || [], 
+        api.snippet?.list?.() || [],
+        api.tag?.list?.() || []
       ]);
       
       const sortedCats = cats.sort((a: Category, b: Category) => {
@@ -83,8 +84,8 @@ function Sidebar({
       setExpanded(new Set(sortedCats.map((c: Category) => c.id)));
 
       try {
-        const trashItems = await (window as any).electronAPI.trash.list();
-        setTrashCount(trashItems.length);
+        const trashItems = await (window as any).electronAPI?.trash?.list();
+        setTrashCount(trashItems?.length || 0);
       } catch {}
     } catch (e) {
       console.error('Sidebar load failed:', e);
@@ -125,7 +126,7 @@ function Sidebar({
   const handleAddCategory = async (category: Omit<Category, 'id'>) => {
     try {
       const userId = isLoggedIn && user ? user.id : 'local';
-      await (window as any).electronAPI.category.create(category, userId);
+      await (window as any).electronAPI?.category?.create?.(category, userId);
       await loadData();
     } catch (e) {
       console.error('Failed to add category:', e);
@@ -135,7 +136,7 @@ function Sidebar({
 
   const handleUpdateCategory = async (category: Category) => {
     try {
-      await (window as any).electronAPI.category.update(category.id, {
+      await (window as any).electronAPI?.category?.update?.(category.id, {
         name: category.name,
         color: category.color,
         icon: category.icon
@@ -152,7 +153,7 @@ function Sidebar({
       return;
     }
     try {
-      await (window as any).electronAPI.category.delete(categoryId);
+      await (window as any).electronAPI?.category?.delete?.(categoryId);
       await loadData();
     } catch (e) {
       console.error('Failed to delete category:', e);
@@ -162,7 +163,7 @@ function Sidebar({
 
   const handleAddTag = async (tag: { name: string }) => {
     try {
-      await (window as any).electronAPI.tag.create(tag);
+      await (window as any).electronAPI?.tag?.create?.(tag);
       await loadData();
     } catch (e) {
       console.error('Failed to add tag:', e);
@@ -175,7 +176,7 @@ function Sidebar({
       return;
     }
     try {
-      await (window as any).electronAPI.tag.delete(tagId);
+      await (window as any).electronAPI?.tag?.delete?.(tagId);
       await loadData();
     } catch (e) {
       console.error('Failed to delete tag:', e);
@@ -185,7 +186,7 @@ function Sidebar({
 
   const handleMergeTags = async (sourceId: string, targetId: string) => {
     try {
-      await (window as any).electronAPI.tag.merge(sourceId, targetId);
+      await (window as any).electronAPI?.tag?.merge?.(sourceId, targetId);
       await loadData();
     } catch (e) {
       console.error('Failed to merge tags:', e);
