@@ -579,7 +579,7 @@ async def verify_delete_account_code(
     email = current_user["email"]
     code = verify_data.code
 
-    if verify_data.email !== email:
+    if verify_data.email != email:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="邮箱不匹配")
 
     success, error_msg = email_code_service.verify_delete_code(email, code)
