@@ -287,6 +287,7 @@ export class SnippetManager {
 
   async permanentDelete(id: string): Promise<void> {
     try {
+      this.db.prepare('DELETE FROM snippet_tags WHERE snippet_id = ?').run(id);
       const result = this.db.prepare('DELETE FROM snippets WHERE id = ? AND is_deleted = 1').run(id);
       if (result.changes === 0) {
         throw new Error('Snippet not found in trash');

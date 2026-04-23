@@ -203,28 +203,26 @@ export class CategoryManager {
   }
 
   async ensureDefaultCategories(userId: string = 'local'): Promise<void> {
-    const count = this.db
-      .prepare('SELECT COUNT(*) as count FROM categories WHERE user_id = ?')
-      .get(userId) as { count: number };
+    const defaults = [
+      { id: `cat_${userId}_default`, name: '未分类', description: '未分类的代码片段', color: '#6B7280', icon: '📁' },
+      { id: `cat_${userId}_algorithm`, name: '算法', description: '排序、搜索、动态规划等', color: '#3B82F6', icon: '🧮' },
+      { id: `cat_${userId}_ui`, name: 'UI组件', description: '可复用的界面组件和样式', color: '#8B5CF6', icon: '🎨' },
+      { id: `cat_${userId}_utils`, name: '工具函数', description: '通用工具函数和辅助方法', color: '#F59E0B', icon: '🔧' },
+      { id: `cat_${userId}_api`, name: 'API接口', description: 'HTTP请求、接口调用', color: '#06B6D4', icon: '🌐' },
+    ];
 
-    if (count.count === 0) {
-      const insertStmt = this.db.prepare(`
-        INSERT INTO categories (id, name, description, color, icon, created_at, updated_at, user_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `);
+    const insertStmt = this.db.prepare(`
+      INSERT OR IGNORE INTO categories (id, name, description, color, icon, created_at, updated_at, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
 
-      const now = Date.now();
-      const defaults = [
-        { id: `cat_${userId}_default`, name: '未分类', description: '未分类的代码片段', color: '#6B7280', icon: '📁' },
-        { id: `cat_${userId}_algorithm`, name: '算法', description: '排序、搜索、动态规划等', color: '#3B82F6', icon: '🧮' },
-        { id: `cat_${userId}_ui`, name: 'UI组件', description: '可复用的界面组件和样式', color: '#8B5CF6', icon: '🎨' },
-        { id: `cat_${userId}_utils`, name: '工具函数', description: '通用工具函数和辅助方法', color: '#F59E0B', icon: '🔧' },
-        { id: `cat_${userId}_api`, name: 'API接口', description: 'HTTP请求、接口调用', color: '#06B6D4', icon: '🌐' },
-      ];
-
+    const now = Date.now();
+    const transaction = this.db.transaction(() => {
       for (const cat of defaults) {
         insertStmt.run(cat.id, cat.name, cat.description, cat.color, cat.icon, now, now, userId);
       }
-    }
+    });
+
+    transaction();
   }
 }
