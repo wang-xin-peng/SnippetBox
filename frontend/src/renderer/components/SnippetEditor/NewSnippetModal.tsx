@@ -64,11 +64,12 @@ export const NewSnippetModal: React.FC<Props> = ({ onClose, onSaved }) => {
     if (!title.trim()) { setTitleError('标题不能为空'); return; }
     setIsSaving(true);
     try {
+      const uncatId = categories.find(c => c.name === '未分类')?.id;
       const data: CreateSnippetDTO = {
         title: title.trim(),
         code,
         language,
-        category: category || undefined,
+        category: category || uncatId || undefined,
         tags,
         description: description.trim() || undefined,
       } as any;

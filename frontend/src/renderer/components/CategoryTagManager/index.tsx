@@ -190,6 +190,7 @@ const CategoryTagManager: React.FC<CategoryTagManagerProps> = ({
                       <div className="category-actions">
                         <button
                           className="action-btn edit"
+                          disabled={category.name === '未分类'}
                           onClick={() => {
                             setSelectedCategory(category);
                             setNewCategory({ ...category });
@@ -199,6 +200,7 @@ const CategoryTagManager: React.FC<CategoryTagManagerProps> = ({
                         </button>
                         <button
                           className="action-btn delete"
+                          disabled={category.name === '未分类'}
                           onClick={() => onDeleteCategory(category.id)}
                         >
                           删除

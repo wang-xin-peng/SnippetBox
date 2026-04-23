@@ -101,10 +101,21 @@ export default function HomePage() {
       console.log('[HomePage] Received snippets-refresh event');
       loadSnippets();
     };
-    
+
     window.addEventListener('snippets-refresh', handleRefresh);
     return () => window.removeEventListener('snippets-refresh', handleRefresh);
   }, [loadSnippets]);
+
+  // 监听登录后分类切换事件：重置选中分类，显示全部片段
+  useEffect(() => {
+    const handleCategoriesRefresh = () => {
+      console.log('[HomePage] Received categories-refresh event, resetting selectedCategory');
+      setSelectedCategory(null);
+    };
+
+    window.addEventListener('categories-refresh', handleCategoriesRefresh);
+    return () => window.removeEventListener('categories-refresh', handleCategoriesRefresh);
+  }, []);
 
   useEffect(() => {
     const el = document.getElementById('snippet-count');

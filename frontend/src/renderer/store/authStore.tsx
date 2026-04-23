@@ -143,6 +143,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // 3. 触发片段列表刷新
             console.log('[Auth] Triggering snippets refresh...');
             window.dispatchEvent(new Event('snippets-refresh'));
+            window.dispatchEvent(new Event('categories-refresh'));
           } catch (error) {
             console.error('[Auth] Login post-processing failed:', error);
           }
