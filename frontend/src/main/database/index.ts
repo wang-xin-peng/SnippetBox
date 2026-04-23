@@ -45,9 +45,10 @@ export class DatabaseManager {
 
       CREATE TABLE IF NOT EXISTS categories (
         id TEXT PRIMARY KEY,
-        name TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
         description TEXT,
-        created_at INTEGER DEFAULT (strftime('%s', 'now'))
+        created_at INTEGER DEFAULT (strftime('%s', 'now')),
+        user_id TEXT DEFAULT 'local'
       );
 
       CREATE TABLE IF NOT EXISTS tags (
@@ -142,6 +143,15 @@ export class DatabaseManager {
       }
       if (!catColNames.includes('user_id')) {
         this.db.exec("ALTER TABLE categories ADD COLUMN user_id TEXT DEFAULT 'local'");
+        // 重建唯一索引：从全局 name UNIQUE 改为按 (name, user_id) 唯一
+        try {
+          this.db.exec('DROP INDEX IF EXISTS idx_categories_name');
+        } catch {}
+        try {
+          this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_name_user ON categories(name, user_id)');
+        } catch (e) {
+          console.warn('[Database] Could not create unique index:', e);
+        }
       }
     } catch (error) {
       console.error('[Database] categories migration failed:', error);

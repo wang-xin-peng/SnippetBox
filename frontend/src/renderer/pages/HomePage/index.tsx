@@ -57,7 +57,7 @@ export default function HomePage() {
   const loadSnippets = useCallback(async () => {
     try {
       setLoading(true);
-      const data: Snippet[] = await (window as any).electronAPI.snippet.list();
+      const data: Snippet[] = await (window as any).electronAPI?.snippet?.list?.() || [];
       setSnippets(data);
       const sorted = data.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
       setFiltered(sorted);
@@ -84,7 +84,7 @@ export default function HomePage() {
     }).catch(() => {});
   }, []);
 
-  useEffect(() => { loadSnippets(); }, [loadSnippets, refreshKey]);
+  useEffect(() => { loadSnippets(); }, [refreshKey]);
 
   useEffect(() => {
     if (showingTrash) {

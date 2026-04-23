@@ -8,6 +8,7 @@ export interface Category {
   icon: string;
   createdAt: Date;
   count?: number;
+  userId?: string;
 }
 
 export interface CreateCategoryDto {
@@ -105,6 +106,7 @@ export class CategoryManager {
       color: category.color,
       icon: category.icon,
       createdAt: new Date(category.created_at),
+      userId: category.user_id,
     };
   }
 
@@ -121,8 +123,8 @@ export class CategoryManager {
       }
 
       const duplicateCategory = this.db
-        .prepare('SELECT id FROM categories WHERE name = ? AND id != ?')
-        .get(trimmedName, id) as { id: string } | undefined;
+        .prepare('SELECT id FROM categories WHERE name = ? AND id != ? AND user_id = ?')
+        .get(trimmedName, id, existingCategory.userId) as { id: string } | undefined;
 
       if (duplicateCategory) {
         throw new Error(`Category "${trimmedName}" already exists`);
