@@ -119,6 +119,10 @@ contextBridge.exposeInMainWorld('electron', {
     isLoggedIn: () => ipcRenderer.invoke('auth:isLoggedIn'),
     getCapabilities: (): Promise<{ success: boolean; data?: AuthCapabilities; error?: string }> =>
       ipcRenderer.invoke('auth:getCapabilities'),
+    deleteAccountSendCode: (email: string): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('auth:deleteAccountSendCode', email),
+    deleteAccountVerify: (email: string, code: string): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('auth:deleteAccountVerify', email, code),
   },
   sync: {
     push: () => ipcRenderer.invoke('sync:push'),

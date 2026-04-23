@@ -209,7 +209,7 @@ export class SyncService {
           } else {
             const { randomUUID } = await import('crypto');
             db.prepare(
-              `INSERT OR IGNORE INTO snippets (id, title, code, language, description, is_synced, cloud_id, created_at, updated_at, access_count, storage_scope, category_id, category_name) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 0, 'cloud', ?, ?)`
+              `INSERT OR IGNORE INTO snippets (id, title, code, language, description, is_synced, cloud_id, created_at, updated_at, access_count, storage_scope, category_id, category_name, sync_source) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 0, 'cloud', ?, ?, 'cloud')`
             ).run(
               randomUUID(),
               cloud.title,
@@ -274,7 +274,7 @@ export class SyncService {
   clearCloudOnlySnippets(): number {
     const db = getDatabaseManager().getDb();
     const result = db
-      .prepare(`DELETE FROM snippets WHERE cloud_id IS NOT NULL OR COALESCE(storage_scope, 'local') = 'cloud'`)
+      .prepare(`DELETE FROM snippets WHERE sync_source = 'cloud'`)
       .run();
     this.updatePendingCount();
     this.notifyRenderer();

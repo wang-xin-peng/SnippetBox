@@ -8,7 +8,7 @@ from datetime import datetime
 import logging
 
 from models.user import UserCreate, UserLogin, UserResponse, TokenResponse, TokenRefresh, UpdateUsernameRequest, ChangePasswordRequest
-from models.email_code import EmailCodeRequest, EmailCodeVerify, EmailCodeResponse, RegisterWithCodeRequest, ResetPasswordRequest
+from models.email_code import EmailCodeRequest, EmailCodeVerify, EmailCodeResponse, RegisterWithCodeRequest, ResetPasswordRequest, DeleteAccountVerifyRequest
 from services.auth import AuthService
 from services.email_code import email_code_service
 from services.email import email_service
@@ -540,6 +540,58 @@ async def delete_account(
         logger.info(f"User {current_user['email']} deleted their account")
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except Exception as e:
-        logger.error(f"Delete account error: {e}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="注销账号失败")
+
+
+@router.post("/auth/delete-account/send-code", status_code=status.HTTP_200_OK)
+async def send_delete_account_code(
+    current_user: dict = Depends(get_current_user)
+):
+    """发送注销账号验证码（需已登录）"""
+    email = current_user["email"]
+
+    allowed, wait_seconds = email_code_service.check_delete_rate_limit(email)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"请求过于频繁，请在 {wait_seconds} 秒后重试"
+        )
+
+    count = email_code_service.increment_delete_rate_limit(email)
+    if count > email_code_service.MAX_REQUESTS_PER_MINUTE:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="请求过于频繁，请稍后再试"
+        )
+
+    code = email_code_service.generate_and_store_delete_code(email)
+    email_service.send_verification_code(email, code)
+
+    return EmailCodeResponse(message="验证码已发送", expires_in=300)
+
+
+@router.post("/auth/delete-account/verify", status_code=status.HTTP_200_OK)
+async def verify_delete_account_code(
+    verify_data: DeleteAccountVerifyRequest,
+    current_user: dict = Depends(get_current_user),
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    """验证注销账号验证码（需已登录）"""
+    email = current_user["email"]
+    code = verify_data.code
+
+    if verify_data.email !== email:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="邮箱不匹配")
+
+    success, error_msg = email_code_service.verify_delete_code(email, code)
+    if not success:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
+
+    user = await conn.fetchrow("SELECT id FROM users WHERE email = $1", email)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
+
+    await AuthService.delete_account(conn, str(user["id"]))
+    await AuthService.blacklist_all_tokens(conn, str(user["id"]))
+    logger.info(f"User {email} deleted their account via code verification")
+
+    return {"message": "账号已注销"}

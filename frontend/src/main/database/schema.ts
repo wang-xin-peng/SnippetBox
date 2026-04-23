@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS snippets (
   storage_scope TEXT DEFAULT 'local',
   skip_sync INTEGER DEFAULT 0,
   category_name TEXT,
+  sync_source TEXT DEFAULT 'local',
   FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
 );
 `;

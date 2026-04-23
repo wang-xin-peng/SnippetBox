@@ -35,3 +35,14 @@ class ResetPasswordRequest(BaseModel):
     email: EmailStr
     code: str = Field(..., min_length=6, max_length=6, pattern=r'^\d{6}$')
     new_password: str = Field(..., min_length=8, max_length=100)
+
+
+class DeleteAccountSendRequest(BaseModel):
+    """发送注销账号验证码请求模型"""
+    email: EmailStr
+
+
+class DeleteAccountVerifyRequest(BaseModel):
+    """验证注销账号验证码请求模型"""
+    email: EmailStr
+    code: str = Field(..., min_length=6, max_length=6, pattern=r'^\d{6}$')

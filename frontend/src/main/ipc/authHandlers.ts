@@ -147,5 +147,23 @@ export function registerAuthHandlers() {
     }
   });
 
+  ipcMain.handle('auth:deleteAccountSendCode', async (_event, email: string) => {
+    try {
+      const res = await auth.sendDeleteAccountCode(email);
+      return { success: true, data: res };
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  });
+
+  ipcMain.handle('auth:deleteAccountVerify', async (_event, email: string, code: string) => {
+    try {
+      const res = await auth.verifyDeleteAccountCode(email, code);
+      return { success: true, data: res };
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  });
+
   console.log('[AuthHandlers] Registered');
 }

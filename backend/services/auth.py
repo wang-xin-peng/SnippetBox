@@ -277,6 +277,21 @@ class AuthService:
         return row is not None
     
     @staticmethod
+    async def blacklist_all_tokens(conn: asyncpg.Connection, user_id: str):
+        """将用户所有令牌加入黑名单"""
+        rows = await conn.fetch(
+            "SELECT token FROM refresh_tokens WHERE user_id = $1::uuid", user_id
+        )
+        now = datetime.utcnow()
+        for row in rows:
+            await conn.execute(
+                "INSERT INTO token_blacklist (token, expires_at) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+                row["token"], now
+            )
+        await conn.execute("DELETE FROM refresh_tokens WHERE user_id = $1::uuid", user_id)
+        logger.info(f"All tokens blacklisted for user {user_id}")
+
+    @staticmethod
     async def clean_expired_tokens(conn: asyncpg.Connection):
         """清理过期的黑名单令牌"""
         result = await conn.execute("""

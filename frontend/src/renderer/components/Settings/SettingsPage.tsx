@@ -19,6 +19,12 @@ export const SettingsPage: React.FC = () => {
   const [changingPassword, setChangingPassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [showDeleteVerifyDialog, setShowDeleteVerifyDialog] = useState(false);
+  const [deleteEmail, setDeleteEmail] = useState('');
+  const [deleteCode, setDeleteCode] = useState('');
+  const [deleteCountdown, setDeleteCountdown] = useState(0);
+  const [deleteSending, setDeleteSending] = useState(false);
+  const [deleteVerifying, setDeleteVerifying] = useState(false);
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [savingPassword, setSavingPassword] = useState(false);
 
@@ -442,29 +448,12 @@ export const SettingsPage: React.FC = () => {
                 <div className="setting-control">
                   <button
                     className="btn-danger btn-sm"
-                    onClick={async () => {
-                      const confirmed = confirm(
-                        '⚠️ 警告：注销账号将永久删除您的所有数据！\n\n' +
-                        '• 所有云端代码片段将被永久删除\n' +
-                        '• 您的账户信息将被永久删除\n' +
-                        '• 此操作不可恢复\n\n' +
-                        '确定要注销账号吗？'
-                      );
-                      if (!confirmed) return;
-                      const doubleConfirm = confirm('最后确认：您真的要注销账号吗？输入"确定"后此操作将不可撤销。');
-                      if (!doubleConfirm) return;
-                      try {
-                        const res = await window.electron.ipcRenderer.invoke('auth:deleteAccount');
-                        if (res.success) {
-                          await logout();
-                          setNotification({ message: '账号已注销', type: 'success' });
-                        } else {
-                          setNotification({ message: res.error || '注销失败', type: 'error' });
-                        }
-                      } catch (err: any) {
-                        setNotification({ message: err.message || '注销失败', type: 'error' });
-                      }
-                      setTimeout(() => setNotification(null), 3000);
+                    onClick={() => {
+                      if (!user?.email) return;
+                      setDeleteEmail(user.email);
+                      setDeleteCode('');
+                      setDeleteCountdown(0);
+                      setShowDeleteVerifyDialog(true);
                     }}
                   >
                     注销账号
@@ -728,6 +717,94 @@ export const SettingsPage: React.FC = () => {
           </div>
         </section>
       </div>
+
+      {showDeleteVerifyDialog && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h3 className="modal-title">注销账号</h3>
+            <p className="modal-warning">
+              ⚠️ 注销账号将永久删除您的所有云端数据，此操作不可恢复
+            </p>
+
+            <div className="form-field">
+              <label>验证码将发送至：{deleteEmail}</label>
+            </div>
+
+            <div className="form-field">
+              <label>邮箱验证码</label>
+              <div className="code-input-row">
+                <input
+                  type="text"
+                  value={deleteCode}
+                  onChange={e => setDeleteCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="请输入6位验证码"
+                  maxLength={6}
+                  className="code-input"
+                />
+                <button
+                  className="btn-secondary btn-sm"
+                  disabled={deleteCountdown > 0 || deleteSending}
+                  onClick={async () => {
+                    setDeleteSending(true);
+                    try {
+                      const res = await (window as any).electronAPI?.auth?.deleteAccountSendCode?.(deleteEmail);
+                      if (res?.success) {
+                        setDeleteCountdown(60);
+                        const timer = setInterval(() => {
+                          setDeleteCountdown(prev => {
+                            if (prev <= 1) { clearInterval(timer); return 0; }
+                            return prev - 1;
+                          });
+                        }, 1000);
+                      } else {
+                        setNotification({ message: res?.error || '发送失败', type: 'error' });
+                        setTimeout(() => setNotification(null), 3000);
+                      }
+                    } finally {
+                      setDeleteSending(false);
+                    }
+                  }}
+                >
+                  {deleteCountdown > 0 ? `${deleteCountdown}s` : deleteSending ? '发送中...' : '发送验证码'}
+                </button>
+              </div>
+            </div>
+
+            <div className="modal-actions">
+              <button
+                className="btn-secondary"
+                onClick={() => setShowDeleteVerifyDialog(false)}
+              >
+                取消
+              </button>
+              <button
+                className="btn-danger"
+                disabled={deleteCode.length !== 6 || deleteVerifying}
+                onClick={async () => {
+                  setDeleteVerifying(true);
+                  try {
+                    const res = await (window as any).electronAPI?.auth?.deleteAccountVerify?.(deleteEmail, deleteCode);
+                    if (res?.success) {
+                      setShowDeleteVerifyDialog(false);
+                      await logout();
+                      setNotification({ message: '账号已注销', type: 'success' });
+                      setTimeout(() => setNotification(null), 3000);
+                      navigate('/');
+                    } else {
+                      setNotification({ message: res?.error || '注销失败', type: 'error' });
+                      setTimeout(() => setNotification(null), 3000);
+                    }
+                  } finally {
+                    setDeleteVerifying(false);
+                  }
+                }}
+              >
+                {deleteVerifying ? '注销中...' : '确认注销'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <DownloadDialog
         isOpen={showDownloadDialog}

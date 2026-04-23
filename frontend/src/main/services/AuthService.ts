@@ -194,6 +194,25 @@ export class AuthService {
     }
   }
 
+  async sendDeleteAccountCode(email: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      await this.http.post('/auth/delete-account/send-code', { email });
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  }
+
+  async verifyDeleteAccountCode(email: string, code: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      await this.http.post('/auth/delete-account/verify', { email, code });
+      this.clearTokens();
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  }
+
   // ── 验证注册验证码并完成注册 ─────────────────────────────
   async verifyRegisterCode(email: string, code: string, password: string, username: string): Promise<LoginResult> {
     const res = await this.http.post('/auth/register-with-code', { email, code, password, username });
