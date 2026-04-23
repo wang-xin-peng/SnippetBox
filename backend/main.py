@@ -7,9 +7,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
 
-from api.v1 import auth, snippets, sync, share, vector_sync
+from api.v1 import auth, snippets, sync, share
 try:
-    from api.v1 import embedding, vectors
+    from api.v1 import embedding
     from services.embedding import EmbeddingService
     EMBEDDING_AVAILABLE = True
 except ImportError:
@@ -98,15 +98,13 @@ async def health_check():
 app.include_router(auth.router, prefix="/api/v1", tags=["auth"])
 app.include_router(snippets.router, prefix="/api/v1", tags=["snippets"])
 app.include_router(sync.router, prefix="/api/v1", tags=["sync"])
-app.include_router(vector_sync.router, prefix="/api/v1", tags=["vector-sync"])
 
 # 分享路由（包含公开访问的短链接）
 app.include_router(share.router, tags=["share"])
 
-# 可选的嵌入服务路由
+# 可选的嵌入服务路由（保留用于测试）
 if EMBEDDING_AVAILABLE:
     app.include_router(embedding.router, prefix="/api/v1", tags=["embedding"])
-    app.include_router(vectors.router, prefix="/api/v1", tags=["vectors"])
 
 
 if __name__ == "__main__":

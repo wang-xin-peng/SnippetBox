@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { CodeEditor } from '../CodeEditor';
 import { CreateSnippetDTO } from '../../../shared/types';
+import { useAuth } from '../../store/authStore';
 import './NewSnippetModal.css';
 
 interface Props {
@@ -15,6 +16,7 @@ const LANGUAGES = [
 ];
 
 export const NewSnippetModal: React.FC<Props> = ({ onClose, onSaved }) => {
+  const { isLoggedIn, user } = useAuth();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [language, setLanguage] = useState('JavaScript');
@@ -27,7 +29,8 @@ export const NewSnippetModal: React.FC<Props> = ({ onClose, onSaved }) => {
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
-    (window as any).electronAPI?.category?.list()
+    const userId = isLoggedIn && user ? user.id : 'local';
+    (window as any).electronAPI?.category?.list(userId)
       .then((cats: any[]) => {
         setCategories(cats);
         // 默认按语言匹配分类
@@ -61,15 +64,16 @@ export const NewSnippetModal: React.FC<Props> = ({ onClose, onSaved }) => {
     if (!title.trim()) { setTitleError('标题不能为空'); return; }
     setIsSaving(true);
     try {
+      const uncatId = categories.find(c => c.name === '未分类')?.id;
       const data: CreateSnippetDTO = {
         title: title.trim(),
         code,
         language,
-        category: category || undefined,
+        category: category || uncatId || undefined,
         tags,
         description: description.trim() || undefined,
       } as any;
-      await (window as any).electronAPI.snippet.create(data);
+      await (window as any).electronAPI?.snippet?.create?.(data);
       onSaved();
     } catch (e) {
       console.error('Save failed:', e);
@@ -129,8 +133,8 @@ export const NewSnippetModal: React.FC<Props> = ({ onClose, onSaved }) => {
             <div className="nsm-field">
               <label className="nsm-label">分类</label>
               <select className="nsm-select" value={category} onChange={e => setCategory(e.target.value)}>
-                <option value="">选择分类</option>
-                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                <option value="">无分类</option>
+                {categories.filter(c => c.name !== '未分类').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
           </div>

@@ -2,6 +2,7 @@ import { ipcMain } from 'electron';
 import { getSyncService } from '../services/SyncService';
 import { getConflictResolver } from '../services/ConflictResolver';
 import { getOfflineQueue } from '../services/OfflineQueue';
+import { getDatabaseManager } from '../database';
 import { ConflictResolution } from '../../shared/types/sync';
 
 export function registerSyncHandlers() {
@@ -30,8 +31,10 @@ export function registerSyncHandlers() {
   ipcMain.handle('sync:sync', async () => {
     try {
       const result = await sync.sync();
+      console.log(`[SyncHandlers] sync completed: pushed=${result.pushed}, pulled=${result.pulled}, errors=${result.errors.length}`);
       return { success: true, data: result };
     } catch (e: any) {
+      console.error('[SyncHandlers] sync failed:', e);
       return { success: false, error: e.message };
     }
   });
@@ -85,6 +88,37 @@ export function registerSyncHandlers() {
   ipcMain.handle('sync:clearFailedQueue', () => {
     queue.clearFailed();
     return { success: true };
+  });
+
+  ipcMain.handle('sync:clearCloudOnlySnippets', () => {
+    try {
+      const cleared = sync.clearCloudOnlySnippets();
+      return { success: true, data: { cleared } };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('sync:markLocalSnippetsSkipSync', () => {
+    try {
+      const db = getDatabaseManager().getDb();
+      const result = db
+        .prepare(`UPDATE snippets SET skip_sync = 1 WHERE COALESCE(storage_scope, 'local') = 'local' AND COALESCE(cloud_id, '') = ''`)
+        .run();
+      return { success: true, data: { marked: result.changes } };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('sync:clearSkipSync', () => {
+    try {
+      const db = getDatabaseManager().getDb();
+      db.prepare(`UPDATE snippets SET skip_sync = 0 WHERE skip_sync = 1`).run();
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
   });
 
   console.log('[SyncHandlers] Registered');

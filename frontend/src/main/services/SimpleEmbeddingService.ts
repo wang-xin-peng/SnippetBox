@@ -1,7 +1,7 @@
 import * as ort from 'onnxruntime-node';
 import * as path from 'path';
 import * as fs from 'fs';
-import { app } from 'electron';
+import { getEmbeddingModelDir } from './embeddingModel';
 
 /**
  * 简化的嵌入服务
@@ -14,8 +14,7 @@ export class SimpleEmbeddingService {
   private isInitialized = false;
 
   constructor() {
-    const userDataPath = app.getPath('userData');
-    this.modelPath = path.join(userDataPath, 'models', 'all-MiniLM-L6-v2');
+    this.modelPath = getEmbeddingModelDir();
   }
 
   /**

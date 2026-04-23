@@ -21,6 +21,7 @@ export class DatabaseManager {
     
     this.db = new Database('snippets.db');
     this.db.pragma('journal_mode = WAL');
+    this.db.pragma('foreign_keys = ON');
     
     this.initialize();
   }
@@ -45,9 +46,10 @@ export class DatabaseManager {
 
       CREATE TABLE IF NOT EXISTS categories (
         id TEXT PRIMARY KEY,
-        name TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
         description TEXT,
-        created_at INTEGER DEFAULT (strftime('%s', 'now'))
+        created_at INTEGER DEFAULT (strftime('%s', 'now')),
+        user_id TEXT DEFAULT 'local'
       );
 
       CREATE TABLE IF NOT EXISTS tags (
@@ -111,11 +113,26 @@ export class DatabaseManager {
       if (!cols.some(c => c.name === 'starred')) {
         this.db.exec('ALTER TABLE snippets ADD COLUMN starred INTEGER DEFAULT 0');
       }
+      if (!cols.some(c => c.name === 'storage_scope')) {
+        this.db.exec("ALTER TABLE snippets ADD COLUMN storage_scope TEXT DEFAULT 'local'");
+      }
+      if (!cols.some(c => c.name === 'skip_sync')) {
+        this.db.exec('ALTER TABLE snippets ADD COLUMN skip_sync INTEGER DEFAULT 0');
+      }
+      if (!cols.some(c => c.name === 'is_deleted')) {
+        this.db.exec('ALTER TABLE snippets ADD COLUMN is_deleted INTEGER DEFAULT 0');
+      }
+      if (!cols.some(c => c.name === 'deleted_at')) {
+        this.db.exec('ALTER TABLE snippets ADD COLUMN deleted_at INTEGER DEFAULT NULL');
+      }
+      if (!cols.some(c => c.name === 'category_name')) {
+        this.db.exec("ALTER TABLE snippets ADD COLUMN category_name TEXT DEFAULT NULL");
+      }
     } catch (error) {
-      console.error('[Database] starred migration failed:', error);
+      console.error('[Database] snippets migration failed:', error);
     }
 
-    // 迁移：为 categories 表添加 color、icon、updated_at 列
+    // 迁移：为 categories 表添加 color、icon、updated_at、user_id 列
     try {
       const catCols = this.db.pragma('table_info(categories)') as Array<{ name: string }>;
       const catColNames = catCols.map(c => c.name);
@@ -127,6 +144,35 @@ export class DatabaseManager {
       }
       if (!catColNames.includes('updated_at')) {
         this.db.exec('ALTER TABLE categories ADD COLUMN updated_at INTEGER DEFAULT 0');
+      }
+      if (!catColNames.includes('user_id')) {
+        this.db.exec("ALTER TABLE categories ADD COLUMN user_id TEXT DEFAULT 'local'");
+      }
+      // 检测并重建表以移除旧 name 列级 UNIQUE 约束（列约束无法通过 DROP INDEX 消除）
+      try {
+        this.db.exec("INSERT INTO categories (id, name, description, color, icon, created_at, updated_at, user_id) VALUES ('__test_dup__', '__test_name__', NULL, '#6c757d', '📁', 0, 0, 'test_user1')");
+        this.db.exec("INSERT INTO categories (id, name, description, color, icon, created_at, updated_at, user_id) VALUES ('__test_dup2__', '__test_name__', NULL, '#6c757d', '📁', 0, 0, 'test_user2')");
+        this.db.exec("DELETE FROM categories WHERE id IN ('__test_dup__', '__test_dup2__')");
+      } catch {
+        // 旧列级 UNIQUE 约束存在，需要重建表
+        console.log('[Database] Detected legacy name UNIQUE constraint, rebuilding categories table...');
+        this.db.exec(`
+          CREATE TABLE IF NOT EXISTS categories_new (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT,
+            color TEXT DEFAULT '#6c757d',
+            icon TEXT DEFAULT '📁',
+            created_at INTEGER DEFAULT (strftime('%s', 'now')),
+            updated_at INTEGER DEFAULT 0,
+            user_id TEXT DEFAULT 'local'
+          )
+        `);
+        this.db.exec(`INSERT INTO categories_new SELECT * FROM categories`);
+        this.db.exec(`DROP TABLE categories`);
+        this.db.exec(`ALTER TABLE categories_new RENAME TO categories`);
+        this.db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_name_user ON categories(name, user_id)`);
+        console.log('[Database] Categories table rebuilt successfully');
       }
     } catch (error) {
       console.error('[Database] categories migration failed:', error);

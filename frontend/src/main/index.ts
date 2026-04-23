@@ -24,12 +24,12 @@ function createWindow() {
   // 开发环境加载 Vite 开发服务器
   if (isDev) {
     mainWindow.loadURL('http://localhost:3000');
-    // 注释掉自动打开开发者工具，用户可以按 F12 手动打开
-    // mainWindow.webContents.openDevTools();
   } else {
     // 生产环境加载打包后的文件
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
+
+  // mainWindow.webContents.openDevTools();
 
   mainWindow.on('closed', () => {
     mainWindow = null;

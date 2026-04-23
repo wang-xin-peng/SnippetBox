@@ -164,7 +164,84 @@ class AuthService:
             failed_login_attempts=0,
             last_login=datetime.utcnow()
         )
+
+    @staticmethod
+    async def authenticate_user_by_email(conn: asyncpg.Connection, email: str) -> Optional[User]:
+        """通过邮箱获取用户（用于验证码登录）"""
+        row = await conn.fetchrow("""
+            SELECT id, email, username, password_hash, created_at, updated_at,
+                   is_active, failed_login_attempts, last_login
+            FROM users WHERE email = $1
+        """, email)
+
+        if not row:
+            return None
+
+        if row['failed_login_attempts'] >= AuthService.MAX_FAILED_ATTEMPTS:
+            logger.warning(f"Account locked for email: {email}")
+            raise ValueError("Account locked due to too many failed login attempts")
+
+        await conn.execute("""
+            UPDATE users
+            SET failed_login_attempts = 0, last_login = CURRENT_TIMESTAMP
+            WHERE email = $1
+        """, email)
+
+        return User(
+            id=str(row['id']),
+            email=row['email'],
+            username=row['username'],
+            password_hash=row['password_hash'],
+            created_at=row['created_at'],
+            updated_at=row['updated_at'],
+            is_active=row['is_active'],
+            failed_login_attempts=0,
+            last_login=datetime.utcnow()
+        )
     
+    @staticmethod
+    async def update_username(conn: asyncpg.Connection, user_id: str, new_username: str) -> None:
+        """修改用户名"""
+        existing = await conn.fetchrow("SELECT id FROM users WHERE username = $1 AND id != $2", new_username, user_id)
+        if existing:
+            raise ValueError("用户名已被占用")
+        await conn.execute("UPDATE users SET username = $1 WHERE id = $2::uuid", new_username, user_id)
+
+    @staticmethod
+    async def change_password(conn: asyncpg.Connection, user_id: str, current_password: str, new_password: str) -> None:
+        """修改密码"""
+        row = await conn.fetchrow("SELECT password_hash FROM users WHERE id = $1::uuid", user_id)
+        if not row:
+            raise ValueError("用户不存在")
+        if not AuthService.verify_password(current_password, row['password_hash']):
+            raise ValueError("当前密码错误")
+        password_hash = AuthService.hash_password(new_password)
+        await conn.execute(
+            "UPDATE users SET password_hash = $1 WHERE id = $2::uuid",
+            password_hash, user_id
+        )
+
+    @staticmethod
+    async def delete_account(conn: asyncpg.Connection, user_id: str) -> None:
+        """注销账号"""
+        row = await conn.fetchrow("SELECT id FROM users WHERE id = $1::uuid", user_id)
+        if not row:
+            raise ValueError("用户不存在")
+        await conn.execute("DELETE FROM cloud_snippets WHERE user_id = $1::uuid", user_id)
+        await conn.execute("DELETE FROM users WHERE id = $1::uuid", user_id)
+
+    @staticmethod
+    async def reset_password(conn: asyncpg.Connection, email: str, new_password: str) -> None:
+        """重置用户密码"""
+        row = await conn.fetchrow("SELECT id FROM users WHERE email = $1", email)
+        if not row:
+            raise ValueError("用户不存在")
+        password_hash = AuthService.hash_password(new_password)
+        await conn.execute(
+            "UPDATE users SET password_hash = $1, failed_login_attempts = 0 WHERE email = $2",
+            password_hash, email
+        )
+
     @staticmethod
     async def blacklist_token(conn: asyncpg.Connection, token: str):
         """
@@ -199,6 +276,24 @@ class AuthService:
         """, token)
         return row is not None
     
+    @staticmethod
+    async def blacklist_all_tokens(conn: asyncpg.Connection, user_id: str):
+        """将用户所有令牌加入黑名单"""
+        try:
+            rows = await conn.fetch(
+                "SELECT token FROM refresh_tokens WHERE user_id = $1::uuid", user_id
+            )
+            now = datetime.utcnow()
+            for row in rows:
+                await conn.execute(
+                    "INSERT INTO token_blacklist (token, expires_at) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+                    row["token"], now
+                )
+            await conn.execute("DELETE FROM refresh_tokens WHERE user_id = $1::uuid", user_id)
+            logger.info(f"All tokens blacklisted for user {user_id}")
+        except Exception as e:
+            logger.warning(f"Failed to blacklist all tokens for user {user_id}: {e}")
+
     @staticmethod
     async def clean_expired_tokens(conn: asyncpg.Connection):
         """清理过期的黑名单令牌"""

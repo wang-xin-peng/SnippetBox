@@ -1,16 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DownloadDialog } from '../ModelDownload';
+import { useAuth } from '../../store/authStore';
 import './SettingsPage.css';
 
 export const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
+  const { isLoggedIn, user, logout, checkAuth } = useAuth();
   const [showDownloadDialog, setShowDownloadDialog] = useState(false);
   const [isModelDownloaded, setIsModelDownloaded] = useState(false);
   const [modelPath, setModelPath] = useState<string>('');
   const [searchMode, setSearchMode] = useState<'local' | 'lightweight'>('lightweight');
   const [isGeneratingVectors, setIsGeneratingVectors] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [editingUsername, setEditingUsername] = useState(false);
+  const [newUsername, setNewUsername] = useState('');
+  const [savingUsername, setSavingUsername] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [showDeleteVerifyDialog, setShowDeleteVerifyDialog] = useState(false);
+  const [deleteEmail, setDeleteEmail] = useState('');
+  const [deleteCode, setDeleteCode] = useState('');
+  const [deleteCountdown, setDeleteCountdown] = useState(0);
+  const [deleteSending, setDeleteSending] = useState(false);
+  const [deleteVerifying, setDeleteVerifying] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [savingPassword, setSavingPassword] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -226,6 +243,240 @@ export const SettingsPage: React.FC = () => {
           <h1 className="settings-title">设置</h1>
         </div>
 
+        {/* 账户设置 */}
+        <section className="settings-section">
+          <h2 className="section-title">账户</h2>
+          
+          {isLoggedIn && user ? (
+            <>
+              <div className="setting-item">
+                <div className="setting-header">
+                  <div className="account-info">
+                    <div className="account-avatar">
+                      {user.avatar ? (
+                        <img src={user.avatar} alt={user.username} className="account-avatar-img" />
+                      ) : (
+                        <span className="account-avatar-initials">
+                          {user.username.slice(0, 2).toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    <div className="account-details">
+                      <span className="account-username">{user.username}</span>
+                      <span className="account-email">{user.email}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="setting-item">
+                <div className="setting-header">
+                  <label className="setting-label">用户名</label>
+                  <p className="setting-description">修改您的显示名称</p>
+                </div>
+                <div className="setting-control">
+                  {editingUsername ? (
+                    <div className="inline-edit">
+                      <input
+                        className="setting-input"
+                        type="text"
+                        value={newUsername}
+                        onChange={(e) => setNewUsername(e.target.value)}
+                        placeholder="输入新用户名"
+                        minLength={3}
+                        maxLength={50}
+                      />
+                      <button
+                        className="btn-primary btn-sm"
+                        disabled={savingUsername || newUsername.length < 3}
+                        onClick={async () => {
+                          setSavingUsername(true);
+                          try {
+                            const res = await window.electron.ipcRenderer.invoke('auth:updateUsername', newUsername.trim());
+                            if (res.success) {
+                              await checkAuth();
+                              setEditingUsername(false);
+                              setNewUsername('');
+                              setNotification({ message: '用户名修改成功', type: 'success' });
+                            } else {
+                              setNotification({ message: res.error || '修改失败', type: 'error' });
+                            }
+                          } catch (err: any) {
+                            setNotification({ message: err.message || '修改失败', type: 'error' });
+                          } finally {
+                            setSavingUsername(false);
+                            setTimeout(() => setNotification(null), 3000);
+                          }
+                        }}
+                      >
+                        {savingUsername ? '保存中...' : '保存'}
+                      </button>
+                      <button
+                        className="btn-secondary btn-sm"
+                        onClick={() => { setEditingUsername(false); setNewUsername(''); }}
+                      >
+                        取消
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      className="btn-secondary btn-sm"
+                      onClick={() => { setEditingUsername(true); setNewUsername(user.username); }}
+                    >
+                      修改
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="setting-item">
+                <div className="setting-header">
+                  <label className="setting-label">密码</label>
+                  <p className="setting-description">修改您的登录密码</p>
+                </div>
+                <div className="setting-control">
+                  {changingPassword ? (
+                    <div className="inline-edit-col">
+                      <input
+                        className="setting-input"
+                        type="password"
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                        placeholder="当前密码"
+                      />
+                      <input
+                        className="setting-input"
+                        type="password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="新密码（至少8位）"
+                      />
+                      <input
+                        className="setting-input"
+                        type="password"
+                        value={confirmNewPassword}
+                        onChange={(e) => setConfirmNewPassword(e.target.value)}
+                        placeholder="确认新密码"
+                      />
+                      <div className="inline-edit">
+                        <button
+                          className="btn-primary btn-sm"
+                          disabled={savingPassword || !currentPassword || newPassword.length < 8 || newPassword !== confirmNewPassword}
+                          onClick={async () => {
+                            setSavingPassword(true);
+                            try {
+                              const res = await window.electron.ipcRenderer.invoke('auth:changePassword', currentPassword, newPassword);
+                              if (res.success) {
+                                setChangingPassword(false);
+                                setCurrentPassword('');
+                                setNewPassword('');
+                                setConfirmNewPassword('');
+                                setNotification({ message: '密码修改成功', type: 'success' });
+                              } else {
+                                setNotification({ message: res.error || '修改失败', type: 'error' });
+                              }
+                            } catch (err: any) {
+                              setNotification({ message: err.message || '修改失败', type: 'error' });
+                            } finally {
+                              setSavingPassword(false);
+                              setTimeout(() => setNotification(null), 3000);
+                            }
+                          }}
+                        >
+                          {savingPassword ? '保存中...' : '保存'}
+                        </button>
+                        <button
+                          className="btn-secondary btn-sm"
+                          onClick={() => { setChangingPassword(false); setCurrentPassword(''); setNewPassword(''); setConfirmNewPassword(''); }}
+                        >
+                          取消
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      className="btn-secondary btn-sm"
+                      onClick={() => setChangingPassword(true)}
+                    >
+                      修改密码
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="setting-item">
+                <div className="setting-header">
+                  <label className="setting-label">云同步</label>
+                  <p className="setting-description">
+                    已登录，片段将自动同步到云端
+                  </p>
+                </div>
+                <div className="setting-control">
+                  <span className="status-badge success">✓ 已连接</span>
+                </div>
+              </div>
+
+              <div className="setting-item">
+                <div className="setting-header">
+                  <label className="setting-label">退出登录</label>
+                  <p className="setting-description">
+                    退出后云端片段将从本地移除，本地片段不受影响
+                  </p>
+                </div>
+                <div className="setting-control">
+                  <button
+                    className="btn-danger btn-sm"
+                    onClick={async () => {
+                      if (confirm('确定要退出登录吗？')) {
+                        await logout();
+                        setNotification({ message: '已退出登录', type: 'success' });
+                        setTimeout(() => setNotification(null), 3000);
+                      }
+                    }}
+                  >
+                    退出登录
+                  </button>
+                </div>
+              </div>
+
+              <div className="setting-item">
+                <div className="setting-header">
+                  <label className="setting-label">注销账号</label>
+                  <p className="setting-description">
+                    永久删除您的账号和所有云端数据，此操作不可恢复
+                  </p>
+                </div>
+                <div className="setting-control">
+                  <button
+                    className="btn-danger btn-sm"
+                    onClick={() => {
+                      if (!user?.email) return;
+                      setDeleteEmail(user.email);
+                      setDeleteCode('');
+                      setDeleteCountdown(0);
+                      setShowDeleteVerifyDialog(true);
+                    }}
+                  >
+                    注销账号
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="setting-item">
+              <div className="setting-header">
+                <label className="setting-label">登录账户</label>
+                <p className="setting-description">
+                  登录后可将片段同步到云端，在多设备间共享
+                </p>
+              </div>
+              <div className="setting-control">
+                <span className="status-badge warning">未登录</span>
+              </div>
+            </div>
+          )}
+        </section>
+
         {/* 搜索设置 */}
         <section className="settings-section">
           <h2 className="section-title">搜索设置</h2>
@@ -275,12 +526,12 @@ export const SettingsPage: React.FC = () => {
           <h2 className="section-title">模型管理</h2>
           
           <div className="setting-item">
-            <div className="setting-header">
-              <label className="setting-label">本地搜索模型</label>
-              <p className="setting-description">
-                下载并管理用于语义搜索的 AI 模型（约 90MB）
-              </p>
-            </div>
+              <div className="setting-header">
+                <label className="setting-label">本地搜索模型</label>
+                <p className="setting-description">
+                  下载并管理用于语义搜索的 AI 模型（约 118MB，量化版）
+                </p>
+              </div>
             <div className="setting-control">
               {isModelDownloaded ? (
                 <div className="model-status">
@@ -441,7 +692,6 @@ export const SettingsPage: React.FC = () => {
                   className="btn-secondary"
                   onClick={async () => {
                     try {
-                      // 获取所有片段ID
                       const snippets = await window.electron.ipcRenderer.invoke('snippet:list');
                       const snippetIds = snippets.map((s: any) => s.id);
                       
@@ -451,23 +701,132 @@ export const SettingsPage: React.FC = () => {
                       }
                       
                       const result = await window.electron.ipcRenderer.invoke('export:batch-markdown', snippetIds);
-                      if (result.success) {
-                        alert(`成功导出 ${result.count} 个片段到 ${result.directory}`);
+                      if (result.success > 0) {
+                        alert(`成功导出 ${result.success} 个片段为 ZIP 压缩包`);
                       } else {
-                        alert('导出失败: ' + result.error);
+                        alert('导出失败: ' + (result.errors?.[0]?.error || '未知错误'));
                       }
                     } catch (error: any) {
                       alert('导出失败: ' + error.message);
                     }
                   }}
                 >
-                  导出为 Markdown
+                  导出为 Markdown (ZIP)
                 </button>
               </div>
             </div>
           </div>
         </section>
       </div>
+
+      {showDeleteVerifyDialog && (
+        <div className="delete-modal-overlay">
+          <div className="delete-modal-content">
+            <h3 className="delete-modal-title">注销账号</h3>
+            <p className="delete-modal-warning">
+              注销账号将永久删除您的所有云端数据，此操作不可恢复
+            </p>
+
+            <div className="delete-modal-info">
+              验证码将发送至：<strong>{deleteEmail}</strong>
+            </div>
+
+            <div className="delete-modal-info" style={{ marginTop: '16px' }}>
+              <label>邮箱验证码</label>
+              <div className="code-input-row">
+                <input
+                  type="text"
+                  value={deleteCode}
+                  onChange={e => setDeleteCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="请输入6位验证码"
+                  maxLength={6}
+                  className="code-input"
+                />
+                <button
+                  className={`send-code-btn ${deleteCountdown > 0 ? 'secondary' : 'primary'}`}
+                  disabled={deleteCountdown > 0 || deleteSending}
+                  onClick={async () => {
+                    setDeleteSending(true);
+                    setDeleteError('');
+                    try {
+                      const api = (window as any).electronAPI;
+                      console.log('[DeleteAccount] electronAPI exists:', !!api);
+                      console.log('[DeleteAccount] auth exists:', !!api?.auth);
+                      console.log('[DeleteAccount] deleteAccountSendCode type:', typeof api?.auth?.deleteAccountSendCode);
+                      console.log('[DeleteAccount] all auth keys:', api?.auth ? Object.keys(api.auth) : 'no auth');
+                      if (!api?.auth?.deleteAccountSendCode) {
+                        setDeleteError('electronAPI.auth.deleteAccountSendCode 不存在，请重启应用');
+                        setDeleteSending(false);
+                        return;
+                      }
+                      const res = await api.auth.deleteAccountSendCode(deleteEmail);
+                      console.log('[DeleteAccount] sendCode response:', JSON.stringify(res));
+                      if (res?.success) {
+                        setDeleteCountdown(60);
+                        const timer = setInterval(() => {
+                          setDeleteCountdown(prev => {
+                            if (prev <= 1) { clearInterval(timer); return 0; }
+                            return prev - 1;
+                          });
+                        }, 1000);
+                      } else {
+                        const errMsg = res?.error || '发送失败（未知原因）';
+                        setDeleteError(errMsg);
+                        setNotification({ message: errMsg, type: 'error' });
+                        setTimeout(() => setNotification(null), 3000);
+                      }
+                    } catch (e: any) {
+                      const errMsg = e?.message || '发送异常';
+                      console.error('[DeleteAccount] sendCode exception:', errMsg);
+                      setDeleteError(errMsg);
+                    } finally {
+                      setDeleteSending(false);
+                    }
+                  }}
+                >
+                  {deleteCountdown > 0 ? `${deleteCountdown}s` : deleteSending ? '发送中...' : '发送验证码'}
+                </button>
+              </div>
+              {deleteError && (
+                <div className="delete-modal-error">{deleteError}</div>
+              )}
+            </div>
+
+            <div className="modal-actions">
+              <button
+                className="btn-secondary"
+                onClick={() => setShowDeleteVerifyDialog(false)}
+              >
+                取消
+              </button>
+              <button
+                className="btn-danger"
+                disabled={deleteCode.length !== 6 || deleteVerifying}
+                onClick={async () => {
+                  setDeleteVerifying(true);
+                  try {
+                    const res = await (window as any).electronAPI?.auth?.deleteAccountVerify?.(deleteEmail, deleteCode);
+                    if (res?.success) {
+                      setShowDeleteVerifyDialog(false);
+                      await logout();
+                      setNotification({ message: '账号已注销', type: 'success' });
+                      setTimeout(() => setNotification(null), 3000);
+                      navigate('/');
+                    } else {
+                      setNotification({ message: res?.error || '注销失败', type: 'error' });
+                      setTimeout(() => setNotification(null), 3000);
+                    }
+                  } finally {
+                    setDeleteVerifying(false);
+                  }
+                }}
+              >
+                {deleteVerifying ? '注销中...' : '确认注销'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <DownloadDialog
         isOpen={showDownloadDialog}

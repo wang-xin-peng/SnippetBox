@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import { Snippet, CreateSnippetDTO, UpdateSnippetDTO, SnippetFilter, Category, Tag } from '../shared/types';
 import { MirrorInfo, DownloadProgress } from '../shared/types/model';
 import { ConflictResolution, Conflict } from '../shared/types/sync';
+import { AuthCapabilities } from './services/AuthService';
 
 // 暴露 Electron API
 contextBridge.exposeInMainWorld('electronAPI', {
@@ -17,13 +18,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     search: (query: string): Promise<Snippet[]> => ipcRenderer.invoke('snippet:search', query),
   },
   category: {
-    create: (name: string, color?: string, icon?: string): Promise<Category> =>
-      ipcRenderer.invoke('category:create', name, color, icon),
-    list: (): Promise<Category[]> => ipcRenderer.invoke('category:list'),
+    create: (dto: any, userId?: string): Promise<Category> =>
+      ipcRenderer.invoke('category:create', dto, userId),
+    list: (userId?: string): Promise<Category[]> =>
+      ipcRenderer.invoke('category:list', userId),
     get: (id: string): Promise<Category> => ipcRenderer.invoke('category:get', id),
-    update: (id: string, name?: string, color?: string, icon?: string): Promise<Category> =>
-      ipcRenderer.invoke('category:update', id, name, color, icon),
+    update: (id: string, dto: any): Promise<Category> =>
+      ipcRenderer.invoke('category:update', id, dto),
     delete: (id: string): Promise<void> => ipcRenderer.invoke('category:delete', id),
+    ensureDefaults: (userId?: string): Promise<boolean> =>
+      ipcRenderer.invoke('category:ensureDefaults', userId),
   },
   tag: {
     create: (name: string): Promise<Tag> => ipcRenderer.invoke('tag:create', name),
@@ -34,6 +38,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
     delete: (id: string): Promise<void> => ipcRenderer.invoke('tag:delete', id),
     merge: (sourceId: string, targetId: string): Promise<void> =>
       ipcRenderer.invoke('tag:merge', sourceId, targetId),
+  },
+  auth: {
+    register: (email: string, password: string, username: string) =>
+      ipcRenderer.invoke('auth:register', email, password, username),
+    login: (email: string, password: string) =>
+      ipcRenderer.invoke('auth:login', email, password),
+    logout: () => ipcRenderer.invoke('auth:logout'),
+    refresh: () => ipcRenderer.invoke('auth:refresh'),
+    getCurrentUser: () => ipcRenderer.invoke('auth:getCurrentUser'),
+    isLoggedIn: () => ipcRenderer.invoke('auth:isLoggedIn'),
+    getCapabilities: (): Promise<{ success: boolean; data?: AuthCapabilities; error?: string }> =>
+      ipcRenderer.invoke('auth:getCapabilities'),
+    deleteAccountSendCode: (email: string): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('auth:deleteAccountSendCode', email),
+    deleteAccountVerify: (email: string, code: string): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('auth:deleteAccountVerify', email, code),
   },
 });
 
@@ -98,6 +118,12 @@ contextBridge.exposeInMainWorld('electron', {
     export: (snippetIds: string[], format: string) =>
       ipcRenderer.invoke('batch:export', snippetIds, format),
   },
+  trash: {
+    list: (): Promise<any[]> => ipcRenderer.invoke('trash:list'),
+    restore: (id: string): Promise<any> => ipcRenderer.invoke('trash:restore', id),
+    permanentDelete: (id: string): Promise<boolean> => ipcRenderer.invoke('trash:permanentDelete', id),
+    empty: (): Promise<boolean> => ipcRenderer.invoke('trash:empty'),
+  },
   auth: {
     register: (email: string, password: string, username: string) =>
       ipcRenderer.invoke('auth:register', email, password, username),
@@ -107,6 +133,12 @@ contextBridge.exposeInMainWorld('electron', {
     refresh: () => ipcRenderer.invoke('auth:refresh'),
     getCurrentUser: () => ipcRenderer.invoke('auth:getCurrentUser'),
     isLoggedIn: () => ipcRenderer.invoke('auth:isLoggedIn'),
+    getCapabilities: (): Promise<{ success: boolean; data?: AuthCapabilities; error?: string }> =>
+      ipcRenderer.invoke('auth:getCapabilities'),
+    deleteAccountSendCode: (email: string): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('auth:deleteAccountSendCode', email),
+    deleteAccountVerify: (email: string, code: string): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('auth:deleteAccountVerify', email, code),
   },
   sync: {
     push: () => ipcRenderer.invoke('sync:push'),

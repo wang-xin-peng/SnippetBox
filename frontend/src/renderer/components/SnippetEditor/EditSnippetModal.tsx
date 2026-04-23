@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { CodeEditor } from '../CodeEditor';
 import { Snippet, UpdateSnippetDTO } from '../../../shared/types';
 import { ShareButton } from '../Share/ShareButton';
-import './NewSnippetModal.css'; // 复用同一套样式
+import { useAuth } from '../../store/authStore';
+import './NewSnippetModal.css';
 
 interface Props {
-  snippet: Snippet | null; // null表示新建
+  snippet: Snippet | null;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -17,11 +18,12 @@ const LANGUAGES = [
 ];
 
 export const EditSnippetModal: React.FC<Props> = ({ snippet, onClose, onSaved }) => {
-  const isEditing = !!snippet; // 是否是编辑模式
+  const { isLoggedIn, user } = useAuth();
+  const isEditing = !!snippet;
   const [title, setTitle] = useState(snippet?.title || '');
   const [description, setDescription] = useState((snippet as any)?.description || '');
   const [language, setLanguage] = useState(snippet?.language || 'JavaScript');
-  const [category, setCategory] = useState(snippet?.category || '');
+  const [category, setCategory] = useState(snippet?.categoryId || '');
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>(snippet?.tags || []);
   const [code, setCode] = useState(snippet?.code || '');
@@ -30,10 +32,11 @@ export const EditSnippetModal: React.FC<Props> = ({ snippet, onClose, onSaved })
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
-    (window as any).electronAPI?.category?.list()
+    const effectiveUserId = isLoggedIn && user ? user.id : 'local';
+    (window as any).electronAPI?.category?.list?.(effectiveUserId)
       .then((cats: any[]) => setCategories(cats))
       .catch(() => {});
-  }, []);
+  }, [isLoggedIn, user]);
 
   // 语言变化时自动匹配分类（仅当用户未手动选过分类时）
   const handleLanguageChange = (lang: string) => {
@@ -59,19 +62,19 @@ export const EditSnippetModal: React.FC<Props> = ({ snippet, onClose, onSaved })
     if (!isEditing && !code.trim()) { alert('代码不能为空'); return; }
     setIsSaving(true);
     try {
+      const uncatId = categories.find(c => c.name === '未分类')?.id;
       const data: UpdateSnippetDTO = {
         title: title.trim(),
         language,
-        category: category || undefined,
+        category: category || uncatId || undefined,
         tags,
         description: description.trim() || undefined,
       } as any;
-      
-      // 只有在新建或编辑模式下才包含code
+
       if (!isEditing || code !== snippet?.code) {
         data.code = code;
       }
-      
+
       if (isEditing && snippet) {
         await (window as any).electronAPI.snippet.update(snippet.id, data);
       } else {
@@ -133,8 +136,8 @@ export const EditSnippetModal: React.FC<Props> = ({ snippet, onClose, onSaved })
             <div className="nsm-field">
               <label className="nsm-label">分类</label>
               <select className="nsm-select" value={category} onChange={e => setCategory(e.target.value)}>
-                <option value="">选择分类</option>
-                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                <option value="">无分类</option>
+                {categories.filter(c => c.name !== '未分类').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
           </div>

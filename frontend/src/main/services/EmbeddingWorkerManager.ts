@@ -1,6 +1,6 @@
 import { Worker } from 'worker_threads';
 import * as path from 'path';
-import { app } from 'electron';
+import { getEmbeddingModelDir } from './embeddingModel';
 
 /**
  * Worker 消息类型
@@ -29,8 +29,7 @@ export class EmbeddingWorkerManager {
   private modelPath: string;
 
   constructor() {
-    const userDataPath = app.getPath('userData');
-    this.modelPath = path.join(userDataPath, 'models', 'all-MiniLM-L6-v2');
+    this.modelPath = getEmbeddingModelDir();
   }
 
   /**
