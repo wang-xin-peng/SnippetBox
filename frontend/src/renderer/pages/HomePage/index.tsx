@@ -56,10 +56,18 @@ export default function HomePage() {
 
   const loadSnippets = useCallback(async () => {
     try {
+      setSnippets([]);
+      setFiltered([]);
       setLoading(true);
-      const data: Snippet[] = await (window as any).electronAPI?.snippet?.list?.() || [];
+      const [isCurrentlyLoggedIn, data] = await Promise.all([
+        (window as any).electron?.ipcRenderer?.invoke?.('auth:isLoggedIn') ?? false,
+        (window as any).electronAPI?.snippet?.list?.() || []
+      ]);
+      const filteredData = isCurrentlyLoggedIn
+        ? data.filter((s: any) => s.storageScope === 'cloud' || s.cloudId)
+        : data.filter((s: any) => s.storageScope !== 'cloud' && !s.cloudId);
       setSnippets(data);
-      const sorted = data.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+      const sorted = filteredData.sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
       setFiltered(sorted);
     } catch (e) {
       console.error('Failed to load snippets:', e);
