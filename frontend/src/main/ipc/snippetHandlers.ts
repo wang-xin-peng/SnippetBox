@@ -2,6 +2,7 @@ import { ipcMain } from 'electron';
 import { getDatabaseManager } from '../database';
 import { SnippetManager } from '../services/SnippetManager';
 import { VectorStore } from '../services/VectorStore';
+import { getAuthService } from '../services/AuthService';
 import { CreateSnippetDTO, UpdateSnippetDTO, SnippetFilter } from '../../shared/types';
 
 let snippetManager: SnippetManager | null = null;
@@ -53,8 +54,10 @@ export function registerSnippetHandlers() {
     try {
       console.log('[SnippetHandlers] Creating snippet:', data.title);
       if (!snippetManager) throw new Error('SnippetManager not initialized');
-      const snippet = await snippetManager.createSnippet(data);
-      console.log('[SnippetHandlers] Snippet created successfully:', snippet.id);
+      const authService = getAuthService();
+      const storageScope = authService.isLoggedIn() ? 'cloud' : 'local';
+      const snippet = await snippetManager.createSnippet(data, storageScope);
+      console.log('[SnippetHandlers] Snippet created successfully:', snippet.id, 'storageScope:', storageScope);
       // 异步生成向量，不阻塞返回
       generateVectorAsync(snippet.id, snippet.title, snippet.code, snippet.description);
       return snippet;

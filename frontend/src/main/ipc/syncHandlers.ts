@@ -31,8 +31,10 @@ export function registerSyncHandlers() {
   ipcMain.handle('sync:sync', async () => {
     try {
       const result = await sync.sync();
+      console.log(`[SyncHandlers] sync completed: pushed=${result.pushed}, pulled=${result.pulled}, errors=${result.errors.length}`);
       return { success: true, data: result };
     } catch (e: any) {
+      console.error('[SyncHandlers] sync failed:', e);
       return { success: false, error: e.message };
     }
   });

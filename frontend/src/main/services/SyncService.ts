@@ -121,9 +121,12 @@ export class SyncService {
             cloudId = res.data?.id ?? res.data?.snippet_id;
           }
 
-          db.prepare(
+          const updateResult = db.prepare(
             `UPDATE snippets SET is_synced = 1, cloud_id = ?, storage_scope = COALESCE(storage_scope, 'local') WHERE id = ?`
           ).run(cloudId ?? null, row.id);
+          if (updateResult.changes === 0) {
+            console.warn(`[SyncService] Failed to update is_synced for snippet ${row.id}`);
+          }
 
           result.pushed++;
         } catch (e: any) {
@@ -167,6 +170,8 @@ export class SyncService {
       const cloudSnippets: any[] = res.data?.snippets ?? res.data ?? [];
 
       const db = getDatabaseManager().getDb();
+      const currentUser = await getAuthService().getCurrentUser();
+      const cloudUserId = currentUser?.id || 'local';
 
       for (const cloud of cloudSnippets) {
         const cloudId = cloud.id ?? cloud.snippet_id;
@@ -177,27 +182,34 @@ export class SyncService {
             .prepare(`SELECT * FROM snippets WHERE cloud_id = ?`)
             .get(cloudId) as any | undefined;
 
+          let categoryId: string | null = null;
+          if (cloud.category) {
+            const cat = db.prepare(
+              'SELECT id FROM categories WHERE name = ? AND user_id = ?'
+            ).get(cloud.category, cloudUserId) as { id: string } | undefined;
+            categoryId = cat?.id || null;
+          }
+
           if (existing) {
-            // 已存在：比较时间戳，云端更新则覆盖本地
             const localUpdatedAt = existing.updated_at;
             if (cloudUpdatedAt > localUpdatedAt) {
               db.prepare(
-                `UPDATE snippets SET title=?, code=?, language=?, description=?, is_synced=1, updated_at=?, category_name=? WHERE cloud_id=?`
+                `UPDATE snippets SET title=?, code=?, language=?, description=?, is_synced=1, updated_at=?, category_id=?, category_name=? WHERE cloud_id=?`
               ).run(
                 cloud.title,
                 cloud.code,
                 cloud.language,
                 cloud.description ?? null,
                 cloudUpdatedAt,
+                categoryId,
                 cloud.category ?? null,
                 cloudId
               );
             }
           } else {
-            // 不存在：插入云端片段
             const { randomUUID } = await import('crypto');
             db.prepare(
-              `INSERT OR IGNORE INTO snippets (id, title, code, language, description, is_synced, cloud_id, created_at, updated_at, access_count, storage_scope, category_name) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 0, 'cloud', ?)`
+              `INSERT OR IGNORE INTO snippets (id, title, code, language, description, is_synced, cloud_id, created_at, updated_at, access_count, storage_scope, category_id, category_name) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 0, 'cloud', ?, ?)`
             ).run(
               randomUUID(),
               cloud.title,
@@ -207,6 +219,7 @@ export class SyncService {
               cloudId,
               Date.now(),
               cloudUpdatedAt,
+              categoryId,
               cloud.category ?? null
             );
           }
@@ -240,7 +253,9 @@ export class SyncService {
       this.status.lastSyncAt = Date.now();
       this.setStatus(result.errors.length > 0 ? 'error' : 'success');
       this.status.error = result.errors.length > 0 ? result.errors[0].message : null;
-
+      this.updatePendingCount();
+      const dbg = getDatabaseManager().getDb().prepare(`SELECT COUNT(*) as cnt FROM snippets WHERE is_synced = 0 AND COALESCE(skip_sync, 0) = 0 AND COALESCE(storage_scope, 'local') = 'local'`).get() as any;
+      console.log(`[SyncService] After sync: pendingCount=${this.status.pendingCount}, actual DB count=${dbg.cnt}`);
       this.notifyRenderer();
       return result;
     } catch (e: any) {
@@ -274,7 +289,7 @@ export class SyncService {
     try {
       const db = getDatabaseManager().getDb();
       const row = db
-        .prepare(`SELECT COUNT(*) as cnt FROM snippets WHERE is_synced = 0`)
+        .prepare(`SELECT COUNT(*) as cnt FROM snippets WHERE is_synced = 0 AND COALESCE(skip_sync, 0) = 0 AND COALESCE(storage_scope, 'local') = 'local'`)
         .get() as { cnt: number };
       const queueStatus = getOfflineQueue().getQueueStatus();
       this.status.pendingCount = row.cnt + queueStatus.pending;

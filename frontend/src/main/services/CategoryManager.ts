@@ -66,16 +66,22 @@ export class CategoryManager {
   }
 
   async getCategories(userId: string = 'local'): Promise<Category[]> {
+    const isLocalUser = userId === 'local';
+    const countCondition = isLocalUser
+      ? "(s.storage_scope IS NULL OR s.storage_scope = 'local')"
+      : "s.storage_scope = 'cloud'";
+
     const categories = this.db
       .prepare(
         `
-      SELECT 
-        c.*, 
-        COUNT(s.id) as snippet_count
+      SELECT
+        c.*,
+        (SELECT COUNT(*) FROM snippets s
+         WHERE s.category_id = c.id
+           AND (s.is_deleted = 0 OR s.is_deleted IS NULL)
+           AND ${countCondition}) as snippet_count
       FROM categories c
-      LEFT JOIN snippets s ON c.id = s.category_id
       WHERE c.user_id = ?
-      GROUP BY c.id
       ORDER BY c.created_at DESC
     `
       )

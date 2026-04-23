@@ -42,21 +42,20 @@ export class SnippetManager {
   /**
    * 创建片段
    */
-  async createSnippet(data: CreateSnippetDTO): Promise<Snippet> {
+  async createSnippet(data: CreateSnippetDTO, storageScope: 'local' | 'cloud' = 'local'): Promise<Snippet> {
     const id = randomUUID();
     const now = Date.now();
 
     try {
       const transaction = this.db.transaction(() => {
-        // 插入片段
         this.db
           .prepare(
             `
-          INSERT INTO snippets (id, title, code, language, category_id, description, created_at, updated_at, access_count, is_synced)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0)
+          INSERT INTO snippets (id, title, code, language, category_id, description, created_at, updated_at, access_count, is_synced, storage_scope)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)
         `
           )
-          .run(id, data.title, data.code, data.language, data.category || null, data.description || null, now, now);
+          .run(id, data.title, data.code, data.language, data.category || null, data.description || null, now, now, storageScope);
 
         // 处理标签
         if (data.tags && data.tags.length > 0) {
@@ -424,10 +423,12 @@ export class SnippetManager {
   private async dbSnippetToSnippet(dbSnippet: DbSnippet): Promise<Snippet> {
     const tags = this.getSnippetTags(dbSnippet.id);
     let category: string;
+    let categoryId: string | undefined;
     if (dbSnippet.cloud_id && dbSnippet.category_name) {
       category = dbSnippet.category_name;
     } else if (dbSnippet.category_id) {
       category = this.getCategoryName(dbSnippet.category_id) || '';
+      categoryId = dbSnippet.category_id;
     } else {
       category = '';
     }
@@ -439,6 +440,7 @@ export class SnippetManager {
       language: dbSnippet.language,
       description: dbSnippet.description || undefined,
       category,
+      categoryId,
       tags,
       starred: dbSnippet.starred === 1,
       createdAt: new Date(dbSnippet.created_at),

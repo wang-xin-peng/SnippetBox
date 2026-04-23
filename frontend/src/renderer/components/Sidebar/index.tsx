@@ -109,7 +109,7 @@ function Sidebar({
       } else {
         if ((s as any).storageScope === 'cloud' || (s as any).cloudId) return false;
       }
-      return s.category === catName || s.category === catId;
+      return (s as any).categoryId === catId || s.category === catName;
     });
   };
   const getCount = (catId: string, catName: string) => getSnippets(catId, catName).length;
@@ -221,20 +221,14 @@ function Sidebar({
 
       {/* 分类 */}
       <div className="sidebar-categories">
-        <div className="category-header">
+        <div className="category-header" onClick={() => goHomeFirst(() => onCategorySelect?.(null))}>
           <span className="category-header-title">分类</span>
           <button
             className="category-header-manage"
-            onClick={() => setShowCategoryManager(true)}
+            onClick={(e) => { e.stopPropagation(); setShowCategoryManager(true); }}
             title="管理分类和标签"
           >
             ⚙️
-          </button>
-          <button
-            className={`category-header-all ${!selectedCategory && !showingFavorites ? 'active' : ''}`}
-            onClick={() => goHomeFirst(() => onCategorySelect?.(null))}
-          >
-            全部
           </button>
         </div>
 

@@ -6,6 +6,56 @@
 import Database from 'better-sqlite3';
 
 /**
+ * 添加缺失的列到 snippets 表（用于已有数据库的升级）
+ */
+function migrateSnippetsTable(db: Database.Database): void {
+  const columnsToAdd = [
+    { name: 'starred', type: 'INTEGER DEFAULT 0' },
+    { name: 'is_deleted', type: 'INTEGER DEFAULT 0' },
+    { name: 'deleted_at', type: 'INTEGER' },
+    { name: 'storage_scope', type: "TEXT DEFAULT 'local'" },
+    { name: 'skip_sync', type: 'INTEGER DEFAULT 0' },
+    { name: 'category_name', type: 'TEXT' },
+  ];
+
+  for (const col of columnsToAdd) {
+    try {
+      const checkSql = `PRAGMA table_info(snippets)`;
+      const columns = db.prepare(checkSql).all() as { name: string }[];
+      const exists = columns.some(c => c.name === col.name);
+
+      if (!exists) {
+        console.log(`[Migration] Adding column ${col.name} to snippets table...`);
+        db.exec(`ALTER TABLE snippets ADD COLUMN ${col.name} ${col.type}`);
+      }
+    } catch (error) {
+      console.error(`[Migration] Failed to add column ${col.name}:`, error);
+    }
+  }
+}
+
+/**
+ * 迁移 categories 表，添加 user_id 列
+ */
+function migrateCategoriesTable(db: Database.Database): void {
+  try {
+    const checkSql = `PRAGMA table_info(categories)`;
+    const columns = db.prepare(checkSql).all() as { name: string }[];
+    const hasUserId = columns.some(c => c.name === 'user_id');
+
+    if (!hasUserId) {
+      console.log('[Migration] Adding user_id column to categories table...');
+      db.exec(`ALTER TABLE categories ADD COLUMN user_id TEXT DEFAULT 'local'`);
+
+      const updateStmt = db.prepare(`UPDATE categories SET user_id = 'local' WHERE user_id IS NULL`);
+      updateStmt.run();
+    }
+  } catch (error) {
+    console.error('[Migration] Failed to migrate categories table:', error);
+  }
+}
+
+/**
  * 初始化默认分类（仅当分类表完全为空时，为本地用户创建默认分类）
  */
 export function initializeDefaultCategories(db: Database.Database): void {

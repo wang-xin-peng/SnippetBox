@@ -133,8 +133,8 @@ export const NewSnippetModal: React.FC<Props> = ({ onClose, onSaved }) => {
             <div className="nsm-field">
               <label className="nsm-label">分类</label>
               <select className="nsm-select" value={category} onChange={e => setCategory(e.target.value)}>
-                <option value="">选择分类</option>
-                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                <option value="">无分类</option>
+                {categories.filter(c => c.name !== '未分类').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </div>
           </div>

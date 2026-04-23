@@ -19,6 +19,12 @@ CREATE TABLE IF NOT EXISTS snippets (
   access_count INTEGER DEFAULT 0,
   is_synced INTEGER DEFAULT 0,
   cloud_id TEXT,
+  starred INTEGER DEFAULT 0,
+  is_deleted INTEGER DEFAULT 0,
+  deleted_at INTEGER,
+  storage_scope TEXT DEFAULT 'local',
+  skip_sync INTEGER DEFAULT 0,
+  category_name TEXT,
   FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
 );
 `;
