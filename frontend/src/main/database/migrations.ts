@@ -107,8 +107,10 @@ export function initializeDefaultCategories(db: Database.Database): void {
  */
 export function runMigrations(db: Database.Database): void {
   console.log('[Migration] Running database migrations...');
-  
+
   try {
+    migrateSnippetsTable(db);
+    migrateCategoriesTable(db);
     initializeDefaultCategories(db);
     console.log('[Migration] All migrations completed successfully');
   } catch (error) {
