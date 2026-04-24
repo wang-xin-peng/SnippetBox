@@ -100,8 +100,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: 'LOGIN_SUCCESS', payload: res.data.user });
         
         // 登录成功后的处理（异步，不阻塞UI）
-        setTimeout(async () => {
+        (async () => {
           try {
+            // 先触发界面刷新，让用户能立即使用
+            window.dispatchEvent(new Event('snippets-refresh'));
+            window.dispatchEvent(new Event('categories-refresh'));
+            
+            // 延迟 2 秒后再处理同步逻辑，确保 UI 完全可用
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
             // 1. 检查是否有本地片段
             const localSnippets = await window.electron.ipcRenderer.invoke('snippet:list');
             const localOnlySnippets = localSnippets.filter(
@@ -109,45 +116,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             );
             
             if (localOnlySnippets.length > 0) {
-              // 提示用户是否合并本地片段到云端
-              const shouldMerge = confirm(
-                `检测到 ${localOnlySnippets.length} 个本地片段。\n\n` +
-                `是否将这些片段合并到您的云端账户？\n\n` +
-                `• 点击"确定"：本地片段将上传到云端，登录后可查看\n` +
-                `• 点击"取消"：本地片段保留在本地，登录状态下不会显示\n\n` +
-                `退出登录后，本地片段仍可正常查看。`
-              );
-              
-              if (shouldMerge) {
-                console.log('[Auth] Merging local snippets to cloud...');
-                const pushResult = await window.electron.ipcRenderer.invoke('sync:push');
-                if (pushResult.success && pushResult.data.pushed > 0) {
-                  console.log(`[Auth] Successfully merged ${pushResult.data.pushed} snippets`);
-                } else if (!pushResult.success) {
-                  console.error('[Auth] Merge failed:', pushResult.error);
-                }
-              } else {
-                // 用户选择不合并，标记本地片段跳过同步
-                console.log('[Auth] User chose not to merge, marking local snippets as skip_sync...');
-                await window.electron.ipcRenderer.invoke('sync:markLocalSnippetsSkipSync');
+              // 触发自定义对话框事件
+              window.dispatchEvent(new CustomEvent('show-sync-dialog', { 
+                detail: { count: localOnlySnippets.length } 
+              }));
+            } else {
+              // 没有本地片段，直接拉取云端
+              console.log('[Auth] Pulling cloud snippets...');
+              const pullResult = await window.electron.ipcRenderer.invoke('sync:pull');
+              if (pullResult.success) {
+                console.log(`[Auth] Successfully pulled ${pullResult.data?.pulled ?? 0} snippets from cloud`);
+                window.dispatchEvent(new Event('snippets-refresh'));
               }
             }
-            
-            // 2. 拉取云端片段
-            console.log('[Auth] Pulling cloud snippets...');
-            const pullResult = await window.electron.ipcRenderer.invoke('sync:pull');
-            if (pullResult.success) {
-              console.log(`[Auth] Successfully pulled ${pullResult.data?.pulled ?? 0} snippets from cloud`);
-            }
-            
-            // 3. 触发片段列表刷新
-            console.log('[Auth] Triggering snippets refresh...');
-            window.dispatchEvent(new Event('snippets-refresh'));
-            window.dispatchEvent(new Event('categories-refresh'));
           } catch (error) {
             console.error('[Auth] Login post-processing failed:', error);
           }
-        }, 300);
+        })();
         
         return true;
       } else {
@@ -182,15 +167,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = useCallback(async () => {
+    // 先触发刷新事件，让 UI 立即清空片段列表
+    window.dispatchEvent(new Event('snippets-refresh'));
+    
     await window.electron.ipcRenderer.invoke('auth:logout');
     await window.electron.ipcRenderer.invoke('sync:clearCloudOnlySnippets');
     await window.electron.ipcRenderer.invoke('sync:clearSkipSync');
     dispatch({ type: 'LOGOUT' });
     
-    // 退出登录后刷新片段列表（显示本地片段）
+    // 再次刷新确保显示本地片段
     setTimeout(() => {
       console.log('[Auth] Triggering snippets refresh after logout...');
       window.dispatchEvent(new Event('snippets-refresh'));
+      window.dispatchEvent(new Event('categories-refresh'));
     }, 100);
   }, []);
 

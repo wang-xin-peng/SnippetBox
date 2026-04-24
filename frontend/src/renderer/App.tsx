@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Router } from './router';
 import { WelcomeWizard } from './components/WelcomeWizard';
+import { SyncDialog } from './components/SyncDialog/SyncDialog';
 import { settingsApi } from './api/settings';
 import { AuthProvider, useAuth } from './store/authStore';
 import { SyncProvider } from './store/syncStore';
+import { ThemeProvider } from './store/themeStore';
 import type { WizardChoices } from '@shared/types/wizard';
 
 function restoreGlobalInteraction() {
@@ -26,7 +28,58 @@ function restoreGlobalInteraction() {
 function AppContent() {
   const [showWizard, setShowWizard] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [syncDialogCount, setSyncDialogCount] = useState<number | null>(null);
+  const [wizardChecked, setWizardChecked] = useState(false); // 标记是否已检查过向导
   const { isLoggedIn, user, loading: authLoading } = useAuth();
+
+  useEffect(() => {
+    // 监听同步对话框事件
+    const handleShowSyncDialog = (e: Event) => {
+      const customEvent = e as CustomEvent<{ count: number }>;
+      setSyncDialogCount(customEvent.detail.count);
+    };
+
+    window.addEventListener('show-sync-dialog', handleShowSyncDialog);
+
+    return () => {
+      window.removeEventListener('show-sync-dialog', handleShowSyncDialog);
+    };
+  }, []);
+
+  const handleSyncConfirm = async () => {
+    setSyncDialogCount(null);
+    try {
+      console.log('[App] Merging local snippets to cloud...');
+      const pushResult = await window.electron.ipcRenderer.invoke('sync:push');
+      if (pushResult.success && pushResult.data.pushed > 0) {
+        console.log(`[App] Successfully merged ${pushResult.data.pushed} snippets`);
+      }
+      // 拉取云端片段
+      const pullResult = await window.electron.ipcRenderer.invoke('sync:pull');
+      if (pullResult.success) {
+        console.log(`[App] Successfully pulled ${pullResult.data?.pulled ?? 0} snippets from cloud`);
+      }
+      window.dispatchEvent(new Event('snippets-refresh'));
+    } catch (error) {
+      console.error('[App] Sync failed:', error);
+    }
+  };
+
+  const handleSyncCancel = async () => {
+    setSyncDialogCount(null);
+    try {
+      console.log('[App] User chose not to merge, marking local snippets as skip_sync...');
+      await window.electron.ipcRenderer.invoke('sync:markLocalSnippetsSkipSync');
+      // 拉取云端片段
+      const pullResult = await window.electron.ipcRenderer.invoke('sync:pull');
+      if (pullResult.success) {
+        console.log(`[App] Successfully pulled ${pullResult.data?.pulled ?? 0} snippets from cloud`);
+        window.dispatchEvent(new Event('snippets-refresh'));
+      }
+    } catch (error) {
+      console.error('[App] Sync cancel failed:', error);
+    }
+  };
 
   useEffect(() => {
     // 添加全局快捷键 Ctrl+Shift+F 来修复输入框问题
@@ -98,8 +151,12 @@ function AppContent() {
       return;
     }
 
-    checkWizardVisibility();
-  }, [authLoading, isLoggedIn, user?.id]);
+    // 只在首次检查，避免登录时重复触发
+    if (!wizardChecked) {
+      checkWizardVisibility();
+      setWizardChecked(true);
+    }
+  }, [authLoading, wizardChecked]);
 
   useEffect(() => {
     if (!showWizard) {
@@ -195,6 +252,13 @@ function AppContent() {
       {showWizard && (
         <WelcomeWizard onComplete={handleWizardComplete} onSkip={handleWizardSkip} />
       )}
+      {syncDialogCount !== null && (
+        <SyncDialog 
+          count={syncDialogCount} 
+          onConfirm={handleSyncConfirm} 
+          onCancel={handleSyncCancel} 
+        />
+      )}
       <Router />
     </>
   );
@@ -202,11 +266,13 @@ function AppContent() {
 
 function App() {
   return (
-    <AuthProvider>
-      <SyncProvider>
-        <AppContent />
-      </SyncProvider>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <SyncProvider>
+          <AppContent />
+        </SyncProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

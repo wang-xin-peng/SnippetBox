@@ -16,6 +16,7 @@ interface OutletCtx {
   showingFavorites: boolean;
   showingTrash: boolean;
   selectedSnippetId: string | null;
+  setSelectedSnippetId: (id: string | null) => void;
   triggerRefresh: () => void;
 }
 
@@ -37,8 +38,8 @@ function formatDate(d: any) {
 }
 
 export default function HomePage() {
-  const { selectedCategory, previewWidth, startDragRight, refreshKey, showingFavorites, showingTrash, selectedSnippetId, triggerRefresh } = useOutletContext<OutletCtx>();
-  const { isLoggedIn } = useAuth();
+  const { selectedCategory, setSelectedCategory, previewWidth, startDragRight, refreshKey, showingFavorites, showingTrash, selectedSnippetId, setSelectedSnippetId, triggerRefresh } = useOutletContext<OutletCtx>();
+  const { isLoggedIn, loading: authLoading } = useAuth();
 
   const [snippets, setSnippets] = useState<Snippet[]>([]);
   const [filtered, setFiltered] = useState<Snippet[]>([]);
@@ -59,14 +60,13 @@ export default function HomePage() {
       setSnippets([]);
       setFiltered([]);
       setLoading(true);
-      const [isCurrentlyLoggedIn, data] = await Promise.all([
-        (window as any).electron?.ipcRenderer?.invoke?.('auth:isLoggedIn') ?? false,
-        (window as any).electronAPI?.snippet?.list?.() || []
-      ]);
-      const filteredData = isCurrentlyLoggedIn
+      const data = await (window as any).electronAPI?.snippet?.list?.() || [];
+      // 直接使用 React 状态的 isLoggedIn，避免状态不一致
+      const filteredData = isLoggedIn
         ? data.filter((s: any) => s.storageScope === 'cloud' || s.cloudId)
         : data.filter((s: any) => s.storageScope !== 'cloud' && !s.cloudId);
-      setSnippets(data);
+      // 只设置过滤后的数据，避免闪现
+      setSnippets(filteredData);
       const sorted = filteredData.sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
       setFiltered(sorted);
     } catch (e) {
@@ -74,7 +74,7 @@ export default function HomePage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isLoggedIn]);
 
   // 启动时读取设置里的搜索模式
   useEffect(() => {
@@ -92,14 +92,31 @@ export default function HomePage() {
     }).catch(() => {});
   }, []);
 
-  useEffect(() => { loadSnippets(); }, [refreshKey]);
+  useEffect(() => { 
+    if (!authLoading) {
+      loadSnippets(); 
+    }
+  }, [refreshKey, authLoading, loadSnippets]);
+
+  // 监听登录状态变化，立即重新加载片段
+  useEffect(() => {
+    if (!authLoading) {
+      console.log('[HomePage] Login status changed, reloading snippets...');
+      loadSnippets();
+    }
+  }, [isLoggedIn, authLoading, loadSnippets]);
 
   useEffect(() => {
+    console.log('[Trash] useEffect triggered, showingTrash:', showingTrash, 'refreshKey:', refreshKey);
     if (showingTrash) {
+      console.log('[Trash] Calling trash:list...');
       (window as any).electronAPI?.trash?.list()?.then((data: Snippet[]) => {
+        console.log('[Trash] trash:list returned:', data?.length, 'items', data);
         setTrashSnippets(data);
         setTrashSelected(null);
-      }).catch(console.error);
+      }).catch((e: any) => {
+        console.error('[Trash] trash:list failed:', e);
+      });
     }
   }, [showingTrash, refreshKey]);
 
@@ -196,6 +213,11 @@ export default function HomePage() {
   useEffect(() => {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
 
+    // 立即清空显示，避免闪现
+    if (selectedCategory !== null || showingFavorites) {
+      setFiltered([]);
+    }
+
     if (searchMode === 'keyword') {
       applyKeywordFilter(snippets, searchQuery, selectedCategory);
     } else if (searchMode === 'semantic') {
@@ -289,7 +311,9 @@ export default function HomePage() {
     const id = deleteConfirmId;
     setDeleteConfirmId(null);
     try {
-      await (window as any).electronAPI.snippet.delete(id);
+      console.log('[Delete] Calling snippet:delete for id:', id);
+      const result = await (window as any).electronAPI.snippet.delete(id);
+      console.log('[Delete] snippet:delete result:', result);
       setSnippets(prev => prev.filter(s => s.id !== id));
       setFiltered(prev => prev.filter(s => s.id !== id));
       if (selected?.id === id) setSelected(null);
@@ -337,6 +361,7 @@ export default function HomePage() {
       await (window as any).electronAPI?.trash?.permanentDelete(id);
       setTrashSnippets(prev => prev.filter(s => s.id !== id));
       if (trashSelected?.id === id) setTrashSelected(null);
+      triggerRefresh(); // 刷新 Sidebar 的回收站数字
     } catch (e) {
       console.error('Permanent delete failed:', e);
     }
@@ -348,6 +373,7 @@ export default function HomePage() {
       await (window as any).electronAPI?.trash?.empty();
       setTrashSnippets([]);
       setTrashSelected(null);
+      triggerRefresh(); // 刷新 Sidebar 的回收站数字
     } catch (e) {
       console.error('Empty trash failed:', e);
     }
@@ -425,7 +451,7 @@ export default function HomePage() {
                 </div>
                 <div className="preview-meta-row">
                   <span className="preview-meta-item">{trashSelected.language}</span>
-                  <span className="preview-meta-item">📅 删除于: {formatDate((trashSelected as any).deletedAt || trashSelected.updatedAt)}</span>
+                  <span className="preview-meta-item">📅 删除于: {formatDate(trashSelected.deletedAt || trashSelected.updatedAt)}</span>
                 </div>
               </div>
               <div className="preview-actions">
@@ -438,7 +464,7 @@ export default function HomePage() {
                   language={trashSelected.language?.toLowerCase() || 'plaintext'}
                   readOnly
                   height="100%"
-                  theme="vs-dark"
+                  theme="custom-dark"
                 />
               </div>
             </>
@@ -547,7 +573,10 @@ export default function HomePage() {
                   key={snippet.id}
                   snippet={snippet}
                   isSelected={selected?.id === snippet.id}
-                  onClick={() => setSelected(snippet)}
+                  onClick={() => {
+                    setSelected(snippet);
+                    setSelectedSnippetId(snippet.id);
+                  }}
                   onDelete={handleDelete}
                   onToggleStar={handleToggleStar}
                   batchMode={batchMode}
@@ -559,7 +588,10 @@ export default function HomePage() {
                   key={snippet.id}
                   snippet={snippet}
                   isSelected={selected?.id === snippet.id}
-                  onClick={() => setSelected(snippet)}
+                  onClick={() => {
+                    setSelected(snippet);
+                    setSelectedSnippetId(snippet.id);
+                  }}
                   onDelete={handleDelete}
                   onToggleStar={handleToggleStar}
                   batchMode={batchMode}
@@ -588,6 +620,7 @@ export default function HomePage() {
             onCopy={handleCopy}
             onDelete={e => handleDelete(selected.id, e)}
             onToggleStar={e => handleToggleStar(selected, e)}
+            onSaved={loadSnippets}
           />
         )}
       </div>
@@ -763,9 +796,40 @@ interface PreviewProps {
   onCopy: () => void;
   onDelete: (e: React.MouseEvent) => void;
   onToggleStar: (e: React.MouseEvent) => void;
+  onSaved?: () => void;
 }
 
-function PreviewPanel({ snippet, onEdit, onCopy, onDelete, onToggleStar }: PreviewProps) {
+function PreviewPanel({ snippet, onEdit, onCopy, onDelete, onToggleStar, onSaved }: PreviewProps) {
+  const [code, setCode] = useState(snippet.code);
+  const [isSaving, setIsSaving] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+
+  // 当切换片段时重置代码
+  useEffect(() => {
+    setCode(snippet.code);
+    setHasChanges(false);
+  }, [snippet.id, snippet.code]);
+
+  const handleCodeChange = (newCode: string) => {
+    setCode(newCode);
+    setHasChanges(newCode !== snippet.code);
+  };
+
+  const handleSave = async () => {
+    if (!hasChanges) return;
+    setIsSaving(true);
+    try {
+      await (window as any).electronAPI?.snippet?.update(snippet.id, { code });
+      setHasChanges(false);
+      onSaved?.(); // 触发刷新
+    } catch (e) {
+      console.error('Save failed:', e);
+      alert('保存失败');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleDownload = () => {
     // 获取文件扩展名
     const langExtMap: Record<string, string> = {
@@ -880,6 +944,9 @@ function PreviewPanel({ snippet, onEdit, onCopy, onDelete, onToggleStar }: Previ
           <span className="preview-meta-item">📅 发布: {formatDate(snippet.createdAt)}</span>
           <span className="preview-meta-item">📅 更新: {formatDate(snippet.updatedAt)}</span>
           <span className="preview-meta-item">{snippet.language}</span>
+          {snippet.category && (
+            <span className="preview-meta-item">📁 {snippet.category}</span>
+          )}
         </div>
         {snippet.tags?.length > 0 && (
           <div className="preview-tags">
@@ -891,22 +958,42 @@ function PreviewPanel({ snippet, onEdit, onCopy, onDelete, onToggleStar }: Previ
       </div>
 
       <div className="preview-actions">
-        <button className="action-btn primary" onClick={onCopy}>📋 复制代码</button>
-        <button className="action-btn" onClick={onEdit}>✏️ 编辑信息</button>
+        <button className="action-btn primary" onClick={onCopy}>
+          <i className="fas fa-copy"></i> 复制代码
+        </button>
+        <button className="action-btn" onClick={onEdit}>
+          <i className="fas fa-edit"></i> 编辑信息
+        </button>
+        {hasChanges && (
+          <button 
+            className="action-btn primary" 
+            onClick={handleSave}
+            disabled={isSaving}
+          >
+            <i className="fas fa-save"></i> {isSaving ? '保存中...' : '保存代码'}
+          </button>
+        )}
         <ShareButton snippet={snippet} />
-        <button className="action-btn" onClick={handleDownload}>📤 下载</button>
+        <button className="action-btn" onClick={handleDownload}>
+          <i className="fas fa-download"></i> 下载
+        </button>
         <div className="action-btn-spacer" />
-        <button className="action-btn danger" onClick={onDelete}>🗑️ 删除</button>
-        <button className="action-btn colorize" onClick={handleColorize}>🎨 染色</button>
+        <button className="action-btn danger" onClick={onDelete}>
+          <i className="fas fa-trash"></i> 删除
+        </button>
+        <button className="action-btn colorize" onClick={handleColorize}>
+          <i className="fas fa-palette"></i> 染色
+        </button>
       </div>
 
       <div className="preview-code-area">
         <CodeEditor
-          value={snippet.code}
+          value={code}
+          onChange={handleCodeChange}
           language={snippet.language?.toLowerCase() || 'plaintext'}
-          readOnly
+          readOnly={false}
           height="100%"
-          theme="vs-dark"
+          theme="custom-dark"
         />
       </div>
     </>

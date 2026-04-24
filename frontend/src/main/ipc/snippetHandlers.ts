@@ -143,8 +143,11 @@ export function registerSnippetHandlers() {
   // 列出回收站片段
   ipcMain.handle('trash:list', async () => {
     try {
+      console.log('[SnippetHandlers] trash:list called');
       if (!snippetManager) throw new Error('SnippetManager not initialized');
-      return await snippetManager.listTrash();
+      const result = await snippetManager.listTrash();
+      console.log('[SnippetHandlers] trash:list returned', result.length, 'items');
+      return result;
     } catch (error) {
       console.error('[SnippetHandlers] Failed to list trash:', error);
       throw error;
