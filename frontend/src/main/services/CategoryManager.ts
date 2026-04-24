@@ -81,7 +81,7 @@ export class CategoryManager {
            AND (s.is_deleted = 0 OR s.is_deleted IS NULL)
            AND ${storageCondition}) as snippet_count
       FROM categories c
-      WHERE c.user_id = ?
+      WHERE c.user_id = ? AND c.name NOT LIKE '#%'
       ORDER BY c.created_at DESC
     `
       )

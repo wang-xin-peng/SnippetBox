@@ -449,6 +449,7 @@ export class SnippetManager {
       isSynced: dbSnippet.is_synced === 1,
       cloudId: dbSnippet.cloud_id || undefined,
       storageScope: dbSnippet.storage_scope === 'cloud' ? 'cloud' : 'local',
+      deletedAt: dbSnippet.deleted_at ?? null,
     };
   }
 

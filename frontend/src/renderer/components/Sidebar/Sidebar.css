@@ -78,6 +78,13 @@
   justify-content: space-between;
   padding: 4px 8px 8px;
   gap: 4px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.category-header:hover {
+  background: var(--bg-hover);
 }
 
 .category-header-title {

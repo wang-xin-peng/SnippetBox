@@ -47,12 +47,16 @@ function Sidebar({
   const goHomeFirst = (cb: () => void) => {
     if (location.pathname !== '/') {
       navigate('/');
+      // 等待导航完成后再执行回调，避免 HomePage 未挂载时 showingTrash 状态丢失
+      setTimeout(cb, 50);
+    } else {
+      cb();
     }
-    cb();
   };
   const [categories, setCategories] = useState<Category[]>([]);
   const [snippets, setSnippets] = useState<SnippetItem[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [expandedInitialized, setExpandedInitialized] = useState(false);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [tags, setTags] = useState<any[]>([]);
 
@@ -72,16 +76,22 @@ function Sidebar({
         api.tag?.list?.() || []
       ]);
       
-      const sortedCats = cats.sort((a: Category, b: Category) => {
-        if (a.name === '未分类') return 1;
-        if (b.name === '未分类') return -1;
-        return 0;
-      });
+      const sortedCats = cats
+        .filter((c: Category) => !c.name.startsWith('#')) // 过滤掉以 # 开头的无效分类
+        .sort((a: Category, b: Category) => {
+          if (a.name === '未分类') return 1;
+          if (b.name === '未分类') return -1;
+          return 0;
+        });
       
       setCategories(sortedCats);
       setSnippets(snips);
       setTags(tagList || []);
-      setExpanded(new Set(sortedCats.map((c: Category) => c.id)));
+      // 只在首次加载时初始化展开状态，避免每次刷新都重置导致闪烁
+      if (!expandedInitialized) {
+        setExpanded(new Set(sortedCats.map((c: Category) => c.id)));
+        setExpandedInitialized(true);
+      }
 
       try {
         const trashItems = await (window as any).electronAPI?.trash?.list();
@@ -201,7 +211,9 @@ function Sidebar({
         className={`sidebar-favorites ${showingFavorites ? 'active' : ''}`}
         onClick={() => goHomeFirst(() => onFavoritesSelect?.())}
       >
-        <span className="sidebar-fav-icon">{showingFavorites ? '★' : '☆'}</span>
+        <span className="sidebar-fav-icon">
+          <i className={`${showingFavorites ? 'fas' : 'far'} fa-star`}></i>
+        </span>
         <span className="sidebar-fav-label">收藏夹</span>
         <span className="sidebar-section-badge">{favCount}</span>
       </div>
@@ -212,7 +224,9 @@ function Sidebar({
         className={`sidebar-favorites ${showingTrash ? 'active' : ''}`}
         onClick={() => goHomeFirst(() => onTrashSelect?.())}
       >
-        <span className="sidebar-fav-icon">🗑️</span>
+        <span className="sidebar-fav-icon">
+          <i className="fas fa-trash-alt"></i>
+        </span>
         <span className="sidebar-fav-label">回收站</span>
         {trashCount > 0 && <span className="sidebar-section-badge">{trashCount}</span>}
       </div>
@@ -228,7 +242,7 @@ function Sidebar({
             onClick={(e) => { e.stopPropagation(); setShowCategoryManager(true); }}
             title="管理分类和标签"
           >
-            ⚙️
+            <i className="fas fa-cog"></i>
           </button>
         </div>
 
@@ -244,9 +258,11 @@ function Sidebar({
                 className={`category-row ${isActive ? 'active' : ''}`}
                 onClick={() => { toggle(cat.id); goHomeFirst(() => onCategorySelect?.(cat.name)); }}
               >
-                <span className={`category-chevron ${isOpen ? 'open' : ''}`}>›</span>
+                <span className={`category-chevron ${isOpen ? 'open' : ''}`}>
+                  <i className="fas fa-chevron-right"></i>
+                </span>
                 <span className="category-icon" style={{ color: cat.color || '#8b949e' }}>
-                  {cat.icon || '📁'}
+                  {cat.icon || <i className="fas fa-folder"></i>}
                 </span>
                 <span className="category-name">{cat.name}</span>
                 <span className="category-badge">{count}</span>
@@ -276,7 +292,7 @@ function Sidebar({
           to="/settings"
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
         >
-          <span>⚙️</span>
+          <span><i className="fas fa-cog"></i></span>
           <span>设置</span>
         </NavLink>
       </div>

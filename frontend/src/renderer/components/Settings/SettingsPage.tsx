@@ -561,26 +561,6 @@ export const SettingsPage: React.FC = () => {
               )}
             </div>
           </div>
-
-          {isModelDownloaded && (
-            <div className="setting-item">
-              <div className="setting-header">
-                <label className="setting-label">向量生成</label>
-                <p className="setting-description">
-                  为所有代码片段重新生成向量，用于语义搜索
-                </p>
-              </div>
-              <div className="setting-control">
-                <button 
-                  className="btn-secondary"
-                  onClick={handleGenerateVectors}
-                  disabled={isGeneratingVectors}
-                >
-                  {isGeneratingVectors ? '生成中...' : '重新生成向量'}
-                </button>
-              </div>
-            </div>
-          )}
         </section>
 
         {/* 关于 */}
