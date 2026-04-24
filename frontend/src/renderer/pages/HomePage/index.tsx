@@ -483,7 +483,7 @@ export default function HomePage() {
             <span className="search-icon">{isAiMode ? '🔮' : '🔍'}</span>
             <input
               className="search-input"
-              placeholder={isAiMode ? 'AI 语义搜索...' : '搜索代码片段...'}
+              placeholder={isAiMode ? '智能语义搜索...' : '搜索代码片段...'}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
             />
@@ -493,7 +493,7 @@ export default function HomePage() {
               onClick={toggleSearchMode}
               title={!hasSemanticSupport && !isAiMode ? '需要先下载模型才能使用 AI 搜索' : '切换搜索模式'}
             >
-              {isAiMode ? '✦ AI' : '✦ 关键词'}
+              {isAiMode ? '✦ 语义' : '✦ 关键词'}
             </button>
           </div>
           <button
@@ -958,9 +958,6 @@ function PreviewPanel({ snippet, onEdit, onCopy, onDelete, onToggleStar, onSaved
       </div>
 
       <div className="preview-actions">
-        <button className="action-btn primary" onClick={onCopy}>
-          <i className="fas fa-copy"></i> 复制代码
-        </button>
         <button className="action-btn" onClick={onEdit}>
           <i className="fas fa-edit"></i> 编辑信息
         </button>

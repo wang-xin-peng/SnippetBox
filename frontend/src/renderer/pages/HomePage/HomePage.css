@@ -75,8 +75,9 @@
 }
 
 .search-mode-badge--ai {
-  background: #111827;
-  color: #fff;
+  background: var(--bg-primary);
+  color: var(--primary-color);
+  border: 1px solid var(--primary-color);
 }
 
 .search-box--ai {
@@ -458,12 +459,12 @@
 .action-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 
 .action-btn.primary {
-  background: #111827;
+  background: var(--primary-color);
   color: white;
-  border-color: #111827;
+  border-color: var(--primary-color);
 }
 
-.action-btn.primary:hover { background: #1f2937; }
+.action-btn.primary:hover { background: var(--primary-hover); }
 
 .action-btn.danger { color: var(--danger-color); border-color: transparent; }
 .action-btn.danger:hover { background: var(--danger-light); border-color: var(--danger-color); }
@@ -655,14 +656,14 @@
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  background: #eff6ff;
-  border-bottom: 1px solid #bfdbfe;
+  background: var(--primary-light);
+  border-bottom: 1px solid var(--primary-color);
   flex-wrap: wrap;
 }
 
 .batch-bar-count {
   font-size: 13px;
-  color: #1d4ed8;
+  color: var(--primary-color);
   font-weight: 500;
   margin-right: 4px;
 }
@@ -670,30 +671,30 @@
 .batch-bar-btn {
   padding: 4px 12px;
   border-radius: 5px;
-  border: 1px solid #bfdbfe;
-  background: #fff;
-  color: #1d4ed8;
+  border: 1px solid var(--primary-color);
+  background: var(--bg-primary);
+  color: var(--primary-color);
   font-size: 12px;
   cursor: pointer;
   transition: background 0.15s;
 }
 
-.batch-bar-btn:hover { background: #dbeafe; }
+.batch-bar-btn:hover { background: var(--primary-light); }
 
 .batch-bar-btn--danger {
-  border-color: #fca5a5;
-  color: #dc2626;
+  border-color: var(--danger-color);
+  color: var(--danger-color);
 }
 
-.batch-bar-btn--danger:hover { background: #fee2e2; }
+.batch-bar-btn--danger:hover { background: var(--danger-light); }
 
 .batch-bar-btn--exit {
   margin-left: auto;
-  border-color: #d1d5db;
-  color: #6b7280;
+  border-color: var(--border-color);
+  color: var(--text-secondary);
 }
 
-.batch-bar-btn--exit:hover { background: #f3f4f6; }
+.batch-bar-btn--exit:hover { background: var(--bg-hover); }
 
 /* 批量选中卡片高亮 */
 .snippet-card.batch-checked,

@@ -83,6 +83,7 @@ yarn-error.log*
 *.njsproj
 *.sln
 *.sw?
+.trae
 
 # macOS
 .DS_Store
