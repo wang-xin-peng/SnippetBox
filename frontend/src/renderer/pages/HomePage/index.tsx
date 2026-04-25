@@ -143,7 +143,7 @@ export default function HomePage() {
 
   useEffect(() => {
     const el = document.getElementById('snippet-count');
-    if (el) el.textContent = filtered.length ? `${filtered.length} 个片段` : '';
+    if (el) el.textContent = `${filtered.length} 个片段`;
   }, [filtered.length]);
 
   // 关键词过滤（本地，无需 IPC）
