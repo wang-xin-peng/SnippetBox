@@ -66,9 +66,11 @@ export function registerSnippetHandlers() {
         console.log('[SnippetHandlers] Immediately syncing new snippet to cloud:', snippet.id);
         const syncService = getSyncService();
         if (syncService) {
-          syncService.pushChanges().catch((err: Error) => {
-            console.error('[SnippetHandlers] Failed to sync new snippet:', err);
-          });
+          console.log('[SnippetHandlers] SyncService available, calling pushChanges');
+          const pushResult = await syncService.pushChanges();
+          console.log('[SnippetHandlers] pushChanges result:', pushResult);
+        } else {
+          console.error('[SnippetHandlers] SyncService not available');
         }
       }
       
