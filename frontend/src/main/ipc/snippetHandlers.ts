@@ -58,6 +58,18 @@ export function registerSnippetHandlers() {
       const storageScope = authService.isLoggedIn() ? 'cloud' : 'local';
       const snippet = await snippetManager.createSnippet(data, storageScope);
       console.log('[SnippetHandlers] Snippet created successfully:', snippet.id, 'storageScope:', storageScope);
+      
+      // 如果是云端片段且用户已登录，立即同步到云端
+      if (storageScope === 'cloud' && authService.isLoggedIn()) {
+        console.log('[SnippetHandlers] Immediately syncing new cloud snippet:', snippet.id);
+        const syncService = getSyncService();
+        if (syncService) {
+          syncService.pushChanges().catch(err => {
+            console.error('[SnippetHandlers] Failed to sync new snippet:', err);
+          });
+        }
+      }
+      
       // 异步生成向量，不阻塞返回
       generateVectorAsync(snippet.id, snippet.title, snippet.code, snippet.description);
       return snippet;
