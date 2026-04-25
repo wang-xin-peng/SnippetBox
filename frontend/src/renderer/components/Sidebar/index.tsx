@@ -235,15 +235,14 @@ function Sidebar({
 
       {/* 分类 */}
       <div className="sidebar-categories">
-        <div className="category-header" onClick={() => goHomeFirst(() => onCategorySelect?.(null))}>
-          <span className="category-header-title">分类</span>
-          <button
-            className="category-header-manage"
-            onClick={(e) => { e.stopPropagation(); setShowCategoryManager(true); }}
-            title="管理分类和标签"
-          >
-            <i className="fas fa-cog"></i>
-          </button>
+        <div
+          className={`sidebar-favorites ${selectedCategory === null ? 'active' : ''}`}
+          onClick={() => goHomeFirst(() => onCategorySelect?.(null))}
+        >
+          <span className="sidebar-fav-icon">
+            <i className="fas fa-layer-group"></i>
+          </span>
+          <span className="sidebar-fav-label">分类</span>
         </div>
 
         {categories.map(cat => {
@@ -288,6 +287,13 @@ function Sidebar({
 
       {/* 底部 */}
       <div className="sidebar-bottom">
+        <button
+          className="nav-item"
+          onClick={() => setShowCategoryManager(true)}
+        >
+          <span><i className="fas fa-folder-plus"></i></span>
+          <span>管理分类与标签</span>
+        </button>
         <NavLink
           to="/settings"
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}

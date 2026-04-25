@@ -424,7 +424,7 @@ export const SettingsPage: React.FC = () => {
                 </div>
                 <div className="setting-control">
                   <button
-                    className="btn-danger btn-sm"
+                    className="btn-secondary btn-sm"
                     onClick={async () => {
                       if (confirm('确定要退出登录吗？')) {
                         await logout();
@@ -447,7 +447,7 @@ export const SettingsPage: React.FC = () => {
                 </div>
                 <div className="setting-control">
                   <button
-                    className="btn-danger btn-sm"
+                    className="btn-secondary btn-sm"
                     onClick={() => {
                       if (!user?.email) return;
                       setDeleteEmail(user.email);
@@ -512,7 +512,7 @@ export const SettingsPage: React.FC = () => {
                   />
                   <div className="radio-content">
                     <span className="radio-title">本地模型搜索</span>
-                    <span className="radio-desc">使用 AI 模型进行语义搜索</span>
+                    <span className="radio-desc">使用向量模型进行语义搜索</span>
                   </div>
                 </label>
               </div>

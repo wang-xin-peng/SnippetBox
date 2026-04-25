@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
 import './CodeEditor.css';
 
@@ -16,15 +16,15 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   language,
   onChange,
   readOnly = false,
-  theme = 'vs-light',
+  theme,
   height = '400px',
 }) => {
   const editorRef = useRef<any>(null);
+  const [copied, setCopied] = useState(false);
 
   const handleEditorDidMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
 
-    // 定义自定义深色主题
     monaco.editor.defineTheme('custom-dark', {
       base: 'vs-dark',
       inherit: true,
@@ -47,20 +47,18 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       },
     });
 
-    // 配置编辑器快捷键
+    monaco.editor.setTheme('custom-dark');
+
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
-      // Ctrl+S 保存（由父组件处理）
       const event = new CustomEvent('editor:save');
       window.dispatchEvent(event);
     });
 
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyC, () => {
-      // Ctrl+C 复制（默认行为）
       editor.trigger('keyboard', 'editor.action.clipboardCopyAction', {});
     });
 
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyF, () => {
-      // Ctrl+F 查找
       editor.trigger('keyboard', 'actions.find', {});
     });
   };
@@ -76,6 +74,8 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
       const selection = editorRef.current.getSelection();
       const selectedText = editorRef.current.getModel().getValueInRange(selection);
       navigator.clipboard.writeText(selectedText || value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
     }
   };
 
@@ -83,8 +83,8 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     <div className="code-editor">
       <div className="code-editor-toolbar">
         <span className="language-badge">{language}</span>
-        <button onClick={copyToClipboard} className="copy-button" title="Copy to clipboard">
-          Copy
+        <button onClick={copyToClipboard} className={`copy-button ${copied ? 'copied' : ''}`} title="Copy to clipboard">
+          {copied ? '✓ Copied' : 'Copy'}
         </button>
       </div>
       <Editor
@@ -93,7 +93,7 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
         value={value}
         onChange={handleChange}
         onMount={handleEditorDidMount}
-        theme={theme}
+        theme="custom-dark"
         options={{
           readOnly,
           minimap: { enabled: true },

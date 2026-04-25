@@ -37,7 +37,7 @@ export const SearchSettings: React.FC<SearchSettingsProps> = ({ settings, onUpda
             <Select.Option value="cloud">云端搜索</Select.Option>
             <Select.Option value="auto">自动</Select.Option>
           </Select>
-          <p style={{ color: '#888', marginTop: 8 }}>
+          <p style={{ color: 'var(--text-secondary)', marginTop: 8 }}>
             本地搜索使用本地模型，云端搜索使用远程 API
           </p>
         </Form.Item>
@@ -50,7 +50,7 @@ export const SearchSettings: React.FC<SearchSettingsProps> = ({ settings, onUpda
             onChange={(value) => handleChange('maxResults', value)}
             style={{ width: 120 }}
           />
-          <p style={{ color: '#888', marginTop: 8 }}>
+          <p style={{ color: 'var(--text-secondary)', marginTop: 8 }}>
             搜索结果的最大数量
           </p>
         </Form.Item>
