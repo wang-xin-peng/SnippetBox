@@ -101,6 +101,8 @@ async def create_share(
             expires_at=expires_at
         )
     
+    except HTTPException:
+        raise  # 直接重新抛出 HTTPException
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
