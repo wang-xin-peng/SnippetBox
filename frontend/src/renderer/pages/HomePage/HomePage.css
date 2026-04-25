@@ -481,13 +481,13 @@
 
 .action-btn.primary:hover { background: var(--primary-hover); }
 
-.action-btn.danger { color: var(--danger-color); border-color: transparent; }
-.action-btn.danger:hover { background: var(--danger-light); border-color: var(--danger-color); }
+.action-btn.danger { color: var(--text-secondary); border-color: var(--border-color); }
+.action-btn.danger:hover { background: var(--bg-hover); color: var(--text-primary); }
 
 .action-btn-spacer { flex: 1; min-width: 0; }
 
-.action-btn.colorize { color: var(--accent-color); border-color: transparent; }
-.action-btn.colorize:hover { background: var(--accent-light); }
+.action-btn.print { color: var(--text-secondary); border-color: var(--border-color); }
+.action-btn.print:hover { background: var(--bg-hover); color: var(--text-primary); }
 
 /* ── 预览代码区 ── */
 .preview-code-area {
@@ -670,10 +670,12 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 16px;
+  padding: 8px 12px;
   background: var(--primary-light);
   border-bottom: 1px solid var(--primary-color);
   flex-wrap: wrap;
+  min-width: 0;
+  overflow-x: auto;
 }
 
 .batch-bar-count {
@@ -681,6 +683,7 @@
   color: var(--primary-color);
   font-weight: 500;
   margin-right: 4px;
+  flex-shrink: 0;
 }
 
 .batch-bar-btn {
@@ -692,6 +695,8 @@
   font-size: 12px;
   cursor: pointer;
   transition: background 0.15s;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .batch-bar-btn:hover { background: var(--primary-light); }
@@ -707,6 +712,7 @@
   margin-left: auto;
   border-color: var(--border-color);
   color: var(--text-secondary);
+  flex-shrink: 0;
 }
 
 .batch-bar-btn--exit:hover { background: var(--bg-hover); }

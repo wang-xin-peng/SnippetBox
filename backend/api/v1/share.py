@@ -68,9 +68,11 @@ async def create_share(
         """, share_request.snippet_id, user_id)
         
         if not snippet:
+            # 可能是本地ID与云端ID不一致的情况，尝试返回更友好的错误
+            logger.warning(f"Share: snippet {share_request.snippet_id} not found for user {user_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Snippet not found"
+                detail="该片段尚未同步到云端，请先执行云同步后再分享"
             )
         
         # 生成唯一短码
@@ -99,6 +101,8 @@ async def create_share(
             expires_at=expires_at
         )
     
+    except HTTPException:
+        raise  # 直接重新抛出 HTTPException
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -3,6 +3,7 @@ import { getDatabaseManager } from '../database';
 import { SnippetManager } from '../services/SnippetManager';
 import { VectorStore } from '../services/VectorStore';
 import { getAuthService } from '../services/AuthService';
+import { getSyncService } from '../services/SyncService';
 import { CreateSnippetDTO, UpdateSnippetDTO, SnippetFilter } from '../../shared/types';
 
 let snippetManager: SnippetManager | null = null;
@@ -55,9 +56,24 @@ export function registerSnippetHandlers() {
       console.log('[SnippetHandlers] Creating snippet:', data.title);
       if (!snippetManager) throw new Error('SnippetManager not initialized');
       const authService = getAuthService();
-      const storageScope = authService.isLoggedIn() ? 'cloud' : 'local';
+      // 使用 'local' 存储，这样同步逻辑会将其同步到云端
+      const storageScope = 'local';
       const snippet = await snippetManager.createSnippet(data, storageScope);
       console.log('[SnippetHandlers] Snippet created successfully:', snippet.id, 'storageScope:', storageScope);
+      
+      // 如果用户已登录，立即同步到云端
+      if (authService.isLoggedIn()) {
+        console.log('[SnippetHandlers] Immediately syncing new snippet to cloud:', snippet.id);
+        const syncService = getSyncService();
+        if (syncService) {
+          console.log('[SnippetHandlers] SyncService available, calling pushChanges');
+          const pushResult = await syncService.pushChanges();
+          console.log('[SnippetHandlers] pushChanges result:', pushResult);
+        } else {
+          console.error('[SnippetHandlers] SyncService not available');
+        }
+      }
+      
       // 异步生成向量，不阻塞返回
       generateVectorAsync(snippet.id, snippet.title, snippet.code, snippet.description);
       return snippet;
