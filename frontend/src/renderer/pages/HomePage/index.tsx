@@ -10,6 +10,7 @@ import './HomePage.css';
 interface OutletCtx {
   selectedCategory: string | null;
   setSelectedCategory: (v: string | null) => void;
+  categoryUpdateKey: number;
   previewWidth: number;
   startDragRight: (e: React.MouseEvent) => void;
   refreshKey: number;
@@ -38,7 +39,7 @@ function formatDate(d: any) {
 }
 
 export default function HomePage() {
-  const { selectedCategory, setSelectedCategory, previewWidth, startDragRight, refreshKey, showingFavorites, showingTrash, selectedSnippetId, setSelectedSnippetId, triggerRefresh } = useOutletContext<OutletCtx>();
+  const { selectedCategory, setSelectedCategory, categoryUpdateKey, previewWidth, startDragRight, refreshKey, showingFavorites, showingTrash, selectedSnippetId, setSelectedSnippetId, triggerRefresh } = useOutletContext<OutletCtx>();
   const { isLoggedIn, loading: authLoading } = useAuth();
 
   const [snippets, setSnippets] = useState<Snippet[]>([]);
@@ -54,6 +55,7 @@ export default function HomePage() {
   const [trashSnippets, setTrashSnippets] = useState<Snippet[]>([]);
   const [trashSelected, setTrashSelected] = useState<Snippet | null>(null);
   const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isAutoSwitchingCategory = useRef(false); // 标记是否是自动切换分类
 
   const loadSnippets = useCallback(async () => {
     try {
@@ -101,7 +103,6 @@ export default function HomePage() {
   // 监听登录状态变化，立即重新加载片段
   useEffect(() => {
     if (!authLoading) {
-      console.log('[HomePage] Login status changed, reloading snippets...');
       loadSnippets();
     }
   }, [isLoggedIn, authLoading, loadSnippets]);
@@ -123,7 +124,6 @@ export default function HomePage() {
   // 监听登录后的刷新事件
   useEffect(() => {
     const handleRefresh = () => {
-      console.log('[HomePage] Received snippets-refresh event');
       loadSnippets();
     };
 
@@ -134,7 +134,6 @@ export default function HomePage() {
   // 监听登录后分类切换事件：重置选中分类，显示全部片段
   useEffect(() => {
     const handleCategoriesRefresh = () => {
-      console.log('[HomePage] Received categories-refresh event, resetting selectedCategory');
       setSelectedCategory(null);
     };
 
@@ -149,23 +148,35 @@ export default function HomePage() {
 
   // 关键词过滤（本地，无需 IPC）
   const applyKeywordFilter = useCallback((allSnippets: Snippet[], query: string, category: string | null) => {
-    let result = [...allSnippets];
-    // 登录时只显示云端片段，未登录时只显示本地片段
-    if (isLoggedIn) {
-      result = result.filter(s => (s.storageScope ?? 'local') === 'cloud' || s.cloudId);
-    } else {
-      result = result.filter(s => (s.storageScope ?? 'local') === 'local' && !s.cloudId);
-    }
-    if (showingFavorites) result = result.filter(s => s.starred);
-    if (category) result = result.filter(s => s.category === category);
-    if (query.trim()) {
-      const q = query.toLowerCase();
-      result = result.filter(s =>
-        s.title.toLowerCase().includes(q) ||
-        s.code.toLowerCase().includes(q) ||
-        s.tags.some(t => t.toLowerCase().includes(q))
-      );
-    }
+    const q = query.trim().toLowerCase();
+    
+    // 一次性过滤，避免多次遍历
+    const result = allSnippets.filter(s => {
+      // 存储范围过滤
+      if (isLoggedIn) {
+        if ((s.storageScope ?? 'local') !== 'cloud' && !s.cloudId) return false;
+      } else {
+        if ((s.storageScope ?? 'local') === 'cloud' || s.cloudId) return false;
+      }
+      
+      // 分类过滤和收藏过滤互斥，分类优先
+      if (category) {
+        if (s.category !== category) return false;
+      } else if (showingFavorites) {
+        if (!s.starred) return false;
+      }
+      
+      // 搜索关键词过滤
+      if (q) {
+        return s.title.toLowerCase().includes(q) ||
+               s.code.toLowerCase().includes(q) ||
+               s.tags.some(t => t.toLowerCase().includes(q));
+      }
+      
+      return true;
+    });
+    
+    // 排序
     result.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
     setFiltered(result);
   }, [showingFavorites, isLoggedIn]);
@@ -179,14 +190,10 @@ export default function HomePage() {
     }
     setIsSearching(true);
     try {
-      console.log('[HomePage] Starting semantic search for:', query);
       const results = await (window as any).electron.search.semantic(query);
-      console.log('[HomePage] Semantic search returned:', results.length, 'results');
-      console.log('[HomePage] Results:', results);
 
       if (results.length === 0 && snippets.length > 0) {
         // 向量库可能是空的，降级到关键词
-        console.warn('[HomePage] Semantic search returned 0 results, falling back to keyword search');
         applyKeywordFilter(snippets, query, category);
         return;
       }
@@ -198,7 +205,6 @@ export default function HomePage() {
         })
         .filter(Boolean) as Snippet[];
       
-      console.log('[HomePage] Matched snippets:', matched.length);
       if (category) matched = matched.filter(s => s.category === category);
       setFiltered(matched);
     } catch (e) {
@@ -209,28 +215,33 @@ export default function HomePage() {
     }
   }, [snippets, applyKeywordFilter]);
 
+  // 切换分类或收藏夹时，清空选中的片段（除非是自动切换）
+  useEffect(() => {
+    if (!isAutoSwitchingCategory.current) {
+      setSelected(null);
+      setSelectedSnippetId(null);
+    }
+    isAutoSwitchingCategory.current = false; // 重置标志
+  }, [selectedCategory, showingFavorites, setSelectedSnippetId]);
+
   // 搜索 debounce
   useEffect(() => {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
 
-    // 立即清空显示，避免闪现
-    if (selectedCategory !== null || showingFavorites) {
-      setFiltered([]);
-    }
-
     if (searchMode === 'keyword') {
+      // 关键词搜索立即执行
       applyKeywordFilter(snippets, searchQuery, selectedCategory);
     } else if (searchMode === 'semantic') {
-      // 本地语义搜索 debounce 500ms
+      // 语义搜索 debounce 300ms（减少延迟）
       searchTimerRef.current = setTimeout(() => {
         runSemanticSearch(searchQuery, selectedCategory);
-      }, 500);
+      }, 300);
     }
 
     return () => {
       if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     };
-  }, [snippets, selectedCategory, searchQuery, searchMode, applyKeywordFilter, runSemanticSearch, showingFavorites]);
+  }, [snippets, selectedCategory, categoryUpdateKey, searchQuery, searchMode, applyKeywordFilter, runSemanticSearch, showingFavorites]);
 
   // 登录状态变化时重新过滤片段
   useEffect(() => {
@@ -243,13 +254,20 @@ export default function HomePage() {
     setSearchQuery('');
   };
 
-  // 侧边栏点击片段时选中
+  // 侧边栏点击片段时选中，并自动切换到该片段所属的分类
   useEffect(() => {
     if (selectedSnippetId && snippets.length > 0) {
       const s = snippets.find(sn => sn.id === selectedSnippetId);
-      if (s) setSelected(s);
+      if (s) {
+        setSelected(s);
+        // 如果片段有分类，且当前选中的分类不是该片段的分类，则自动切换
+        if (s.category && s.category !== selectedCategory) {
+          isAutoSwitchingCategory.current = true; // 标记为自动切换
+          setSelectedCategory(s.category);
+        }
+      }
     }
-  }, [selectedSnippetId, snippets]);
+  }, [selectedSnippetId, snippets, selectedCategory, setSelectedCategory]);
 
   const handleToggleStar = async (snippet: Snippet, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -270,6 +288,8 @@ export default function HomePage() {
   };
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [trashDeleteConfirmId, setTrashDeleteConfirmId] = useState<string | null>(null);
+  const [showEmptyTrashConfirm, setShowEmptyTrashConfirm] = useState(false);
 
   // 批量选择
   const [batchMode, setBatchMode] = useState(false);
@@ -340,6 +360,8 @@ export default function HomePage() {
         if (updated) setSelected(updated);
       }
     }).catch(console.error);
+    // 触发 Sidebar 刷新
+    triggerRefresh();
   };
 
   const isAiMode = searchMode === 'semantic';
@@ -349,31 +371,56 @@ export default function HomePage() {
       await (window as any).electronAPI?.trash?.restore(id);
       setTrashSnippets(prev => prev.filter(s => s.id !== id));
       if (trashSelected?.id === id) setTrashSelected(null);
-      triggerRefresh();
+      // 使用 requestIdleCallback 在浏览器空闲时刷新，避免阻塞 UI
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(() => triggerRefresh());
+      } else {
+        setTimeout(() => triggerRefresh(), 100);
+      }
     } catch (e) {
       console.error('Restore failed:', e);
     }
   };
 
-  const handlePermanentDelete = async (id: string) => {
-    if (!confirm('永久删除后无法恢复，确定要彻底删除这个片段吗？')) return;
+  const handlePermanentDelete = (id: string) => {
+    setTrashDeleteConfirmId(id);
+  };
+
+  const confirmPermanentDelete = async () => {
+    if (!trashDeleteConfirmId) return;
+    const id = trashDeleteConfirmId;
+    setTrashDeleteConfirmId(null);
     try {
       await (window as any).electronAPI?.trash?.permanentDelete(id);
       setTrashSnippets(prev => prev.filter(s => s.id !== id));
       if (trashSelected?.id === id) setTrashSelected(null);
-      triggerRefresh(); // 刷新 Sidebar 的回收站数字
+      // 使用 requestIdleCallback 在浏览器空闲时刷新，避免阻塞 UI
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(() => triggerRefresh());
+      } else {
+        setTimeout(() => triggerRefresh(), 100);
+      }
     } catch (e) {
       console.error('Permanent delete failed:', e);
     }
   };
 
-  const handleEmptyTrash = async () => {
-    if (!confirm('确定要清空回收站吗？所有片段将被永久删除，无法恢复！')) return;
+  const handleEmptyTrash = () => {
+    setShowEmptyTrashConfirm(true);
+  };
+
+  const confirmEmptyTrash = async () => {
+    setShowEmptyTrashConfirm(false);
     try {
       await (window as any).electronAPI?.trash?.empty();
       setTrashSnippets([]);
       setTrashSelected(null);
-      triggerRefresh(); // 刷新 Sidebar 的回收站数字
+      // 使用 requestIdleCallback 在浏览器空闲时刷新，避免阻塞 UI
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(() => triggerRefresh());
+      } else {
+        setTimeout(() => triggerRefresh(), 100);
+      }
     } catch (e) {
       console.error('Empty trash failed:', e);
     }
@@ -470,6 +517,33 @@ export default function HomePage() {
             </>
           )}
         </div>
+
+        {/* 回收站确认对话框 */}
+        {trashDeleteConfirmId && (
+          <div className="confirm-overlay" onClick={() => setTrashDeleteConfirmId(null)}>
+            <div className="confirm-dialog" onClick={e => e.stopPropagation()}>
+              <div className="confirm-title">确认彻底删除</div>
+              <div className="confirm-msg">永久删除后无法恢复，确定要彻底删除这个片段吗？</div>
+              <div className="confirm-actions">
+                <button className="confirm-btn" onClick={() => setTrashDeleteConfirmId(null)}>取消</button>
+                <button className="confirm-btn confirm-btn--danger" onClick={confirmPermanentDelete}>彻底删除</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showEmptyTrashConfirm && (
+          <div className="confirm-overlay" onClick={() => setShowEmptyTrashConfirm(false)}>
+            <div className="confirm-dialog" onClick={e => e.stopPropagation()}>
+              <div className="confirm-title">确认清空回收站</div>
+              <div className="confirm-msg">确定要清空回收站吗？所有片段将被永久删除，无法恢复！</div>
+              <div className="confirm-actions">
+                <button className="confirm-btn" onClick={() => setShowEmptyTrashConfirm(false)}>取消</button>
+                <button className="confirm-btn confirm-btn--danger" onClick={confirmEmptyTrash}>清空回收站</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -621,6 +695,12 @@ export default function HomePage() {
             onDelete={e => handleDelete(selected.id, e)}
             onToggleStar={e => handleToggleStar(selected, e)}
             onSaved={loadSnippets}
+            selectedCategory={selectedCategory}
+            setSelectedCategory={setSelectedCategory}
+            setSearchQuery={setSearchQuery}
+            triggerRefresh={triggerRefresh}
+            showingFavorites={showingFavorites}
+            showingTrash={showingTrash}
           />
         )}
       </div>
@@ -797,9 +877,15 @@ interface PreviewProps {
   onDelete: (e: React.MouseEvent) => void;
   onToggleStar: (e: React.MouseEvent) => void;
   onSaved?: () => void;
+  selectedCategory: string | null;
+  setSelectedCategory: (category: string | null) => void;
+  setSearchQuery: (query: string) => void;
+  triggerRefresh: () => void;
+  showingFavorites: boolean;
+  showingTrash: boolean;
 }
 
-function PreviewPanel({ snippet, onEdit, onCopy, onDelete, onToggleStar, onSaved }: PreviewProps) {
+function PreviewPanel({ snippet, onEdit, onCopy, onDelete, onToggleStar, onSaved, selectedCategory, setSelectedCategory, setSearchQuery, triggerRefresh, showingFavorites, showingTrash }: PreviewProps) {
   const [code, setCode] = useState(snippet.code);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -945,7 +1031,21 @@ function PreviewPanel({ snippet, onEdit, onCopy, onDelete, onToggleStar, onSaved
           <span className="preview-meta-item">📅 更新: {formatDate(snippet.updatedAt)}</span>
           <span className="preview-meta-item">{snippet.language}</span>
           {snippet.category && (
-            <span className="preview-meta-item">📁 {snippet.category}</span>
+            <span 
+              className="preview-meta-item preview-meta-category" 
+              onClick={() => {
+                // 通过设置 selectedCategory 来切换分类
+                setSelectedCategory(snippet.category);
+                setSearchQuery('');
+                // 触发刷新以确保状态同步
+                setTimeout(() => {
+                  triggerRefresh();
+                }, 50);
+              }}
+              title="点击查看该分类的所有片段"
+            >
+              <i className="fas fa-folder"></i> {snippet.category}
+            </span>
           )}
         </div>
         {snippet.tags?.length > 0 && (
@@ -970,13 +1070,12 @@ function PreviewPanel({ snippet, onEdit, onCopy, onDelete, onToggleStar, onSaved
             <i className="fas fa-save"></i> {isSaving ? '保存中...' : '保存代码'}
           </button>
         )}
+        <button className="action-btn danger" onClick={onDelete}>
+          <i className="fas fa-trash"></i> 删除
+        </button>
         <ShareButton snippet={snippet} />
         <button className="action-btn" onClick={handleDownload}>
           <i className="fas fa-download"></i> 下载
-        </button>
-        <div className="action-btn-spacer" />
-        <button className="action-btn danger" onClick={onDelete}>
-          <i className="fas fa-trash"></i> 删除
         </button>
         <button className="action-btn colorize" onClick={handleColorize}>
           <i className="fas fa-palette"></i> 染色

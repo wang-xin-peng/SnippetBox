@@ -419,6 +419,18 @@
 
 .preview-meta-item { display: flex; align-items: center; gap: 4px; }
 
+.preview-meta-category {
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.preview-meta-category:hover {
+  background: var(--bg-hover);
+  color: var(--primary-color);
+}
+
 .preview-tags { display: flex; flex-wrap: wrap; gap: 6px; }
 
 .preview-tag {
@@ -439,6 +451,7 @@
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
   flex-wrap: wrap;
+  overflow-x: auto;
 }
 
 .action-btn {
@@ -454,6 +467,8 @@
   border: 1px solid var(--border-color);
   background: var(--bg-primary);
   color: var(--text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .action-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
@@ -469,7 +484,7 @@
 .action-btn.danger { color: var(--danger-color); border-color: transparent; }
 .action-btn.danger:hover { background: var(--danger-light); border-color: var(--danger-color); }
 
-.action-btn-spacer { flex: 1; }
+.action-btn-spacer { flex: 1; min-width: 0; }
 
 .action-btn.colorize { color: var(--accent-color); border-color: transparent; }
 .action-btn.colorize:hover { background: var(--accent-light); }
@@ -701,4 +716,162 @@
 .snippet-list-item.batch-checked {
   border-color: #3b82f6;
   background: #eff6ff;
+}
+
+/* ── 平板端响应式设计 ── */
+@media (max-width: 1024px) {
+  /* 预览面板在平板上调整 */
+  .preview-panel {
+    min-width: 300px;
+  }
+
+  /* 操作按钮在平板上更大，更易点击 */
+  .preview-actions {
+    padding: 10px 14px;
+    gap: 8px;
+  }
+
+  .action-btn {
+    padding: 8px 14px;
+    font-size: 13px;
+    min-height: 36px;
+  }
+
+  /* 确保按钮不会被隐藏 */
+  .action-btn-spacer {
+    display: none;
+  }
+
+  /* 预览头部在平板上调整 */
+  .preview-header {
+    padding: 14px 16px 10px;
+  }
+
+  .preview-title {
+    font-size: 16px;
+  }
+
+  /* 卡片在平板上调整 */
+  .snippet-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .snippet-card {
+    padding: 11px;
+    min-height: 160px;
+  }
+}
+
+/* ── 移动端响应式设计 ── */
+@media (max-width: 768px) {
+  .home-page {
+    flex-direction: column;
+  }
+
+  /* 片段面板在移动端全宽 */
+  .snippet-panel {
+    min-width: 100%;
+    border-right: none;
+  }
+
+  /* 预览面板在移动端全宽 */
+  .preview-panel {
+    min-width: 100%;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100;
+    display: none;
+  }
+
+  /* 当选中片段时显示预览面板 */
+  .preview-panel.active {
+    display: flex;
+  }
+
+  /* 隐藏拖拽条 */
+  .resize-handle-right {
+    display: none;
+  }
+
+  /* 操作按钮在移动端更大 */
+  .preview-actions {
+    padding: 12px;
+    gap: 8px;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+
+  .action-btn {
+    padding: 10px 16px;
+    font-size: 14px;
+    min-height: 40px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* 卡片在移动端单列 */
+  .snippet-grid {
+    grid-template-columns: 1fr;
+    padding: 8px;
+  }
+
+  /* 搜索框在移动端调整 */
+  .snippet-panel-toolbar {
+    padding: 8px;
+    flex-wrap: wrap;
+  }
+
+  .search-box {
+    min-width: 100%;
+  }
+
+  /* 工具栏按钮在移动端调整 */
+  .toolbar-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  /* 批量操作栏在移动端调整 */
+  .batch-bar {
+    padding: 8px;
+    gap: 6px;
+  }
+
+  .batch-bar-btn {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+}
+
+/* ── 小屏幕优化 ── */
+@media (max-width: 480px) {
+  .preview-header {
+    padding: 12px;
+  }
+
+  .preview-title {
+    font-size: 15px;
+  }
+
+  .preview-actions {
+    padding: 10px;
+    gap: 6px;
+  }
+
+  .action-btn {
+    padding: 8px 12px;
+    font-size: 13px;
+    min-height: 36px;
+  }
+
+  .confirm-dialog {
+    width: 90%;
+    max-width: 320px;
+    padding: 20px;
+  }
 }

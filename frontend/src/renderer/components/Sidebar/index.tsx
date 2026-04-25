@@ -159,9 +159,6 @@ function Sidebar({
   };
 
   const handleDeleteCategory = async (categoryId: string) => {
-    if (!confirm('确定要删除这个分类吗？该分类下的代码片段将变为无分类状态。')) {
-      return;
-    }
     try {
       await (window as any).electronAPI?.category?.delete?.(categoryId);
       await loadData();
@@ -182,9 +179,6 @@ function Sidebar({
   };
 
   const handleDeleteTag = async (tagId: string) => {
-    if (!confirm('确定要删除这个标签吗？')) {
-      return;
-    }
     try {
       await (window as any).electronAPI?.tag?.delete?.(tagId);
       await loadData();
@@ -251,19 +245,41 @@ function Sidebar({
           const children = getSnippets(cat.id, cat.name);
           const count = getCount(cat.id, cat.name);
 
+          const handleCategoryClick = () => {
+            // 如果未展开，先展开
+            if (!isOpen) {
+              toggle(cat.id);
+            }
+            // 选择分类
+            goHomeFirst(() => onCategorySelect?.(cat.name));
+          };
+
           return (
             <div key={cat.id} className="category-group">
               <div
                 className={`category-row ${isActive ? 'active' : ''}`}
-                onClick={() => { toggle(cat.id); goHomeFirst(() => onCategorySelect?.(cat.name)); }}
               >
-                <span className={`category-chevron ${isOpen ? 'open' : ''}`}>
+                <span 
+                  className={`category-chevron ${isOpen ? 'open' : ''}`}
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    toggle(cat.id); 
+                  }}
+                >
                   <i className="fas fa-chevron-right"></i>
                 </span>
-                <span className="category-icon" style={{ color: cat.color || '#8b949e' }}>
+                <span 
+                  className="category-icon" 
+                  style={{ color: cat.color || '#8b949e', cursor: 'pointer' }}
+                  onClick={handleCategoryClick}
+                >
                   {cat.icon || <i className="fas fa-folder"></i>}
                 </span>
-                <span className="category-name">{cat.name}</span>
+                <span 
+                  className="category-name"
+                  style={{ cursor: 'pointer', flex: 1 }}
+                  onClick={handleCategoryClick}
+                >{cat.name}</span>
                 <span className="category-badge">{count}</span>
               </div>
 

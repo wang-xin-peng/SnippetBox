@@ -11,6 +11,7 @@ function Layout() {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [categoryUpdateKey, setCategoryUpdateKey] = useState(0); // 用于强制更新
   const [showingFavorites, setShowingFavorites] = useState(false);
   const [showingTrash, setShowingTrash] = useState(false);
   const [selectedSnippetId, setSelectedSnippetId] = useState<string | null>(null);
@@ -172,7 +173,8 @@ function Layout() {
           <Sidebar
             onNewSnippet={handleNewSnippet}
             onCategorySelect={id => { 
-              setSelectedCategory(id); 
+              setSelectedCategory(id);
+              setCategoryUpdateKey(k => k + 1); // 强制触发更新
               setShowingFavorites(false); 
               setShowingTrash(false);
               if (isMobile()) setMobileView('snippets');
@@ -208,6 +210,7 @@ function Layout() {
           <Outlet context={{ 
             selectedCategory, 
             setSelectedCategory, 
+            categoryUpdateKey,
             previewWidth, 
             startDragRight, 
             refreshKey, 
