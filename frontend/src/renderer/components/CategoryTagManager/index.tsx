@@ -28,6 +28,21 @@ interface CategoryTagManagerProps {
   onMergeTags: (sourceId: string, targetId: string) => void;
 }
 
+const ICON_OPTIONS = [
+  { value: 'fas fa-folder', label: '文件夹' },
+  { value: 'fas fa-code', label: '代码' },
+  { value: 'fas fa-brain', label: '算法' },
+  { value: 'fas fa-palette', label: 'UI设计' },
+  { value: 'fas fa-wrench', label: '工具' },
+  { value: 'fas fa-plug', label: 'API' },
+  { value: 'fas fa-database', label: '数据库' },
+  { value: 'fas fa-cog', label: '配置' },
+  { value: 'fas fa-shield-alt', label: '安全' },
+  { value: 'fas fa-chart-bar', label: '数据' },
+];
+
+const EMPTY_CATEGORY = { name: '', color: '#007bff', icon: 'fas fa-folder' };
+
 const CategoryTagManager: React.FC<CategoryTagManagerProps> = ({
   isOpen,
   onClose,
@@ -43,24 +58,18 @@ const CategoryTagManager: React.FC<CategoryTagManagerProps> = ({
   const [activeTab, setActiveTab] = useState<'categories' | 'tags'>('categories');
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [newCategory, setNewCategory] = useState<Omit<Category, 'id'>>({
-    name: '',
-    color: '#007bff',
-    icon: '📁'
-  });
+  const [newCategory, setNewCategory] = useState<Omit<Category, 'id'>>(EMPTY_CATEGORY);
   const [newTagName, setNewTagName] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'category' | 'tag'; id: string; name: string } | null>(null);
 
   useEffect(() => {
-    if (!isOpen) {
-      resetForm();
-    }
+    if (!isOpen) resetForm();
   }, [isOpen]);
 
   const resetForm = () => {
     setSelectedCategory(null);
     setSelectedTags([]);
-    setNewCategory({ name: '', color: '#007bff', icon: '📁' });
+    setNewCategory(EMPTY_CATEGORY);
     setNewTagName('');
     setDeleteConfirm(null);
   };
@@ -68,14 +77,14 @@ const CategoryTagManager: React.FC<CategoryTagManagerProps> = ({
   const handleAddCategory = () => {
     if (!newCategory.name.trim()) return;
     onAddCategory(newCategory);
-    setNewCategory({ name: '', color: '#007bff', icon: '📁' });
+    setNewCategory(EMPTY_CATEGORY);
   };
 
   const handleUpdateCategory = () => {
     if (!selectedCategory || !newCategory.name.trim()) return;
     onUpdateCategory({ ...selectedCategory, ...newCategory });
     setSelectedCategory(null);
-    setNewCategory({ name: '', color: '#007bff', icon: '📁' });
+    setNewCategory(EMPTY_CATEGORY);
   };
 
   const handleAddTag = () => {
@@ -86,17 +95,8 @@ const CategoryTagManager: React.FC<CategoryTagManagerProps> = ({
 
   const handleMergeTags = () => {
     if (selectedTags.length !== 2) return;
-    const [sourceId, targetId] = selectedTags;
-    onMergeTags(sourceId, targetId);
+    onMergeTags(selectedTags[0], selectedTags[1]);
     setSelectedTags([]);
-  };
-
-  const handleDeleteCategoryClick = (category: Category) => {
-    setDeleteConfirm({ type: 'category', id: category.id, name: category.name });
-  };
-
-  const handleDeleteTagClick = (tag: Tag) => {
-    setDeleteConfirm({ type: 'tag', id: tag.id, name: tag.name });
   };
 
   const confirmDelete = () => {
@@ -110,24 +110,13 @@ const CategoryTagManager: React.FC<CategoryTagManagerProps> = ({
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="分类和标签管理"
-      width="600px"
-    >
+    <Modal isOpen={isOpen} onClose={onClose} title="分类和标签管理" width="600px">
       <div className="category-tag-manager">
         <div className="manager-tabs">
-          <button
-            className={`tab ${activeTab === 'categories' ? 'active' : ''}`}
-            onClick={() => setActiveTab('categories')}
-          >
+          <button className={`tab ${activeTab === 'categories' ? 'active' : ''}`} onClick={() => setActiveTab('categories')}>
             分类管理
           </button>
-          <button
-            className={`tab ${activeTab === 'tags' ? 'active' : ''}`}
-            onClick={() => setActiveTab('tags')}
-          >
+          <button className={`tab ${activeTab === 'tags' ? 'active' : ''}`} onClick={() => setActiveTab('tags')}>
             标签管理
           </button>
         </div>
@@ -141,11 +130,8 @@ const CategoryTagManager: React.FC<CategoryTagManagerProps> = ({
                 <input
                   type="text"
                   value={newCategory.name}
-                  onChange={(e) => {
-                    e.stopPropagation();
-                    setNewCategory({ ...newCategory, name: e.target.value });
-                  }}
-                  onClick={(e) => e.stopPropagation()}
+                  onChange={e => setNewCategory({ ...newCategory, name: e.target.value })}
+                  onClick={e => e.stopPropagation()}
                   placeholder="输入分类名称"
                 />
               </div>
@@ -154,43 +140,34 @@ const CategoryTagManager: React.FC<CategoryTagManagerProps> = ({
                 <input
                   type="color"
                   value={newCategory.color}
-                  onChange={(e) => {
-                    e.stopPropagation();
-                    setNewCategory({ ...newCategory, color: e.target.value });
-                  }}
-                  onClick={(e) => e.stopPropagation()}
+                  onChange={e => setNewCategory({ ...newCategory, color: e.target.value })}
+                  onClick={e => e.stopPropagation()}
                 />
               </div>
               <div className="form-group">
                 <label>图标</label>
-                <input
-                  type="text"
-                  value={newCategory.icon}
-                  onChange={(e) => {
-                    e.stopPropagation();
-                    setNewCategory({ ...newCategory, icon: e.target.value });
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                  placeholder="输入 emoji 图标"
-                />
+                <div className="icon-picker">
+                  {ICON_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      className={`icon-option ${newCategory.icon === opt.value ? 'selected' : ''}`}
+                      onClick={e => { e.stopPropagation(); setNewCategory({ ...newCategory, icon: opt.value }); }}
+                      title={opt.label}
+                    >
+                      <i className={opt.value} style={{ color: newCategory.icon === opt.value ? newCategory.color : undefined }}></i>
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="form-actions">
                 {selectedCategory ? (
                   <>
-                    <button className="btn btn-primary" onClick={handleUpdateCategory}>
-                      更新分类
-                    </button>
-                    <button className="btn btn-secondary" onClick={() => {
-                      setSelectedCategory(null);
-                      setNewCategory({ name: '', color: '#007bff', icon: '📁' });
-                    }}>
-                      取消编辑
-                    </button>
+                    <button className="btn btn-primary" onClick={handleUpdateCategory}>更新分类</button>
+                    <button className="btn btn-secondary" onClick={() => { setSelectedCategory(null); setNewCategory(EMPTY_CATEGORY); }}>取消编辑</button>
                   </>
                 ) : (
-                  <button className="btn btn-primary" onClick={handleAddCategory}>
-                    添加分类
-                  </button>
+                  <button className="btn btn-primary" onClick={handleAddCategory}>添加分类</button>
                 )}
               </div>
             </div>
@@ -201,29 +178,18 @@ const CategoryTagManager: React.FC<CategoryTagManagerProps> = ({
                 {categories.length === 0 ? (
                   <p className="no-items">暂无分类</p>
                 ) : (
-                  categories.map((category) => (
+                  categories.map(category => (
                     <div key={category.id} className="category-item">
                       <span className="category-icon" style={{ color: category.color }}>
-                        {category.icon}
+                        {category.icon?.startsWith('fa')
+                          ? <i className={category.icon}></i>
+                          : category.icon}
                       </span>
                       <span className="category-name">{category.name}</span>
                       {category.name !== '未分类' && (
                         <div className="category-actions">
-                          <button
-                            className="action-btn edit"
-                            onClick={() => {
-                              setSelectedCategory(category);
-                              setNewCategory({ ...category });
-                            }}
-                          >
-                            编辑
-                          </button>
-                          <button
-                            className="action-btn delete"
-                            onClick={() => handleDeleteCategoryClick(category)}
-                          >
-                            删除
-                          </button>
+                          <button className="action-btn edit" onClick={() => { setSelectedCategory(category); setNewCategory({ ...category }); }}>编辑</button>
+                          <button className="action-btn delete" onClick={() => setDeleteConfirm({ type: 'category', id: category.id, name: category.name })}>删除</button>
                         </div>
                       )}
                     </div>
@@ -243,29 +209,20 @@ const CategoryTagManager: React.FC<CategoryTagManagerProps> = ({
                 <input
                   type="text"
                   value={newTagName}
-                  onChange={(e) => {
-                    e.stopPropagation();
-                    setNewTagName(e.target.value);
-                  }}
-                  onClick={(e) => e.stopPropagation()}
+                  onChange={e => setNewTagName(e.target.value)}
+                  onClick={e => e.stopPropagation()}
                   placeholder="输入标签名称"
                 />
               </div>
               <div className="form-actions">
-                <button className="btn btn-primary" onClick={handleAddTag}>
-                  添加标签
-                </button>
+                <button className="btn btn-primary" onClick={handleAddTag}>添加标签</button>
               </div>
             </div>
 
             <div className="list-section">
               <h4>标签列表</h4>
               <div className="tag-actions">
-                <button
-                  className="btn btn-secondary"
-                  onClick={handleMergeTags}
-                  disabled={selectedTags.length !== 2}
-                >
+                <button className="btn btn-secondary" onClick={handleMergeTags} disabled={selectedTags.length !== 2}>
                   合并选中标签
                 </button>
               </div>
@@ -273,16 +230,14 @@ const CategoryTagManager: React.FC<CategoryTagManagerProps> = ({
                 {tags.length === 0 ? (
                   <p className="no-items">暂无标签</p>
                 ) : (
-                  tags.map((tag) => (
+                  tags.map(tag => (
                     <div key={tag.id} className="tag-item">
                       <input
                         type="checkbox"
                         checked={selectedTags.includes(tag.id)}
-                        onChange={(e) => {
+                        onChange={e => {
                           if (e.target.checked) {
-                            if (selectedTags.length < 2) {
-                              setSelectedTags([...selectedTags, tag.id]);
-                            }
+                            if (selectedTags.length < 2) setSelectedTags([...selectedTags, tag.id]);
                           } else {
                             setSelectedTags(selectedTags.filter(id => id !== tag.id));
                           }
@@ -290,12 +245,7 @@ const CategoryTagManager: React.FC<CategoryTagManagerProps> = ({
                       />
                       <span className="tag-name">{tag.name}</span>
                       <span className="tag-count">使用 {tag.usageCount} 次</span>
-                      <button
-                        className="action-btn delete"
-                        onClick={() => handleDeleteTagClick(tag)}
-                      >
-                        删除
-                      </button>
+                      <button className="action-btn delete" onClick={() => setDeleteConfirm({ type: 'tag', id: tag.id, name: tag.name })}>删除</button>
                     </div>
                   ))
                 )}
@@ -305,18 +255,14 @@ const CategoryTagManager: React.FC<CategoryTagManagerProps> = ({
         )}
       </div>
 
-      {/* 删除确认对话框 */}
       {deleteConfirm && (
         <div className="confirm-overlay" onClick={() => setDeleteConfirm(null)}>
           <div className="confirm-dialog" onClick={e => e.stopPropagation()}>
-            <div className="confirm-title">
-              {deleteConfirm.type === 'category' ? '确认删除分类' : '确认删除标签'}
-            </div>
+            <div className="confirm-title">{deleteConfirm.type === 'category' ? '确认删除分类' : '确认删除标签'}</div>
             <div className="confirm-msg">
-              {deleteConfirm.type === 'category' 
+              {deleteConfirm.type === 'category'
                 ? `确定要删除分类"${deleteConfirm.name}"吗？该分类下的代码片段将变为无分类状态。`
-                : `确定要删除标签"${deleteConfirm.name}"吗？`
-              }
+                : `确定要删除标签"${deleteConfirm.name}"吗？`}
             </div>
             <div className="confirm-actions">
               <button className="confirm-btn" onClick={() => setDeleteConfirm(null)}>取消</button>
