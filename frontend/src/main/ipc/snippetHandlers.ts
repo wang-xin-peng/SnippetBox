@@ -3,6 +3,7 @@ import { getDatabaseManager } from '../database';
 import { SnippetManager } from '../services/SnippetManager';
 import { VectorStore } from '../services/VectorStore';
 import { getAuthService } from '../services/AuthService';
+import { getSyncService } from '../services/SyncService';
 import { CreateSnippetDTO, UpdateSnippetDTO, SnippetFilter } from '../../shared/types';
 
 let snippetManager: SnippetManager | null = null;
@@ -64,7 +65,7 @@ export function registerSnippetHandlers() {
         console.log('[SnippetHandlers] Immediately syncing new cloud snippet:', snippet.id);
         const syncService = getSyncService();
         if (syncService) {
-          syncService.pushChanges().catch(err => {
+          syncService.pushChanges().catch((err: Error) => {
             console.error('[SnippetHandlers] Failed to sync new snippet:', err);
           });
         }
