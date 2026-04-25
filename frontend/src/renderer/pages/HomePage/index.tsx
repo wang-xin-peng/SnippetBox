@@ -72,7 +72,7 @@ export default function HomePage() {
       const data = await (window as any).electronAPI?.snippet?.list?.() || [];
       // 直接使用 React 状态的 isLoggedIn，避免状态不一致
       const filteredData = isLoggedIn
-        ? data.filter((s: any) => s.storageScope === 'cloud' || s.cloudId)
+        ? data.filter((s: any) => !s.skipSync)
         : data.filter((s: any) => s.storageScope !== 'cloud' && !s.cloudId);
       // 只设置过滤后的数据，避免闪现
       setSnippets(filteredData);
@@ -161,7 +161,7 @@ export default function HomePage() {
     const result = allSnippets.filter(s => {
       // 存储范围过滤
       if (isLoggedIn) {
-        if ((s.storageScope ?? 'local') !== 'cloud' && !s.cloudId) return false;
+        if (s.skipSync) return false;
       } else {
         if ((s.storageScope ?? 'local') === 'cloud' || s.cloudId) return false;
       }

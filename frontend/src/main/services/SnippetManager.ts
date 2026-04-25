@@ -23,6 +23,7 @@ interface DbSnippet {
   cloud_id: string | null;
   starred: number;
   storage_scope?: string | null;
+  skip_sync?: number | null;
   is_deleted?: number;
   deleted_at?: number | null;
   category_name?: string | null;
@@ -287,10 +288,16 @@ export class SnippetManager {
 
   async permanentDelete(id: string): Promise<void> {
     try {
+      // 先获取 cloudId，用于写入黑名单
+      const row = this.db.prepare('SELECT cloud_id FROM snippets WHERE id = ?').get(id) as { cloud_id: string | null } | undefined;
       this.db.prepare('DELETE FROM snippet_tags WHERE snippet_id = ?').run(id);
       const result = this.db.prepare('DELETE FROM snippets WHERE id = ? AND is_deleted = 1').run(id);
       if (result.changes === 0) {
         throw new Error('Snippet not found in trash');
+      }
+      // 记录 cloudId 黑名单，防止 pull 时重新拉回
+      if (row?.cloud_id) {
+        this.db.prepare('INSERT OR REPLACE INTO deleted_cloud_ids (cloud_id, deleted_at) VALUES (?, ?)').run(row.cloud_id, Date.now());
       }
       await this.vectorStore.deleteVector(id);
     } catch (error) {
@@ -302,9 +309,15 @@ export class SnippetManager {
   async emptyTrash(): Promise<void> {
     try {
       const trashSnippets = this.db
-        .prepare('SELECT id FROM snippets WHERE is_deleted = 1')
-        .all() as Array<{ id: string }>;
+        .prepare('SELECT id, cloud_id FROM snippets WHERE is_deleted = 1')
+        .all() as Array<{ id: string; cloud_id: string | null }>;
       const transaction = this.db.transaction(() => {
+        // 记录所有有 cloudId 的片段到黑名单
+        const insertBlacklist = this.db.prepare('INSERT OR REPLACE INTO deleted_cloud_ids (cloud_id, deleted_at) VALUES (?, ?)');
+        const now = Date.now();
+        for (const s of trashSnippets) {
+          if (s.cloud_id) insertBlacklist.run(s.cloud_id, now);
+        }
         this.db.prepare('DELETE FROM snippet_tags WHERE snippet_id IN (SELECT id FROM snippets WHERE is_deleted = 1)').run();
         this.db.prepare('DELETE FROM snippets WHERE is_deleted = 1').run();
       });
@@ -449,6 +462,7 @@ export class SnippetManager {
       isSynced: dbSnippet.is_synced === 1,
       cloudId: dbSnippet.cloud_id || undefined,
       storageScope: dbSnippet.storage_scope === 'cloud' ? 'cloud' : 'local',
+      skipSync: dbSnippet.skip_sync === 1,
       deletedAt: dbSnippet.deleted_at ?? null,
     };
   }

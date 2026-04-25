@@ -61,16 +61,13 @@ export function registerSnippetHandlers() {
       const snippet = await snippetManager.createSnippet(data, storageScope);
       console.log('[SnippetHandlers] Snippet created successfully:', snippet.id, 'storageScope:', storageScope);
       
-      // 如果用户已登录，立即同步到云端
+      // 如果用户已登录，尝试同步到云端（失败不影响本地保存）
       if (authService.isLoggedIn()) {
-        console.log('[SnippetHandlers] Immediately syncing new snippet to cloud:', snippet.id);
         const syncService = getSyncService();
         if (syncService) {
-          console.log('[SnippetHandlers] SyncService available, calling pushChanges');
-          const pushResult = await syncService.pushChanges();
-          console.log('[SnippetHandlers] pushChanges result:', pushResult);
-        } else {
-          console.error('[SnippetHandlers] SyncService not available');
+          syncService.pushChanges().catch((e: any) => {
+            console.warn('[SnippetHandlers] Cloud sync failed (offline?), snippet saved locally:', e?.message);
+          });
         }
       }
       
@@ -185,7 +182,23 @@ export function registerSnippetHandlers() {
   ipcMain.handle('trash:permanentDelete', async (_event, id: string) => {
     try {
       if (!snippetManager) throw new Error('SnippetManager not initialized');
+      // 先获取 cloudId，用于调用云端硬删除
+      const db = getDatabaseManager().getDb();
+      const row = db.prepare('SELECT cloud_id FROM snippets WHERE id = ?').get(id) as { cloud_id: string | null } | undefined;
       await snippetManager.permanentDelete(id);
+      // 如果已登录且有 cloudId，调用云端硬删除
+      const authService = getAuthService();
+      if (row?.cloud_id && authService.isLoggedIn()) {
+        const token = authService.getAccessToken();
+        const syncService = getSyncService();
+        if (token && syncService) {
+          (syncService as any).http.delete(`/snippets/${row.cloud_id}?hard_delete=true`, {
+            headers: { Authorization: `Bearer ${token}` },
+          }).catch((e: any) => {
+            console.warn('[SnippetHandlers] Cloud hard delete failed:', e?.message);
+          });
+        }
+      }
       return true;
     } catch (error) {
       console.error('[SnippetHandlers] Failed to permanently delete snippet:', error);
@@ -197,7 +210,25 @@ export function registerSnippetHandlers() {
   ipcMain.handle('trash:empty', async () => {
     try {
       if (!snippetManager) throw new Error('SnippetManager not initialized');
+      // 先获取所有回收站片段的 cloudId
+      const db = getDatabaseManager().getDb();
+      const trashRows = db.prepare('SELECT cloud_id FROM snippets WHERE is_deleted = 1 AND cloud_id IS NOT NULL').all() as { cloud_id: string }[];
       await snippetManager.emptyTrash();
+      // 批量调用云端硬删除
+      const authService = getAuthService();
+      if (trashRows.length > 0 && authService.isLoggedIn()) {
+        const token = authService.getAccessToken();
+        const syncService = getSyncService();
+        if (token && syncService) {
+          for (const row of trashRows) {
+            (syncService as any).http.delete(`/snippets/${row.cloud_id}?hard_delete=true`, {
+              headers: { Authorization: `Bearer ${token}` },
+            }).catch((e: any) => {
+              console.warn('[SnippetHandlers] Cloud hard delete failed for', row.cloud_id, ':', e?.message);
+            });
+          }
+        }
+      }
       return true;
     } catch (error) {
       console.error('[SnippetHandlers] Failed to empty trash:', error);
