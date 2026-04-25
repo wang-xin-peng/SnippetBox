@@ -54,6 +54,19 @@ export class SyncService {
     }
   }
 
+  private async quickCheckOnlineStatus(): Promise<boolean> {
+    try {
+      await axios.get(`http://8.141.108.146:8000/health`, { timeout: 2000 });
+      this.isOnline = true;
+      this.status.isOnline = true;
+      return true;
+    } catch {
+      this.isOnline = false;
+      this.status.isOnline = false;
+      return false;
+    }
+  }
+
   private async processOfflineQueue(): Promise<void> {
     const queue = getOfflineQueue();
     const ops = queue.getPendingOperations();
@@ -267,6 +280,7 @@ export class SyncService {
   }
 
   getSyncStatus(): SyncStatus {
+    this.quickCheckOnlineStatus().catch(() => {});
     this.updatePendingCount();
     return { ...this.status };
   }

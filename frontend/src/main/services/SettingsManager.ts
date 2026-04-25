@@ -20,19 +20,12 @@ export interface SearchSettings {
   maxResults: number;
 }
 
-export interface BackupSettings {
-  autoBackup: boolean;
-  backupInterval: number;
-  keepBackups: number;
-}
-
 export interface Settings {
   theme: 'light' | 'dark' | 'auto';
   language: 'zh-CN' | 'en-US';
   editor: EditorSettings;
   sync: SyncSettings;
   search: SearchSettings;
-  backup: BackupSettings;
   [key: string]: any;
 }
 
@@ -53,11 +46,6 @@ const DEFAULT_SETTINGS: Settings = {
   search: {
     searchMode: 'local',
     maxResults: 100
-  },
-  backup: {
-    autoBackup: true,
-    backupInterval: 1,
-    keepBackups: 7
   }
 };
 
@@ -214,8 +202,7 @@ export class SettingsManager {
       language: this.validateLanguage(settings.language),
       editor: this.validateEditorSettings(settings.editor),
       sync: this.validateSyncSettings(settings.sync),
-      search: this.validateSearchSettings(settings.search),
-      backup: this.validateBackupSettings(settings.backup)
+      search: this.validateSearchSettings(settings.search)
     };
   }
 
@@ -275,18 +262,6 @@ export class SettingsManager {
     };
   }
 
-  private validateBackupSettings(backup: any): BackupSettings {
-    if (!backup || typeof backup !== 'object') {
-      return DEFAULT_SETTINGS.backup;
-    }
-
-    return {
-      autoBackup: typeof backup.autoBackup === 'boolean' ? backup.autoBackup : DEFAULT_SETTINGS.backup.autoBackup,
-      backupInterval: this.validateNumber(backup.backupInterval, 1, 30, DEFAULT_SETTINGS.backup.backupInterval),
-      keepBackups: this.validateNumber(backup.keepBackups, 1, 30, DEFAULT_SETTINGS.backup.keepBackups)
-    };
-  }
-
   private validateNumber(value: any, min: number, max: number, defaultValue: number): number {
     const num = Number(value);
     if (Number.isNaN(num) || num < min || num > max) {
@@ -305,8 +280,7 @@ export class SettingsManager {
       language: settingsMap.language || DEFAULT_SETTINGS.language,
       editor: { ...DEFAULT_SETTINGS.editor, ...settingsMap.editor },
       sync: { ...DEFAULT_SETTINGS.sync, ...settingsMap.sync },
-      search: { ...DEFAULT_SETTINGS.search, ...settingsMap.search },
-      backup: { ...DEFAULT_SETTINGS.backup, ...settingsMap.backup }
+      search: { ...DEFAULT_SETTINGS.search, ...settingsMap.search }
     };
   }
 

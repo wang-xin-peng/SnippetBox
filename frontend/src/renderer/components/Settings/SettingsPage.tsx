@@ -597,10 +597,12 @@ export const SettingsPage: React.FC = () => {
                       const result = await window.electron.ipcRenderer.invoke('import:json', {
                         skipDuplicates: true
                       });
-                      if (result.success) {
+                      if (result.imported > 0) {
                         alert(`成功导入 ${result.imported} 个片段${result.skipped > 0 ? `，跳过 ${result.skipped} 个重复` : ''}`);
+                      } else if (result.errors && result.errors.length > 0) {
+                        alert('导入失败: ' + result.errors[0].error);
                       } else {
-                        alert('导入失败: ' + result.error);
+                        alert('已取消导入');
                       }
                     } catch (error: any) {
                       alert('导入失败: ' + error.message);
@@ -616,10 +618,12 @@ export const SettingsPage: React.FC = () => {
                       const result = await window.electron.ipcRenderer.invoke('import:markdown', {
                         skipDuplicates: true
                       });
-                      if (result.success) {
+                      if (result.imported > 0) {
                         alert(`成功导入 ${result.imported} 个片段${result.skipped > 0 ? `，跳过 ${result.skipped} 个重复` : ''}`);
+                      } else if (result.errors && result.errors.length > 0) {
+                        alert('导入失败: ' + result.errors[0].error);
                       } else {
-                        alert('导入失败: ' + result.error);
+                        alert('已取消导入');
                       }
                     } catch (error: any) {
                       alert('导入失败: ' + error.message);
@@ -636,27 +640,28 @@ export const SettingsPage: React.FC = () => {
             <div className="setting-header">
               <label className="setting-label">导出代码片段</label>
               <p className="setting-description">
-                将所有代码片段导出为 JSON 或 Markdown 文件
+                将所有代码片段导出为 JSON、Markdown 或 PDF 文件
               </p>
             </div>
             <div className="setting-control">
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <button
                   className="btn-secondary"
                   onClick={async () => {
                     try {
-                      // 获取所有片段ID
                       const snippets = await window.electron.ipcRenderer.invoke('snippet:list');
                       const snippetIds = snippets.map((s: any) => s.id);
-                      
+
                       if (snippetIds.length === 0) {
                         alert('没有可导出的片段');
                         return;
                       }
-                      
+
                       const result = await window.electron.ipcRenderer.invoke('export:json', snippetIds);
                       if (result.success) {
                         alert(`成功导出 ${result.count} 个片段到 ${result.filePath}`);
+                      } else if (result.error === 'User canceled') {
+                        alert('已取消导出');
                       } else {
                         alert('导出失败: ' + result.error);
                       }
@@ -673,17 +678,21 @@ export const SettingsPage: React.FC = () => {
                     try {
                       const snippets = await window.electron.ipcRenderer.invoke('snippet:list');
                       const snippetIds = snippets.map((s: any) => s.id);
-                      
+
                       if (snippetIds.length === 0) {
                         alert('没有可导出的片段');
                         return;
                       }
-                      
+
                       const result = await window.electron.ipcRenderer.invoke('export:batch-markdown', snippetIds);
                       if (result.success > 0) {
                         alert(`成功导出 ${result.success} 个片段为 ZIP 压缩包`);
+                      } else if (result.errors?.[0]?.error === 'User canceled') {
+                        alert('已取消导出');
+                      } else if (result.errors?.[0]?.error) {
+                        alert('导出失败: ' + result.errors[0].error);
                       } else {
-                        alert('导出失败: ' + (result.errors?.[0]?.error || '未知错误'));
+                        alert('已取消导出');
                       }
                     } catch (error: any) {
                       alert('导出失败: ' + error.message);
@@ -691,6 +700,33 @@ export const SettingsPage: React.FC = () => {
                   }}
                 >
                   导出为 Markdown (ZIP)
+                </button>
+                <button
+                  className="btn-secondary"
+                  onClick={async () => {
+                    try {
+                      const snippets = await window.electron.ipcRenderer.invoke('snippet:list');
+                      const snippetIds = snippets.map((s: any) => s.id);
+
+                      if (snippetIds.length === 0) {
+                        alert('没有可导出的片段');
+                        return;
+                      }
+
+                      const result = await window.electron.ipcRenderer.invoke('export:pdf', snippetIds);
+                      if (result.success) {
+                        alert(`成功导出 ${snippetIds.length} 个片段到 PDF 文件`);
+                      } else if (result.error === 'User canceled') {
+                        alert('已取消导出');
+                      } else {
+                        alert('导出失败: ' + result.error);
+                      }
+                    } catch (error: any) {
+                      alert('导出失败: ' + error.message);
+                    }
+                  }}
+                >
+                  导出为 PDF
                 </button>
               </div>
             </div>
