@@ -13,12 +13,16 @@ export function registerShareHandlers() {
       try {
         const db = getDatabaseManager().getDb();
         const row = db.prepare(`SELECT cloud_id FROM snippets WHERE id = ?`).get(req.snippetId) as { cloud_id: string | null } | undefined;
+        console.log('[ShareHandlers] snippet lookup:', req.snippetId, 'result:', row);
         if (row?.cloud_id) {
           snippetId = row.cloud_id;
+          console.log('[ShareHandlers] Using cloud_id:', snippetId);
         } else {
-          return { success: false, error: '该片段尚未同步到云端，请先执行云同步后再分享' };
+          console.log('[ShareHandlers] No cloud_id found for snippet, using local id');
         }
-      } catch { /* db 不可用时直接用本地 id */ }
+      } catch (e) {
+        console.error('[ShareHandlers] DB lookup error:', e);
+      }
 
       const result = await share.createShare({ ...req, snippetId });
       return { success: true, data: result };

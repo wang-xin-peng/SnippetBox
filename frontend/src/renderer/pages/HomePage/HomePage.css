@@ -481,13 +481,13 @@
 
 .action-btn.primary:hover { background: var(--primary-hover); }
 
-.action-btn.danger { color: var(--danger-color); border-color: transparent; }
-.action-btn.danger:hover { background: var(--danger-light); border-color: var(--danger-color); }
+.action-btn.danger { color: var(--text-secondary); border-color: var(--border-color); }
+.action-btn.danger:hover { background: var(--bg-hover); color: var(--text-primary); }
 
 .action-btn-spacer { flex: 1; min-width: 0; }
 
-.action-btn.colorize { color: var(--accent-color); border-color: transparent; }
-.action-btn.colorize:hover { background: var(--accent-light); }
+.action-btn.print { color: var(--text-secondary); border-color: var(--border-color); }
+.action-btn.print:hover { background: var(--bg-hover); color: var(--text-primary); }
 
 /* ── 预览代码区 ── */
 .preview-code-area {

@@ -1077,8 +1077,8 @@ function PreviewPanel({ snippet, onEdit, onCopy, onDelete, onToggleStar, onSaved
         <button className="action-btn" onClick={handleDownload}>
           <i className="fas fa-download"></i> 下载
         </button>
-        <button className="action-btn colorize" onClick={handleColorize}>
-          <i className="fas fa-palette"></i> 染色
+        <button className="action-btn print" onClick={handleColorize}>
+          <i className="fas fa-print"></i> 打印
         </button>
       </div>
 
