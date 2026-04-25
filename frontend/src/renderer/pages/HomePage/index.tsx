@@ -22,6 +22,7 @@ interface OutletCtx {
 }
 
 type SearchMode = 'keyword' | 'semantic';
+type SortOption = 'updatedAt' | 'createdAt' | 'title' | 'language';
 
 function getLangColor(lang: string) {
   const map: Record<string, string> = {
@@ -51,6 +52,12 @@ export default function HomePage() {
   const [hasSemanticSupport, setHasSemanticSupport] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [filterLang, setFilterLang] = useState<string | null>(null);
+  const [filterTag, setFilterTag] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<SortOption>('updatedAt');
+  const [langDropdownOpen, setLangDropdownOpen] = useState(false);
+  const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
+  const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [trashSnippets, setTrashSnippets] = useState<Snippet[]>([]);
   const [trashSelected, setTrashSelected] = useState<Snippet | null>(null);
@@ -166,6 +173,12 @@ export default function HomePage() {
         if (!s.starred) return false;
       }
       
+      // 语言筛选
+      if (filterLang && s.language?.toLowerCase() !== filterLang.toLowerCase()) return false;
+      
+      // 标签筛选
+      if (filterTag && !s.tags.some(t => t.toLowerCase() === filterTag.toLowerCase())) return false;
+      
       // 搜索关键词过滤
       if (q) {
         return s.title.toLowerCase().includes(q) ||
@@ -177,9 +190,14 @@ export default function HomePage() {
     });
     
     // 排序
-    result.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    result.sort((a, b) => {
+      if (sortBy === 'title') return a.title.localeCompare(b.title);
+      if (sortBy === 'language') return (a.language || '').localeCompare(b.language || '');
+      if (sortBy === 'createdAt') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    });
     setFiltered(result);
-  }, [showingFavorites, isLoggedIn]);
+  }, [showingFavorites, isLoggedIn, filterLang, filterTag, sortBy]);
 
   // 语义搜索（IPC）
   const runSemanticSearch = useCallback(async (query: string, category: string | null) => {
@@ -290,10 +308,18 @@ export default function HomePage() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [trashDeleteConfirmId, setTrashDeleteConfirmId] = useState<string | null>(null);
   const [showEmptyTrashConfirm, setShowEmptyTrashConfirm] = useState(false);
+  const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
 
   // 批量选择
   const [batchMode, setBatchMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // 点击外部关闭所有下拉
+  useEffect(() => {
+    const close = () => { setLangDropdownOpen(false); setTagDropdownOpen(false); setSortDropdownOpen(false); };
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, []);
 
   const toggleBatchMode = () => {
     setBatchMode(prev => { if (prev) setSelectedIds(new Set()); return !prev; });
@@ -308,8 +334,13 @@ export default function HomePage() {
     });
   };
 
-  const handleBatchDelete = async () => {
-    if (!selectedIds.size || !window.confirm(`确定删除选中的 ${selectedIds.size} 个片段吗？`)) return;
+  const handleBatchDelete = () => {
+    if (!selectedIds.size) return;
+    setShowBatchDeleteConfirm(true);
+  };
+
+  const confirmBatchDelete = async () => {
+    setShowBatchDeleteConfirm(false);
     try {
       await (window as any).electron.ipcRenderer.invoke('batch:delete', [...selectedIds]);
       const ids = selectedIds;
@@ -317,8 +348,15 @@ export default function HomePage() {
       setFiltered(prev => prev.filter(s => !ids.has(s.id)));
       if (selected && ids.has(selected.id)) setSelected(null);
       setSelectedIds(new Set());
-      triggerRefresh();
-    } catch (e) { console.error('Batch delete failed:', e); }
+      // 使用 requestIdleCallback 延迟刷新
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(() => triggerRefresh());
+      } else {
+        setTimeout(() => triggerRefresh(), 100);
+      }
+    } catch (e) { 
+      console.error('Batch delete failed:', e); 
+    }
   };
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
@@ -624,11 +662,83 @@ export default function HomePage() {
         {/* Sub toolbar */}
         <div className="snippet-panel-subbar">
           <div className="subbar-filters">
-            <span className="filter-chip">语言 ▾</span>
-            <span className="filter-chip">标签 ▾</span>
+            {/* 语言筛选下拉 */}
+            <div className="filter-dropdown-wrap" onClick={e => e.stopPropagation()}>
+              <span
+                className={`filter-chip ${filterLang ? 'filter-chip--active' : ''}`}
+                onClick={() => { setLangDropdownOpen(o => !o); setTagDropdownOpen(false); setSortDropdownOpen(false); }}
+              >
+                {filterLang ? filterLang : '语言'} ▾
+              </span>
+              {langDropdownOpen && (
+                <div className="filter-dropdown">
+                  <div
+                    className={`filter-dropdown-item ${!filterLang ? 'active' : ''}`}
+                    onClick={() => { setFilterLang(null); setLangDropdownOpen(false); }}
+                  >全部语言</div>
+                  {Array.from(new Set(snippets.map(s => s.language?.toLowerCase()).filter(Boolean))).sort().map(lang => (
+                    <div
+                      key={lang}
+                      className={`filter-dropdown-item ${filterLang === lang ? 'active' : ''}`}
+                      onClick={() => { setFilterLang(lang === filterLang ? null : lang!); setLangDropdownOpen(false); }}
+                    >
+                      <span className="filter-dropdown-dot" style={{ background: getLangColor(lang!) }} />
+                      {lang}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 标签筛选下拉 */}
+            <div className="filter-dropdown-wrap" onClick={e => e.stopPropagation()}>
+              <span
+                className={`filter-chip ${filterTag ? 'filter-chip--active' : ''}`}
+                onClick={() => { setTagDropdownOpen(o => !o); setLangDropdownOpen(false); setSortDropdownOpen(false); }}
+              >
+                {filterTag ? filterTag : '标签'} ▾
+              </span>
+              {tagDropdownOpen && (
+                <div className="filter-dropdown">
+                  <div
+                    className={`filter-dropdown-item ${!filterTag ? 'active' : ''}`}
+                    onClick={() => { setFilterTag(null); setTagDropdownOpen(false); }}
+                  >全部标签</div>
+                  {Array.from(new Set(snippets.flatMap(s => s.tags || []).filter(Boolean))).sort().map(tag => (
+                    <div
+                      key={tag}
+                      className={`filter-dropdown-item ${filterTag === tag ? 'active' : ''}`}
+                      onClick={() => { setFilterTag(tag === filterTag ? null : tag); setTagDropdownOpen(false); }}
+                    >{tag}</div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-          <div className="subbar-sort">
-            <span>≡ 筛选</span>
+
+          {/* 排序下拉 */}
+          <div className="filter-dropdown-wrap" onClick={e => e.stopPropagation()}>
+            <span
+              className={`subbar-sort ${sortBy !== 'updatedAt' ? 'subbar-sort--active' : ''}`}
+              onClick={() => { setSortDropdownOpen(o => !o); setLangDropdownOpen(false); setTagDropdownOpen(false); }}
+            >
+              ≡ 筛选
+            </span>
+            {sortDropdownOpen && (
+              <div className="filter-dropdown filter-dropdown--right">
+                {([
+                  { value: 'updatedAt', label: '最近更新' },
+                  { value: 'createdAt', label: '创建时间' },
+                  { value: 'title', label: '名称 A-Z' },
+                ] as { value: SortOption; label: string }[]).map(opt => (
+                  <div
+                    key={opt.value}
+                    className={`filter-dropdown-item ${sortBy === opt.value ? 'active' : ''}`}
+                    onClick={() => { setSortBy(opt.value); setSortDropdownOpen(false); }}
+                  >{opt.label}</div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -721,6 +831,19 @@ export default function HomePage() {
             <div className="confirm-actions">
               <button className="confirm-btn" onClick={() => setDeleteConfirmId(null)}>取消</button>
               <button className="confirm-btn confirm-btn--danger" onClick={confirmDelete}>删除</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showBatchDeleteConfirm && (
+        <div className="confirm-overlay" onClick={() => setShowBatchDeleteConfirm(false)}>
+          <div className="confirm-dialog" onClick={e => e.stopPropagation()}>
+            <div className="confirm-title">确认批量删除</div>
+            <div className="confirm-msg">确定删除选中的 {selectedIds.size} 个片段吗？片段将被移到回收站。</div>
+            <div className="confirm-actions">
+              <button className="confirm-btn" onClick={() => setShowBatchDeleteConfirm(false)}>取消</button>
+              <button className="confirm-btn confirm-btn--danger" onClick={confirmBatchDelete}>删除</button>
             </div>
           </div>
         </div>
