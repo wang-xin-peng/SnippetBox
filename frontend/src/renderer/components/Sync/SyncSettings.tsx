@@ -16,6 +16,7 @@ export const SyncSettings: React.FC<Props> = ({ onClose }) => {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    refreshStatus();
     loadQueueStatus();
   }, []);
 

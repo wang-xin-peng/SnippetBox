@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import * as fs from 'fs';
 import * as path from 'path';
 import archiver = require('archiver');
+import PDFDocument = require('pdfkit');
 
 export interface ExportOptions {
   includeMetadata?: boolean;
@@ -190,6 +191,143 @@ export class ExportService {
       console.error('[ExportService] JSON export failed:', error);
       return { success: false, error: (error as Error).message };
     }
+  }
+
+  /**
+   * 导出片段为 PDF
+   */
+  async exportToPDF(snippetIds: string[], filePath: string): Promise<ExportResult> {
+    try {
+      const doc = new PDFDocument({
+        size: 'A4',
+        margins: { top: 50, bottom: 50, left: 50, right: 50 },
+        info: {
+          Title: 'SnippetBox Export',
+          Author: 'SnippetBox',
+          CreationDate: new Date()
+        }
+      });
+
+      const writeStream = fs.createWriteStream(filePath);
+      doc.pipe(writeStream);
+
+      const chineseFont = this.findChineseFont();
+      if (chineseFont.path !== 'Helvetica') {
+        try {
+          const fontBuffer = fs.readFileSync(chineseFont.path);
+          doc.registerFont(chineseFont.name, fontBuffer);
+        } catch (err) {
+          console.error(`[ExportService] Failed to register font: ${err}`);
+        }
+      }
+
+      for (let i = 0; i < snippetIds.length; i++) {
+        const snippetId = snippetIds[i];
+        const snippet = this.db.prepare('SELECT * FROM snippets WHERE id = ?').get(snippetId) as any;
+
+        if (!snippet) {
+          console.warn(`[ExportService] Snippet not found: ${snippetId}`);
+          continue;
+        }
+
+        let category = null;
+        if (snippet.category_id) {
+          category = this.db.prepare('SELECT name FROM categories WHERE id = ?').get(snippet.category_id) as any;
+        }
+
+        const tags = this.db.prepare(`
+          SELECT t.name
+          FROM tags t
+          JOIN snippet_tags st ON t.id = st.tag_id
+          WHERE st.snippet_id = ?
+        `).all(snippetId) as any[];
+
+        if (i > 0) {
+          doc.addPage();
+        }
+
+        doc.fontSize(20).font('Helvetica-Bold').text(snippet.title, { align: 'left' });
+        doc.moveDown(0.5);
+
+        if (snippet.description) {
+          doc.fontSize(12).font(chineseFont.name).fillColor('#666666');
+          doc.text(snippet.description, { align: 'left' });
+          doc.moveDown(0.5);
+        }
+
+        doc.fillColor('#333333');
+        doc.fontSize(10).font(chineseFont.name);
+
+        let metadataText = `语言: ${snippet.language}`;
+
+        if (category) {
+          metadataText += `  |  分类: ${category.name}`;
+        }
+
+        if (tags.length > 0) {
+          metadataText += `  |  标签: ${tags.map(t => t.name).join(', ')}`;
+        }
+
+        doc.text(metadataText, { align: 'left' });
+        doc.moveDown(0.3);
+
+        const timestampText = `创建: ${new Date(snippet.created_at).toLocaleString('zh-CN')}  |  更新: ${new Date(snippet.updated_at).toLocaleString('zh-CN')}`;
+        doc.fillColor('#888888').fontSize(9).font(chineseFont.name).text(timestampText, { align: 'left' });
+        doc.moveDown(1);
+
+        doc.strokeColor('#dddddd').lineWidth(1).moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+        doc.moveDown(1);
+
+        const codeStartY = doc.y;
+        const codeBlockHeight = Math.max(100, Math.min(doc.heightOfString(snippet.code, { width: 495, align: 'left' }) + 40, 400));
+
+        doc.fillColor('#f5f5f5').rect(50, codeStartY, 495, codeBlockHeight).fill();
+        doc.fillColor('#333333');
+
+        doc.fontSize(10).font('Courier');
+        doc.text(snippet.code, 60, codeStartY + 15, {
+          width: 475,
+          align: 'left',
+          lineGap: 4
+        });
+
+        doc.y = codeStartY + codeBlockHeight + 20;
+      }
+
+      doc.end();
+
+      return new Promise((resolve, reject) => {
+        writeStream.on('finish', () => {
+          resolve({ success: true, filePath });
+        });
+        writeStream.on('error', (error) => {
+          reject({ success: false, error: error.message });
+        });
+      });
+    } catch (error) {
+      console.error('[ExportService] PDF export failed:', error);
+      return { success: false, error: (error as Error).message };
+    }
+  }
+
+  private findChineseFont(): { path: string; name: string } {
+    const ttfFonts = [
+      { path: 'C:/Windows/Fonts/simhei.ttf', name: 'SimHei' },
+      { path: 'C:/Windows/Fonts/simkai.ttf', name: 'KaiTi' },
+      { path: 'C:/Windows/Fonts/simfang.ttf', name: 'FangSong' },
+      { path: 'C:/Windows/Fonts/simli.ttf', name: 'LiSu' },
+      { path: 'C:/Windows/Fonts/arialuni.ttf', name: 'ArialUnicodeMS' }
+    ];
+
+    for (const font of ttfFonts) {
+      if (fs.existsSync(font.path)) {
+        console.log(`[ExportService] Found Chinese TTF font: ${font.path}`);
+        return font;
+      }
+    }
+
+    console.log('[ExportService] No Chinese TTF font found, using Helvetica');
+    return { path: 'Helvetica', name: 'Helvetica' };
   }
 
   /**
