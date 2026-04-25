@@ -186,8 +186,16 @@ export class SyncService {
       const currentUser = await getAuthService().getCurrentUser();
       const cloudUserId = currentUser?.id || 'local';
 
+      // 加载永久删除黑名单
+      const blacklist = new Set(
+        (db.prepare('SELECT cloud_id FROM deleted_cloud_ids').all() as { cloud_id: string }[]).map(r => r.cloud_id)
+      );
+
       for (const cloud of cloudSnippets) {
         const cloudId = cloud.id ?? cloud.snippet_id;
+
+        // 跳过已永久删除的片段
+        if (blacklist.has(cloudId)) continue;
         const cloudUpdatedAt = new Date(cloud.updated_at ?? cloud.updatedAt).getTime();
 
         try {

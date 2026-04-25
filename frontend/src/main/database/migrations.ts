@@ -36,6 +36,22 @@ function migrateSnippetsTable(db: Database.Database): void {
 }
 
 /**
+ * 创建 deleted_cloud_ids 表（已永久删除的云端片段黑名单）
+ */
+function migrateDeletedCloudIdsTable(db: Database.Database): void {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS deleted_cloud_ids (
+        cloud_id TEXT PRIMARY KEY,
+        deleted_at INTEGER NOT NULL
+      )
+    `);
+  } catch (error) {
+    console.error('[Migration] Failed to create deleted_cloud_ids table:', error);
+  }
+}
+
+/**
  * 迁移 categories 表，添加 user_id 列
  */
 function migrateCategoriesTable(db: Database.Database): void {
@@ -112,6 +128,7 @@ export function runMigrations(db: Database.Database): void {
   try {
     migrateSnippetsTable(db);
     migrateCategoriesTable(db);
+    migrateDeletedCloudIdsTable(db);
     initializeDefaultCategories(db);
     console.log('[Migration] All migrations completed successfully');
   } catch (error) {
