@@ -175,7 +175,12 @@ export class CategoryManager {
     }
 
     const transaction = this.db.transaction(() => {
-      this.db.prepare('UPDATE snippets SET category_id = NULL WHERE category_id = ?').run(id);
+      // 获取"未分类"的 ID
+      const userId = existingCategory.userId || 'local';
+      const uncategorizedId = `cat_${userId}_default`;
+      
+      // 将该分类下的片段移到"未分类"
+      this.db.prepare('UPDATE snippets SET category_id = ? WHERE category_id = ?').run(uncategorizedId, id);
       this.db.prepare('DELETE FROM categories WHERE id = ?').run(id);
     });
 

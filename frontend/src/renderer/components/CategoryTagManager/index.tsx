@@ -49,6 +49,7 @@ const CategoryTagManager: React.FC<CategoryTagManagerProps> = ({
     icon: '📁'
   });
   const [newTagName, setNewTagName] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'category' | 'tag'; id: string; name: string } | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
@@ -61,6 +62,7 @@ const CategoryTagManager: React.FC<CategoryTagManagerProps> = ({
     setSelectedTags([]);
     setNewCategory({ name: '', color: '#007bff', icon: '📁' });
     setNewTagName('');
+    setDeleteConfirm(null);
   };
 
   const handleAddCategory = () => {
@@ -87,6 +89,24 @@ const CategoryTagManager: React.FC<CategoryTagManagerProps> = ({
     const [sourceId, targetId] = selectedTags;
     onMergeTags(sourceId, targetId);
     setSelectedTags([]);
+  };
+
+  const handleDeleteCategoryClick = (category: Category) => {
+    setDeleteConfirm({ type: 'category', id: category.id, name: category.name });
+  };
+
+  const handleDeleteTagClick = (tag: Tag) => {
+    setDeleteConfirm({ type: 'tag', id: tag.id, name: tag.name });
+  };
+
+  const confirmDelete = () => {
+    if (!deleteConfirm) return;
+    if (deleteConfirm.type === 'category') {
+      onDeleteCategory(deleteConfirm.id);
+    } else {
+      onDeleteTag(deleteConfirm.id);
+    }
+    setDeleteConfirm(null);
   };
 
   return (
@@ -200,7 +220,7 @@ const CategoryTagManager: React.FC<CategoryTagManagerProps> = ({
                           </button>
                           <button
                             className="action-btn delete"
-                            onClick={() => onDeleteCategory(category.id)}
+                            onClick={() => handleDeleteCategoryClick(category)}
                           >
                             删除
                           </button>
@@ -272,7 +292,7 @@ const CategoryTagManager: React.FC<CategoryTagManagerProps> = ({
                       <span className="tag-count">使用 {tag.usageCount} 次</span>
                       <button
                         className="action-btn delete"
-                        onClick={() => onDeleteTag(tag.id)}
+                        onClick={() => handleDeleteTagClick(tag)}
                       >
                         删除
                       </button>
@@ -284,6 +304,27 @@ const CategoryTagManager: React.FC<CategoryTagManagerProps> = ({
           </div>
         )}
       </div>
+
+      {/* 删除确认对话框 */}
+      {deleteConfirm && (
+        <div className="confirm-overlay" onClick={() => setDeleteConfirm(null)}>
+          <div className="confirm-dialog" onClick={e => e.stopPropagation()}>
+            <div className="confirm-title">
+              {deleteConfirm.type === 'category' ? '确认删除分类' : '确认删除标签'}
+            </div>
+            <div className="confirm-msg">
+              {deleteConfirm.type === 'category' 
+                ? `确定要删除分类"${deleteConfirm.name}"吗？该分类下的代码片段将变为无分类状态。`
+                : `确定要删除标签"${deleteConfirm.name}"吗？`
+              }
+            </div>
+            <div className="confirm-actions">
+              <button className="confirm-btn" onClick={() => setDeleteConfirm(null)}>取消</button>
+              <button className="confirm-btn confirm-btn--danger" onClick={confirmDelete}>删除</button>
+            </div>
+          </div>
+        </div>
+      )}
     </Modal>
   );
 };
