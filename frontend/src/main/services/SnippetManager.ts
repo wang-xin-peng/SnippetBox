@@ -205,6 +205,14 @@ export class SnippetManager {
           params.push((data as any).starred ? 1 : 0);
         }
 
+        // 有实质内容变更时，标记为未同步
+        const hasContentChange = data.title !== undefined || data.code !== undefined ||
+          data.language !== undefined || data.description !== undefined ||
+          data.category !== undefined || data.tags !== undefined;
+        if (hasContentChange) {
+          updates.push('is_synced = 0');
+        }
+
         updates.push('updated_at = ?');
         params.push(now);
         params.push(id);

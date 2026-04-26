@@ -62,25 +62,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const checkAuth = useCallback(async () => {
     dispatch({ type: 'SET_LOADING', payload: true });
     try {
-      let { isLoggedIn } = await window.electron.ipcRenderer.invoke('auth:isLoggedIn');
-
-      // token 不在内存中，尝试从持久化文件刷新（token 可能已过期但 refresh token 仍有效）
-      if (!isLoggedIn) {
-        const refreshRes = await window.electron.ipcRenderer.invoke('auth:refresh');
-        if (refreshRes.success) {
-          isLoggedIn = true;
-        }
-      }
+      const { isLoggedIn } = await window.electron.ipcRenderer.invoke('auth:isLoggedIn');
 
       if (isLoggedIn) {
-        const res = await window.electron.ipcRenderer.invoke('auth:getCurrentUser');
-        if (res.success && res.user) {
-          dispatch({ type: 'LOGIN_SUCCESS', payload: res.user });
+        // 优先用缓存，立即恢复登录状态，不阻塞启动
+        const cached = await window.electron.ipcRenderer.invoke('auth:getCachedUser');
+        if (cached.success && cached.user) {
+          dispatch({ type: 'LOGIN_SUCCESS', payload: cached.user });
+          // 后台异步刷新用户信息，不阻塞 UI
+          window.electron.ipcRenderer.invoke('auth:getCurrentUser').then((res: any) => {
+            if (res.success && res.user) {
+              dispatch({ type: 'SET_USER', payload: res.user });
+            }
+          }).catch(() => {});
+        } else {
+          // 没有缓存，尝试网络获取
+          const res = await window.electron.ipcRenderer.invoke('auth:getCurrentUser');
+          if (res.success && res.user) {
+            dispatch({ type: 'LOGIN_SUCCESS', payload: res.user });
+          } else {
+            dispatch({ type: 'LOGOUT' });
+          }
+        }
+      } else {
+        // token 不在内存，尝试 refresh（有超时限制，失败就当未登录）
+        const refreshRes = await window.electron.ipcRenderer.invoke('auth:refresh');
+        if (refreshRes.success) {
+          const cached = await window.electron.ipcRenderer.invoke('auth:getCachedUser');
+          if (cached.success && cached.user) {
+            dispatch({ type: 'LOGIN_SUCCESS', payload: cached.user });
+          } else {
+            dispatch({ type: 'LOGOUT' });
+          }
         } else {
           dispatch({ type: 'LOGOUT' });
         }
-      } else {
-        dispatch({ type: 'LOGOUT' });
       }
     } catch {
       dispatch({ type: 'LOGOUT' });
