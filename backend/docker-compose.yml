@@ -31,7 +31,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # FastAPI 应用（可选，用于开发）
+  # FastAPI 应用
   api:
     build: .
     container_name: snippetbox-api
