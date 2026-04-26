@@ -100,11 +100,11 @@
       "dist/**/*",
       "package.json"
     ],
+    "asar": false,
     "win": {
       "target": [
         "nsis"
-      ],
-      "icon": "resources/icon.ico"
+      ]
     },
     "nsis": {
       "oneClick": false,
@@ -114,7 +114,6 @@
       "target": [
         "dmg"
       ],
-      "icon": "resources/icon.icns",
       "category": "public.app-category.developer-tools"
     },
     "linux": {
@@ -122,9 +121,9 @@
         "AppImage",
         "deb"
       ],
-      "icon": "resources/icon.png",
       "category": "Development"
-    }
+    },
+    "npmRebuild": false
   },
   "optionalDependencies": {
     "better-sqlite3": "^12.9.0"

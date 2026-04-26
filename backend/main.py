@@ -8,13 +8,7 @@ from contextlib import asynccontextmanager
 import logging
 
 from api.v1 import auth, snippets, sync, share
-try:
-    from api.v1 import embedding
-    from services.embedding import EmbeddingService
-    EMBEDDING_AVAILABLE = True
-except ImportError:
-    EMBEDDING_AVAILABLE = False
-    
+
 from database.connection import init_db, close_db_pool
 from config import settings
 
@@ -39,19 +33,10 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Database initialization failed: {e}")
     
-    # 初始化嵌入服务（懒加载，首次调用时才加载模型）
-    if EMBEDDING_AVAILABLE:
-        app.state.embedding_service = EmbeddingService()
-        logger.info("Embedding service initialized")
-    else:
-        logger.warning("Embedding service not available (missing dependencies)")
-    
     yield
     
     # 关闭时
     logger.info("Shutting down SnippetBox API...")
-    if EMBEDDING_AVAILABLE and hasattr(app.state, 'embedding_service'):
-        await app.state.embedding_service.cleanup()
     
     # 关闭数据库连接池
     await close_db_pool()
@@ -101,10 +86,6 @@ app.include_router(sync.router, prefix="/api/v1", tags=["sync"])
 
 # 分享路由（包含公开访问的短链接）
 app.include_router(share.router, tags=["share"])
-
-# 可选的嵌入服务路由（保留用于测试）
-if EMBEDDING_AVAILABLE:
-    app.include_router(embedding.router, prefix="/api/v1", tags=["embedding"])
 
 
 if __name__ == "__main__":

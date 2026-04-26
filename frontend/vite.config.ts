@@ -17,6 +17,9 @@ export default defineConfig({
       '@shared': path.resolve(__dirname, 'src/shared'),
     },
   },
+  optimizeDeps: {
+    include: ['@ant-design/icons'],
+  },
   server: {
     port: 3000,
   },

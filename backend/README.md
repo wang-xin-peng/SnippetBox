@@ -1,337 +1,161 @@
-# SnippetBox Backend API
+# SnippetBox Backend
 
-SnippetBox 后端服务，提供用户认证、云端同步、短链接分享、文本向量化和语义搜索功能。
-
-## 🎉 第三周更新（最新）
-
-- ✅ 用户认证系统（注册、登录、JWT）
-- ✅ 云端片段同步（增量同步、冲突检测）
-- ✅ 短链接分享服务（Base62 编码、密码保护）
-- ✅ 完整的 REST API（18+ 端点）
-- ✅ HTML 分享页面（语法高亮、移动端适配）
-
-📖 **快速开始**: 查看 [QUICKSTART.md](./QUICKSTART.md)  
-📚 **实现文档**: 查看 [WEEK3_IMPLEMENTATION.md](./WEEK3_IMPLEMENTATION.md)  
-🚀 **部署指南**: 查看 [DEPLOYMENT.md](./DEPLOYMENT.md)
-
-## 技术栈
-
-- **FastAPI**: 现代、快速的 Web 框架
-- **PostgreSQL + pgvector**: 向量数据库
-- **Redis**: 缓存服务
-- **JWT**: 用户认证和授权
-- **bcrypt**: 密码哈希
-- **Jinja2**: HTML 模板引擎
-- **sentence-transformers**: 文本嵌入模型
-- **ONNX Runtime**: 模型推理优化
+SnippetBox 后端 API 服务，基于 FastAPI 构建，提供代码片段管理、用户认证、云端同步和分享功能。
 
 ## 功能特性
 
-### 🔐 用户认证
-- 用户注册和登录
-- JWT 令牌认证
-- 令牌刷新机制
-- 登录失败保护（防暴力破解）
-- 令牌黑名单（安全登出）
+- **用户认证**：邮箱注册/登录、邮箱验证码、JWT 令牌、刷新令牌
+- **片段管理**：创建、读取、更新、删除代码片段
+- **云端同步**：增量同步机制，支持多设备数据一致性
+- **分享功能**：短链接分享、密码保护、过期时间设置
+- **分类标签**：支持分类和标签管理
 
-### ☁️ 云端同步
-- 片段 CRUD 操作
-- 增量同步（基于时间戳）
-- 冲突检测和解决
-- 分类和标签同步
-- 软删除支持
+## 技术栈
 
-### 🔗 短链接分享
-- Base62 短码生成
-- 密码保护（可选）
-- 过期时间设置
-- 访问统计
-- 精美的分享页面
+- **框架**：FastAPI + Uvicorn
+- **数据库**：PostgreSQL + asyncpg
+- **缓存**：Redis
+- **认证**：JWT (PyJWT) + bcrypt
 
-### 🔍 语义搜索
-- 文本向量化
-- 向量相似度搜索
-- 批量处理支持
+## 项目结构
+
+```
+backend/
+├── api/v1/              # API 端点
+│   ├── auth.py          # 认证 API
+│   ├── share.py         # 分享 API
+│   ├── snippets.py      # 片段 API
+│   └── sync.py          # 同步 API
+├── database/            # 数据库相关
+│   └── connection.py    # 数据库连接和初始化
+├── middleware/          # 中间件
+│   └── auth.py          # 认证中间件
+├── models/              # 数据模型（Pydantic）
+├── services/            # 业务逻辑
+│   ├── auth.py          # 认证服务
+│   ├── email.py         # 邮件服务
+│   ├── email_code.py    # 邮箱验证码服务
+│   └── shortlink.py     # 短链接服务
+├── templates/           # HTML 模板（分享页面）
+├── tests/               # 测试文件
+├── main.py              # 应用入口
+├── config.py            # 配置管理
+├── Dockerfile           # Docker 镜像构建
+├── docker-compose.yml    # Docker Compose 配置
+└── requirements*.txt    # Python 依赖
+```
 
 ## 快速开始
 
 ### 环境要求
 
 - Python 3.10+
-- PostgreSQL 16+ (with pgvector extension)
-- Redis 7+
+- PostgreSQL 14+
+- Redis 6+
 
-### 安装依赖
+### 本地开发
+
+1. 安装依赖：
 
 ```bash
-# 创建虚拟环境
 python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# or
+.\venv\Scripts\activate   # Windows
 
-# 激活虚拟环境
-# Windows
-venv\Scripts\activate
-# Linux/Mac
-source venv/bin/activate
-
-# 安装依赖
 pip install -r requirements.txt
 ```
 
-### 配置环境变量
+2. 配置环境变量：
 
 ```bash
-# 复制环境变量模板
 cp .env.example .env
-
-# 编辑 .env 文件，配置数据库和 Redis 连接
+# 编辑 .env 文件，修改必要的配置
 ```
 
-### 使用 Docker Compose 启动服务
+3. 启动服务：
 
 ```bash
-# 启动 PostgreSQL 和 Redis
-docker-compose up -d postgres redis
-
-# 或启动所有服务（包括 API）
-docker-compose up -d
-```
-
-### 本地开发启动
-
-```bash
-# 启动开发服务器（支持热重载）
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
-
-# 或使用 Python 直接运行
-python main.py
 ```
 
-访问 API 文档：
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
+4. 访问 API 文档：
+
+打开浏览器访问 http://localhost:8000/docs
+
+### Docker 部署
+
+1. 构建并启动服务：
+
+```bash
+docker compose up -d
+```
+
+2. 查看容器状态：
+
+```bash
+docker compose ps
+```
+
+3. 查看日志：
+
+```bash
+docker compose logs -f api
+```
+
+## 配置说明
+
+主要配置项（通过 `.env` 文件或环境变量设置）：
+
+| 配置项             | 说明                         | 默认值                                                       |
+| ------------------ | ---------------------------- | ------------------------------------------------------------ |
+| `DATABASE_URL`   | PostgreSQL 连接字符串        | postgresql://snippetbox:snippetbox@localhost:5432/snippetbox |
+| `REDIS_URL`      | Redis 连接字符串             | redis://localhost:6379/0                                     |
+| `JWT_SECRET_KEY` | JWT 密钥（生产环境必须修改） | -                                                            |
+| `CORS_ORIGINS`   | 允许的 CORS 源               | ["*"]                                                        |
+| `BASE_URL`       | 服务基础 URL                 | http://localhost:8000                                        |
+| `SMTP_*`         | 邮件服务配置                 | -                                                            |
 
 ## API 端点
 
-### 健康检查
+### 认证
 
-```bash
-GET /health
-```
+| 方法 | 端点                             | 说明             |
+| ---- | -------------------------------- | ---------------- |
+| POST | `/api/v1/auth/register`        | 用户注册         |
+| POST | `/api/v1/auth/login`           | 用户登录         |
+| POST | `/api/v1/auth/refresh`         | 刷新令牌         |
+| GET  | `/api/v1/auth/me`              | 获取当前用户信息 |
+| POST | `/api/v1/auth/send-code`       | 发送邮箱验证码   |
+| POST | `/api/v1/auth/login-with-code` | 邮箱验证码登录   |
 
-### 文本向量化
+### 片段
 
-#### 单个文本向量化
+| 方法   | 端点                      | 说明         |
+| ------ | ------------------------- | ------------ |
+| POST   | `/api/v1/snippets`      | 创建片段     |
+| GET    | `/api/v1/snippets`      | 获取片段列表 |
+| GET    | `/api/v1/snippets/{id}` | 获取单个片段 |
+| PUT    | `/api/v1/snippets/{id}` | 更新片段     |
+| DELETE | `/api/v1/snippets/{id}` | 删除片段     |
 
-```bash
-POST /api/v1/embed
-Content-Type: application/json
+### 同步
 
-{
-  "text": "这是一段示例文本"
-}
-```
+| 方法 | 端点                      | 说明                     |
+| ---- | ------------------------- | ------------------------ |
+| POST | `/api/v1/sync`          | 增量同步片段             |
+| POST | `/api/v1/sync/metadata` | 同步元数据（分类、标签） |
 
-响应：
-```json
-{
-  "vector": [0.1, 0.2, ..., 0.384],
-  "dimension": 384
-}
-```
+### 分享
 
-#### 批量文本向量化
-
-```bash
-POST /api/v1/embed/batch
-Content-Type: application/json
-
-{
-  "texts": ["文本1", "文本2", "文本3"]
-}
-```
-
-响应：
-```json
-{
-  "vectors": [[0.1, ...], [0.2, ...], [0.3, ...]],
-  "dimension": 384,
-  "count": 3
-}
-```
-
-#### 获取嵌入服务状态
-
-```bash
-GET /api/v1/embed/status
-```
-
-响应：
-```json
-{
-  "initialized": true,
-  "model_name": "sentence-transformers/all-MiniLM-L6-v2",
-  "device": "cpu",
-  "dimension": 384
-}
-```
-
-### 向量存储（占位符）
-
-#### 存储向量
-
-```bash
-POST /api/v1/vectors/store
-Content-Type: application/json
-
-{
-  "snippet_id": "snippet-123",
-  "vector": [0.1, 0.2, ..., 0.384]
-}
-```
-
-#### 批量存储向量
-
-```bash
-POST /api/v1/vectors/store/batch
-Content-Type: application/json
-
-{
-  "vectors": [
-    {
-      "snippet_id": "snippet-123",
-      "vector": [0.1, ...]
-    }
-  ]
-}
-```
-
-#### 向量相似度搜索
-
-```bash
-POST /api/v1/vectors/search
-Content-Type: application/json
-
-{
-  "query_vector": [0.1, 0.2, ..., 0.384],
-  "limit": 10,
-  "threshold": 0.7
-}
-```
-
-#### 删除向量
-
-```bash
-DELETE /api/v1/vectors/{snippet_id}
-```
-
-## 项目结构
-
-```
-backend/
-├── api/                    # API 端点
-│   └── v1/
-│       ├── embedding.py    # 嵌入 API
-│       └── vectors.py      # 向量存储 API
-├── services/               # 业务逻辑
-│   └── embedding.py        # 嵌入服务
-├── database/               # 数据库相关（待实现）
-├── models/                 # 数据模型（待实现）
-├── main.py                 # 应用入口
-├── config.py               # 配置管理
-├── requirements.txt        # Python 依赖
-├── Dockerfile              # Docker 镜像
-├── docker-compose.yml      # Docker Compose 配置
-└── README.md               # 本文档
-```
-
-## 开发指南
-
-### 代码格式化
-
-```bash
-# 使用 black 格式化代码
-black .
-
-# 使用 isort 排序导入
-isort .
-```
-
-### 代码检查
-
-```bash
-# 使用 pylint 检查代码
-pylint **/*.py
-
-# 使用 mypy 进行类型检查
-mypy .
-```
-
-### 运行测试
-
-```bash
-# 运行所有测试
-pytest
-
-# 运行测试并生成覆盖率报告
-pytest --cov=. --cov-report=html
-```
-
-## 性能优化
-
-### 模型推理优化
-
-1. **使用 ONNX Runtime**: 将模型转换为 ONNX 格式可以提升推理速度
-2. **批量处理**: 使用批量 API 可以显著提升吞吐量
-3. **GPU 加速**: 如果有 GPU，设置 `MODEL_DEVICE=cuda`
-
-### 缓存策略
-
-- 使用 Redis 缓存常见查询的向量结果
-- 设置合理的缓存过期时间（默认 5 分钟）
-
-## 部署
-
-### 生产环境配置
-
-1. 设置 `DEBUG=False`
-2. 配置正确的 CORS 源
-3. 使用强密码和安全的数据库连接
-4. 配置 HTTPS
-5. 设置合理的速率限制
-
-### 使用 Docker 部署
-
-```bash
-# 构建镜像
-docker build -t snippetbox-api .
-
-# 运行容器
-docker run -d \
-  -p 8000:8000 \
-  -e DATABASE_URL=postgresql://... \
-  -e REDIS_URL=redis://... \
-  --name snippetbox-api \
-  snippetbox-api
-```
-
-## 故障排查
-
-### 模型加载失败
-
-- 检查网络连接，确保可以访问 Hugging Face
-- 检查磁盘空间，模型文件约 90MB
-- 查看日志获取详细错误信息
-
-### 数据库连接失败
-
-- 确认 PostgreSQL 服务正在运行
-- 检查数据库连接字符串是否正确
-- 确认 pgvector 扩展已安装
-
-### Redis 连接失败
-
-- 确认 Redis 服务正在运行
-- 检查 Redis 连接字符串是否正确
+| 方法   | 端点                                 | 说明               |
+| ------ | ------------------------------------ | ------------------ |
+| POST   | `/api/v1/share`                    | 创建分享           |
+| GET    | `/api/v1/share/{short_code}`       | 访问分享页面       |
+| GET    | `/api/v1/share/{short_code}/info`  | 获取分享信息       |
+| GET    | `/api/v1/shares`                   | 获取用户的分享列表 |
+| GET    | `/api/v1/share/{short_code}/stats` | 获取分享统计       |
+| DELETE | `/api/v1/share/{short_code}`       | 删除分享           |
 
 ## 许可证
 

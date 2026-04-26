@@ -24,7 +24,6 @@ async def create_snippet(
 ):
     """
     创建片段
-    
     需要认证
     """
     user_id = current_user["user_id"]
@@ -69,11 +68,9 @@ async def list_snippets(
 ):
     """
     获取用户的所有片段
-    
     - **skip**: 跳过的记录数（分页）
     - **limit**: 返回的最大记录数
     - **include_deleted**: 是否包含已删除的片段
-    
     需要认证
     """
     user_id = current_user["user_id"]
@@ -125,7 +122,6 @@ async def get_snippet(
 ):
     """
     获取单个片段
-    
     需要认证，只能获取自己的片段
     """
     user_id = current_user["user_id"]
@@ -167,7 +163,6 @@ async def update_snippet(
 ):
     """
     更新片段
-    
     需要认证，只能更新自己的片段
     """
     user_id = current_user["user_id"]
@@ -262,7 +257,6 @@ async def delete_snippet(
 ):
     """
     删除片段（软删除）
-    
     需要认证，只能删除自己的片段
     - **hard_delete**: 如果为 True，则永久删除；否则软删除
     """
