@@ -24,7 +24,8 @@ export const SettingsPage: React.FC = () => {
   const [deleteCode, setDeleteCode] = useState('');
   const [deleteCountdown, setDeleteCountdown] = useState(0);
   const [deleteSending, setDeleteSending] = useState(false);
-  const [deleteVerifying, setDeleteVerifying] = useState(false);
+  const [showDeleteModelConfirm, setShowDeleteModelConfirm] = useState(false);
+  const [deleteModelMsg, setDeleteModelMsg] = useState<string | null>(null);
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [savingPassword, setSavingPassword] = useState(false);
 
@@ -112,32 +113,27 @@ export const SettingsPage: React.FC = () => {
   };
 
   const handleDeleteModel = async () => {
-    if (!confirm('确定要删除已下载的模型吗？删除后需要重新下载才能使用本地搜索功能。')) {
-      return;
-    }
+    setShowDeleteModelConfirm(true);
+  };
 
+  const confirmDeleteModel = async () => {
+    setShowDeleteModelConfirm(false);
     try {
       const result = await window.electron.model.deleteModel();
       if (result.success) {
         setIsModelDownloaded(false);
         setModelPath('');
-        
-        // 删除模型后，自动切换到轻量级搜索
         const saveResult = await window.electron.ipcRenderer.invoke('settings:saveWizardChoices', {
           downloadModel: false,
           searchMode: 'lightweight'
         });
-        
-        if (saveResult.success) {
-          setSearchMode('lightweight');
-        }
-        
-        alert('模型已删除');
+        if (saveResult.success) setSearchMode('lightweight');
+        setDeleteModelMsg('模型已删除');
       } else {
-        alert(`删除失败: ${result.error}`);
+        setDeleteModelMsg(`删除失败: ${result.error}`);
       }
     } catch (error: any) {
-      alert(`删除失败: ${error.message}`);
+      setDeleteModelMsg(`删除失败: ${error.message}`);
     }
   };
 
@@ -153,17 +149,17 @@ export const SettingsPage: React.FC = () => {
       
       if (!result.success) {
         console.error('保存设置失败:', result.error);
-        alert('保存设置失败，请重试');
+        setNotification({ message: '保存设置失败，请重试', type: 'error' });
       }
     } catch (error) {
       console.error('保存设置失败:', error);
-      alert('保存设置失败，请重试');
+      setNotification({ message: '保存设置失败，请重试', type: 'error' });
     }
   };
 
   const handleGenerateVectors = async () => {
     if (!isModelDownloaded) {
-      alert('请先下载模型');
+      setNotification({ message: '请先下载模型', type: 'error' });
       return;
     }
 
@@ -426,11 +422,9 @@ export const SettingsPage: React.FC = () => {
                   <button
                     className="btn-secondary btn-sm"
                     onClick={async () => {
-                      if (confirm('确定要退出登录吗？')) {
-                        await logout();
-                        setNotification({ message: '已退出登录', type: 'success' });
-                        setTimeout(() => setNotification(null), 3000);
-                      }
+                      await logout();
+                      setNotification({ message: '已退出登录', type: 'success' });
+                      setTimeout(() => setNotification(null), 3000);
                     }}
                   >
                     退出登录
@@ -598,14 +592,14 @@ export const SettingsPage: React.FC = () => {
                         skipDuplicates: true
                       });
                       if (result.imported > 0) {
-                        alert(`成功导入 ${result.imported} 个片段${result.skipped > 0 ? `，跳过 ${result.skipped} 个重复` : ''}`);
+                        setNotification({ message: `成功导入 ${result.imported} 个片段${result.skipped > 0 ? `，跳过 ${result.skipped} 个重复` : ''}`, type: 'success' });
                       } else if (result.errors && result.errors.length > 0) {
-                        alert('导入失败: ' + result.errors[0].error);
+                        setNotification({ message: '导入失败: ' + result.errors[0].error, type: 'error' });
                       } else {
-                        alert('已取消导入');
+                        setNotification({ message: '已取消导入', type: 'success' });
                       }
                     } catch (error: any) {
-                      alert('导入失败: ' + error.message);
+                      setNotification({ message: '导入失败: ' + error.message, type: 'error' });
                     }
                   }}
                 >
@@ -619,14 +613,14 @@ export const SettingsPage: React.FC = () => {
                         skipDuplicates: true
                       });
                       if (result.imported > 0) {
-                        alert(`成功导入 ${result.imported} 个片段${result.skipped > 0 ? `，跳过 ${result.skipped} 个重复` : ''}`);
+                        setNotification({ message: `成功导入 ${result.imported} 个片段${result.skipped > 0 ? `，跳过 ${result.skipped} 个重复` : ''}`, type: 'success' });
                       } else if (result.errors && result.errors.length > 0) {
-                        alert('导入失败: ' + result.errors[0].error);
+                        setNotification({ message: '导入失败: ' + result.errors[0].error, type: 'error' });
                       } else {
-                        alert('已取消导入');
+                        setNotification({ message: '已取消导入', type: 'success' });
                       }
                     } catch (error: any) {
-                      alert('导入失败: ' + error.message);
+                      setNotification({ message: '导入失败: ' + error.message, type: 'error' });
                     }
                   }}
                 >
@@ -653,20 +647,20 @@ export const SettingsPage: React.FC = () => {
                       const snippetIds = snippets.map((s: any) => s.id);
 
                       if (snippetIds.length === 0) {
-                        alert('没有可导出的片段');
+                        setNotification({ message: '没有可导出的片段', type: 'error' });
                         return;
                       }
 
                       const result = await window.electron.ipcRenderer.invoke('export:json', snippetIds);
                       if (result.success) {
-                        alert(`成功导出 ${result.count} 个片段到 ${result.filePath}`);
+                        setNotification({ message: `成功导出 ${result.count} 个片段到 ${result.filePath}`, type: 'success' });
                       } else if (result.error === 'User canceled') {
-                        alert('已取消导出');
+                        setNotification({ message: '已取消导出', type: 'success' });
                       } else {
-                        alert('导出失败: ' + result.error);
+                        setNotification({ message: '导出失败: ' + result.error, type: 'error' });
                       }
                     } catch (error: any) {
-                      alert('导出失败: ' + error.message);
+                      setNotification({ message: '导出失败: ' + error.message, type: 'error' });
                     }
                   }}
                 >
@@ -680,22 +674,22 @@ export const SettingsPage: React.FC = () => {
                       const snippetIds = snippets.map((s: any) => s.id);
 
                       if (snippetIds.length === 0) {
-                        alert('没有可导出的片段');
+                        setNotification({ message: '没有可导出的片段', type: 'error' });
                         return;
                       }
 
                       const result = await window.electron.ipcRenderer.invoke('export:batch-markdown', snippetIds);
                       if (result.success > 0) {
-                        alert(`成功导出 ${result.success} 个片段为 ZIP 压缩包`);
+                        setNotification({ message: `成功导出 ${result.success} 个片段为 ZIP 压缩包`, type: 'success' });
                       } else if (result.errors?.[0]?.error === 'User canceled') {
-                        alert('已取消导出');
+                        setNotification({ message: '已取消导出', type: 'success' });
                       } else if (result.errors?.[0]?.error) {
-                        alert('导出失败: ' + result.errors[0].error);
+                        setNotification({ message: '导出失败: ' + result.errors[0].error, type: 'error' });
                       } else {
-                        alert('已取消导出');
+                        setNotification({ message: '已取消导出', type: 'success' });
                       }
                     } catch (error: any) {
-                      alert('导出失败: ' + error.message);
+                      setNotification({ message: '导出失败: ' + error.message, type: 'error' });
                     }
                   }}
                 >
@@ -709,20 +703,20 @@ export const SettingsPage: React.FC = () => {
                       const snippetIds = snippets.map((s: any) => s.id);
 
                       if (snippetIds.length === 0) {
-                        alert('没有可导出的片段');
+                        setNotification({ message: '没有可导出的片段', type: 'error' });
                         return;
                       }
 
                       const result = await window.electron.ipcRenderer.invoke('export:pdf', snippetIds);
                       if (result.success) {
-                        alert(`成功导出 ${snippetIds.length} 个片段到 PDF 文件`);
+                        setNotification({ message: `成功导出 ${snippetIds.length} 个片段到 PDF 文件`, type: 'success' });
                       } else if (result.error === 'User canceled') {
-                        alert('已取消导出');
+                        setNotification({ message: '已取消导出', type: 'success' });
                       } else {
-                        alert('导出失败: ' + result.error);
+                        setNotification({ message: '导出失败: ' + result.error, type: 'error' });
                       }
                     } catch (error: any) {
-                      alert('导出失败: ' + error.message);
+                      setNotification({ message: '导出失败: ' + error.message, type: 'error' });
                     }
                   }}
                 >
@@ -830,6 +824,33 @@ export const SettingsPage: React.FC = () => {
         }}
         onComplete={handleDownloadComplete}
       />
+
+      {/* 删除模型确认框 */}
+      {showDeleteModelConfirm && (
+        <div className="confirm-overlay" onClick={() => setShowDeleteModelConfirm(false)}>
+          <div className="confirm-dialog" onClick={e => e.stopPropagation()}>
+            <div className="confirm-title">确认删除模型</div>
+            <div className="confirm-msg">确定要删除已下载的模型吗？删除后需要重新下载才能使用本地搜索功能。</div>
+            <div className="confirm-actions">
+              <button className="confirm-btn" onClick={() => setShowDeleteModelConfirm(false)}>取消</button>
+              <button className="confirm-btn confirm-btn--danger" onClick={confirmDeleteModel}>删除</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 删除模型结果提示 */}
+      {deleteModelMsg && (
+        <div className="confirm-overlay" onClick={() => setDeleteModelMsg(null)}>
+          <div className="confirm-dialog" onClick={e => e.stopPropagation()}>
+            <div className="confirm-title">提示</div>
+            <div className="confirm-msg">{deleteModelMsg}</div>
+            <div className="confirm-actions">
+              <button className="confirm-btn confirm-btn--primary" onClick={() => setDeleteModelMsg(null)}>确定</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
