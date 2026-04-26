@@ -316,13 +316,45 @@ export class ExportService {
       { path: 'C:/Windows/Fonts/simkai.ttf', name: 'KaiTi' },
       { path: 'C:/Windows/Fonts/simfang.ttf', name: 'FangSong' },
       { path: 'C:/Windows/Fonts/simli.ttf', name: 'LiSu' },
-      { path: 'C:/Windows/Fonts/arialuni.ttf', name: 'ArialUnicodeMS' }
+      { path: 'C:/Windows/Fonts/simsun.ttc', name: 'SimSun' },
+      { path: 'C:/Windows/Fonts/msyh.ttc', name: 'MicrosoftYaHei' },
+      { path: 'C:/Windows/Fonts/msyhbd.ttc', name: 'MicrosoftYaHeiBold' },
+      { path: 'C:/Windows/Fonts/arialuni.ttf', name: 'ArialUnicodeMS' },
+      { path: 'C:/Windows/Fonts/NotoSansCJKsc-Regular.ttc', name: 'NotoSansCJK' },
+      { path: 'C:/Windows/Fonts/SourceHanSansSC-Regular.ttc', name: 'SourceHanSans' },
+      { path: 'C:/Windows/Fonts/SourceHanSansCN-Regular.ttc', name: 'SourceHanSansCN' },
+      { path: 'C:/Windows/Fonts/PingFang.ttf', name: 'PingFang' },
+      { path: 'C:/Windows/Fonts/Hiragino Sans GB.ttc', name: 'HiraginoSansGB' },
     ];
 
     for (const font of ttfFonts) {
       if (fs.existsSync(font.path)) {
         console.log(`[ExportService] Found Chinese TTF font: ${font.path}`);
         return font;
+      }
+    }
+
+    const fontDirs = [
+      'C:/Windows/Fonts',
+      'C:/Program Files/Fonts',
+      'C:/Program Files (x86)/Fonts',
+      process.env.LOCALAPPDATA ? `${process.env.LOCALAPPDATA}/Microsoft/Windows/Fonts` : '',
+    ].filter(Boolean);
+
+    for (const dir of fontDirs) {
+      if (!fs.existsSync(dir)) continue;
+      try {
+        const files = fs.readdirSync(dir);
+        for (const file of files) {
+          if (/^(simhei|simkai|simfang|simli|simsun|msyh|arialuni|noto|cjk|han|source.*sans|pingfang|hiragino).*\.(ttf|ttc|otf)$/i.test(file)) {
+            const fontPath = path.join(dir, file);
+            const fontName = file.replace(/\.(ttf|ttc|otf)$/i, '');
+            console.log(`[ExportService] Found Chinese font via directory scan: ${fontPath}`);
+            return { path: fontPath, name: fontName };
+          }
+        }
+      } catch (err) {
+        continue;
       }
     }
 

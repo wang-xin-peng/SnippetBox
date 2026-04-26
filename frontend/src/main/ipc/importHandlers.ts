@@ -36,7 +36,7 @@ export function registerImportHandlers() {
       });
 
       if (result.canceled || result.filePaths.length === 0) {
-        return { imported: 0, skipped: 0, errors: [] };
+        return { imported: 0, skipped: 0, errors: [], canceled: true };
       }
 
       // 导入所有选中的文件
@@ -54,7 +54,8 @@ export function registerImportHandlers() {
       return {
         imported: totalImported,
         skipped: totalSkipped,
-        errors: allErrors
+        errors: allErrors,
+        canceled: false
       };
     } catch (error) {
       console.error('[ImportHandlers] Import from Markdown failed:', error);
@@ -78,10 +79,11 @@ export function registerImportHandlers() {
       });
 
       if (result.canceled || result.filePaths.length === 0) {
-        return { imported: 0, skipped: 0, errors: [] };
+        return { imported: 0, skipped: 0, errors: [], canceled: true };
       }
 
-      return await importService.importFromJSON(result.filePaths[0], options);
+      const importResult = await importService.importFromJSON(result.filePaths[0], options);
+      return { ...importResult, canceled: false };
     } catch (error) {
       console.error('[ImportHandlers] Import from JSON failed:', error);
       throw error;

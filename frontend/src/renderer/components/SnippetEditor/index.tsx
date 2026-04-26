@@ -15,6 +15,29 @@ const LANGUAGES = [
   'HTML', 'CSS', 'SQL', 'Shell', 'Dart', 'R', 'YAML', 'JSON',
 ];
 
+const LANGUAGE_MAP: Record<string, string> = {
+  'JavaScript': 'javascript',
+  'TypeScript': 'typescript',
+  'Python': 'python',
+  'Java': 'java',
+  'C++': 'cpp',
+  'C#': 'csharp',
+  'Go': 'go',
+  'Rust': 'rust',
+  'PHP': 'php',
+  'Ruby': 'ruby',
+  'Swift': 'swift',
+  'Kotlin': 'kotlin',
+  'HTML': 'html',
+  'CSS': 'css',
+  'SQL': 'sql',
+  'Shell': 'shell',
+  'Dart': 'dart',
+  'R': 'r',
+  'YAML': 'yaml',
+  'JSON': 'json',
+};
+
 export const SnippetEditor: React.FC<SnippetEditorProps> = ({ snippet, onSave, onCancel }) => {
   const [title, setTitle] = useState(snippet?.title || '');
   const [code, setCode] = useState(snippet?.code || '');
@@ -25,6 +48,10 @@ export const SnippetEditor: React.FC<SnippetEditorProps> = ({ snippet, onSave, o
   const [isSaving, setIsSaving] = useState(false);
   const [titleError, setTitleError] = useState('');
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+
+  const getMonacoLanguage = (lang: string): string => {
+    return LANGUAGE_MAP[lang] || lang.toLowerCase();
+  };
 
   useEffect(() => {
     (window as any).electronAPI?.category?.list().then((cats: any[]) => setCategories(cats)).catch(() => {});
@@ -142,7 +169,7 @@ export const SnippetEditor: React.FC<SnippetEditorProps> = ({ snippet, onSave, o
           </div>
           <CodeEditor
             value={code}
-            language={language.toLowerCase()}
+            language={getMonacoLanguage(language)}
             onChange={setCode}
             height="calc(100vh - 104px)"
             theme="vs-dark"

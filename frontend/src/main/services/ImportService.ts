@@ -145,8 +145,8 @@ export class ImportService {
       if (!titleMatch) return null;
       const title = titleMatch[1].trim();
 
-      // 提取代码块
-      const codeMatch = markdown.match(/```(\w+)\n([\s\S]+?)\n```/);
+      // 提取代码块（语言名可能包含 +, # 等特殊字符如 C++, C#）
+      const codeMatch = markdown.match(/```([^\n]+)\n([\s\S]+?)\n```/);
       if (!codeMatch) return null;
       const language = codeMatch[1];
       const code = codeMatch[2];

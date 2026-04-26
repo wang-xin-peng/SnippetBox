@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import Editor, { OnMount } from '@monaco-editor/react';
 import './CodeEditor.css';
 
@@ -20,10 +20,24 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
   height = '400px',
 }) => {
   const editorRef = useRef<any>(null);
+  const monacoRef = useRef<any>(null);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (editorRef.current && monacoRef.current) {
+      const model = editorRef.current.getModel();
+      if (model) {
+        const currentLang = model.getLanguageId();
+        if (currentLang !== language) {
+          monacoRef.current.editor.setModelLanguage(model, language);
+        }
+      }
+    }
+  }, [language]);
 
   const handleEditorDidMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
+    monacoRef.current = monaco;
 
     monaco.editor.defineTheme('custom-dark', {
       base: 'vs-dark',
@@ -48,6 +62,25 @@ export const CodeEditor: React.FC<CodeEditorProps> = ({
     });
 
     monaco.editor.setTheme('custom-dark');
+
+    const setLanguage = () => {
+      const model = editor.getModel();
+      if (model) {
+        const modelLanguage = model.getLanguageId();
+        if (modelLanguage !== language) {
+          monaco.editor.setModelLanguage(model, language);
+        }
+      }
+    };
+
+    const availableLanguages = monaco.languages.getLanguages();
+    const langExists = availableLanguages.some(lang => lang.id === language || lang.aliases?.includes(language));
+
+    if (langExists) {
+      setLanguage();
+    } else {
+      setTimeout(() => setLanguage(), 100);
+    }
 
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
       const event = new CustomEvent('editor:save');

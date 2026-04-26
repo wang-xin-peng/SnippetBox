@@ -33,6 +33,34 @@ function getLangColor(lang: string) {
   return map[lang?.toLowerCase()] || '#8b949e';
 }
 
+const LANGUAGE_MAP: Record<string, string> = {
+  'JavaScript': 'javascript',
+  'TypeScript': 'typescript',
+  'Python': 'python',
+  'Java': 'java',
+  'C++': 'cpp',
+  'C#': 'csharp',
+  'Go': 'go',
+  'Rust': 'rust',
+  'PHP': 'php',
+  'Ruby': 'ruby',
+  'Swift': 'swift',
+  'Kotlin': 'kotlin',
+  'HTML': 'html',
+  'CSS': 'css',
+  'SQL': 'sql',
+  'Shell': 'shell',
+  'Dart': 'dart',
+  'R': 'r',
+  'YAML': 'yaml',
+  'JSON': 'json',
+};
+
+function getMonacoLanguage(lang: string | undefined | null): string {
+  if (!lang) return 'plaintext';
+  return LANGUAGE_MAP[lang] || lang.toLowerCase();
+}
+
 function formatDate(d: any) {
   if (!d) return '';
   const date = new Date(d);
@@ -546,7 +574,7 @@ export default function HomePage() {
               <div className="preview-code-area">
                 <CodeEditor
                   value={trashSelected.code}
-                  language={trashSelected.language?.toLowerCase() || 'plaintext'}
+                  language={getMonacoLanguage(trashSelected.language) || 'plaintext'}
                   readOnly
                   height="100%"
                   theme="custom-dark"
@@ -1209,7 +1237,7 @@ function PreviewPanel({ snippet, onEdit, onCopy, onDelete, onToggleStar, onSaved
         <CodeEditor
           value={code}
           onChange={handleCodeChange}
-          language={snippet.language?.toLowerCase() || 'plaintext'}
+          language={getMonacoLanguage(snippet.language)}
           readOnly={false}
           height="100%"
           theme="custom-dark"

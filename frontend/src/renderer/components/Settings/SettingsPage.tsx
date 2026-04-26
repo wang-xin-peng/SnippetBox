@@ -591,12 +591,17 @@ export const SettingsPage: React.FC = () => {
                       const result = await window.electron.ipcRenderer.invoke('import:json', {
                         skipDuplicates: true
                       });
+                      if (result.canceled) {
+                        return;
+                      }
                       if (result.imported > 0) {
                         setNotification({ message: `成功导入 ${result.imported} 个片段${result.skipped > 0 ? `，跳过 ${result.skipped} 个重复` : ''}`, type: 'success' });
+                      } else if (result.skipped > 0) {
+                        setNotification({ message: `所有片段均已存在，共跳过 ${result.skipped} 个重复片段`, type: 'info' });
                       } else if (result.errors && result.errors.length > 0) {
                         setNotification({ message: '导入失败: ' + result.errors[0].error, type: 'error' });
                       } else {
-                        setNotification({ message: '已取消导入', type: 'success' });
+                        setNotification({ message: '文件中没有可导入的代码片段', type: 'warning' });
                       }
                     } catch (error: any) {
                       setNotification({ message: '导入失败: ' + error.message, type: 'error' });
@@ -612,12 +617,17 @@ export const SettingsPage: React.FC = () => {
                       const result = await window.electron.ipcRenderer.invoke('import:markdown', {
                         skipDuplicates: true
                       });
+                      if (result.canceled) {
+                        return;
+                      }
                       if (result.imported > 0) {
                         setNotification({ message: `成功导入 ${result.imported} 个片段${result.skipped > 0 ? `，跳过 ${result.skipped} 个重复` : ''}`, type: 'success' });
+                      } else if (result.skipped > 0) {
+                        setNotification({ message: `所有片段均已存在，共跳过 ${result.skipped} 个重复片段`, type: 'info' });
                       } else if (result.errors && result.errors.length > 0) {
                         setNotification({ message: '导入失败: ' + result.errors[0].error, type: 'error' });
                       } else {
-                        setNotification({ message: '已取消导入', type: 'success' });
+                        setNotification({ message: '文件中没有可导入的代码片段', type: 'warning' });
                       }
                     } catch (error: any) {
                       setNotification({ message: '导入失败: ' + error.message, type: 'error' });

@@ -47,7 +47,7 @@ export class CategoryManager {
     const id = crypto.randomUUID();
     const name = dto.name.trim();
     const color = dto.color || '#6c757d';
-    const icon = dto.icon || '📁';
+    const icon = dto.icon || 'fas fa-folder';
     const createdAt = Date.now();
 
     this.db
@@ -215,11 +215,11 @@ export class CategoryManager {
 
   async ensureDefaultCategories(userId: string = 'local'): Promise<void> {
     const defaults = [
-      { id: `cat_${userId}_default`, name: '未分类', description: '未分类的代码片段', color: '#6B7280', icon: '📁' },
-      { id: `cat_${userId}_algorithm`, name: '算法', description: '排序、搜索、动态规划等', color: '#3B82F6', icon: '🧮' },
-      { id: `cat_${userId}_ui`, name: 'UI组件', description: '可复用的界面组件和样式', color: '#8B5CF6', icon: '🎨' },
-      { id: `cat_${userId}_utils`, name: '工具函数', description: '通用工具函数和辅助方法', color: '#F59E0B', icon: '🔧' },
-      { id: `cat_${userId}_api`, name: 'API接口', description: 'HTTP请求、接口调用', color: '#06B6D4', icon: '🌐' },
+      { id: `cat_${userId}_default`, name: '未分类', description: '未分类的代码片段', color: '#6B7280', icon: 'fas fa-folder' },
+      { id: `cat_${userId}_algorithm`, name: '算法', description: '排序、搜索、动态规划等', color: '#3B82F6', icon: 'fas fa-brain' },
+      { id: `cat_${userId}_ui`, name: 'UI组件', description: '可复用的界面组件和样式', color: '#8B5CF6', icon: 'fas fa-palette' },
+      { id: `cat_${userId}_utils`, name: '工具函数', description: '通用工具函数和辅助方法', color: '#F59E0B', icon: 'fas fa-wrench' },
+      { id: `cat_${userId}_api`, name: 'API接口', description: 'HTTP请求、接口调用', color: '#06B6D4', icon: 'fas fa-plug' },
     ];
 
     const insertStmt = this.db.prepare(`

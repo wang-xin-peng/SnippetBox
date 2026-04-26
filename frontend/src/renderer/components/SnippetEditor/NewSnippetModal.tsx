@@ -15,6 +15,29 @@ const LANGUAGES = [
   'HTML', 'CSS', 'SQL', 'Shell', 'Dart', 'R', 'YAML', 'JSON',
 ];
 
+const LANGUAGE_MAP: Record<string, string> = {
+  'JavaScript': 'javascript',
+  'TypeScript': 'typescript',
+  'Python': 'python',
+  'Java': 'java',
+  'C++': 'cpp',
+  'C#': 'csharp',
+  'Go': 'go',
+  'Rust': 'rust',
+  'PHP': 'php',
+  'Ruby': 'ruby',
+  'Swift': 'swift',
+  'Kotlin': 'kotlin',
+  'HTML': 'html',
+  'CSS': 'css',
+  'SQL': 'sql',
+  'Shell': 'shell',
+  'Dart': 'dart',
+  'R': 'r',
+  'YAML': 'yaml',
+  'JSON': 'json',
+};
+
 export const NewSnippetModal: React.FC<Props> = ({ onClose, onSaved }) => {
   const { isLoggedIn, user } = useAuth();
   const [title, setTitle] = useState('');
@@ -27,6 +50,10 @@ export const NewSnippetModal: React.FC<Props> = ({ onClose, onSaved }) => {
   const [titleError, setTitleError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+
+  const getMonacoLanguage = (lang: string): string => {
+    return LANGUAGE_MAP[lang] || lang.toLowerCase();
+  };
 
   useEffect(() => {
     const userId = isLoggedIn && user ? user.id : 'local';
@@ -170,7 +197,7 @@ export const NewSnippetModal: React.FC<Props> = ({ onClose, onSaved }) => {
             <div className="nsm-code-wrap">
               <CodeEditor
                 value={code}
-                language={language.toLowerCase()}
+                language={getMonacoLanguage(language)}
                 onChange={setCode}
                 height="240px"
                 theme="vs-dark"
