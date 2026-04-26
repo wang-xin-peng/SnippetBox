@@ -11,18 +11,6 @@ import type { WizardChoices } from '@shared/types/wizard';
 function restoreGlobalInteraction() {
   document.body.style.overflow = 'unset';
   document.body.style.pointerEvents = 'auto';
-
-  const overlays = document.querySelectorAll(
-    '.download-dialog-overlay, .modal-overlay, .confirm-overlay, .nsm-overlay, .saving-overlay, .auth-dialog-overlay, .share-overlay, .sync-overlay, .batch-dialog-overlay'
-  );
-
-  overlays.forEach((overlay) => {
-    const element = overlay as HTMLElement;
-    if (element.dataset.preserve === 'true') return;
-    if (!element.closest('.welcome-wizard')) {
-      element.style.pointerEvents = 'none';
-    }
-  });
 }
 
 function AppContent() {
