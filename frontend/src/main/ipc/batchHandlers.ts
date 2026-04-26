@@ -7,9 +7,7 @@ import { dialog } from 'electron';
 let snippetManager: SnippetManager | null = null;
 let exportService: ExportService | null = null;
 
-/**
- * 注册批量操作相关的 IPC 处理器
- */
+// 注册批量操作相关的 IPC 处理器
 export function registerBatchHandlers() {
   console.log('[BatchHandlers] Registering batch operation IPC handlers...');
 

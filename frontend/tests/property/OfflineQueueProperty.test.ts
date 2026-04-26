@@ -1,7 +1,6 @@
 /**
- * 任务 33.3: 属性测试
+ * 属性测试
  * 文件位置: tests/property/OfflineQueueProperty.test.ts
- * 
  * 属性 16: 离线操作队列的顺序性
  */
 

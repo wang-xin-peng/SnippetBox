@@ -1,7 +1,6 @@
 /**
- * 任务 33.3: 属性测试
+ * 属性测试
  * 文件位置: tests/property/AuthProperty.test.ts
- * 
  * 属性 14: 认证令牌的有效性
  */
 

@@ -1,7 +1,6 @@
 /**
- * 任务 33.4: 端到端测试
+ * 端到端测试
  * 文件位置: tests/e2e/ExportImportFlow.test.ts
- * 
  * 验收标准: 导出导入流程测试
  */
 

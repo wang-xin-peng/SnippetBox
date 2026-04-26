@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import { getEmbeddingModelDir } from './embeddingModel';
 
 /**
- * 简化的嵌入服务
+ * 嵌入服务
  * 直接使用 ONNX Runtime，不依赖 transformers 库
  */
 export class SimpleEmbeddingService {
@@ -17,9 +17,7 @@ export class SimpleEmbeddingService {
     this.modelPath = getEmbeddingModelDir();
   }
 
-  /**
-   * 初始化模型
-   */
+  // 初始化模型
   async initialize(): Promise<void> {
     if (this.isInitialized) {
       return;
@@ -51,9 +49,7 @@ export class SimpleEmbeddingService {
     }
   }
 
-  /**
-   * 加载词汇表
-   */
+  // 加载词汇表
   private async loadVocab(): Promise<void> {
     try {
       const vocabFile = path.join(this.modelPath, 'vocab.txt');
@@ -79,9 +75,7 @@ export class SimpleEmbeddingService {
     }
   }
 
-  /**
-   * 简单的分词器
-   */
+  // 简单的分词器
   private tokenize(text: string): number[] {
     // 如果没有词汇表，使用字符级别的简单编码
     if (this.vocab.size === 0) {
@@ -108,9 +102,7 @@ export class SimpleEmbeddingService {
     return ids.slice(0, maxLength);
   }
 
-  /**
-   * 简单的字符级别分词
-   */
+  // 简单的字符级别分词
   private simpleTokenize(text: string): number[] {
     const maxLength = 128;
     const ids: number[] = [];
@@ -126,16 +118,12 @@ export class SimpleEmbeddingService {
     return ids;
   }
 
-  /**
-   * 检查模型是否已加载
-   */
+  // 检查模型是否已加载
   isModelLoaded(): boolean {
     return this.isInitialized && this.session !== null;
   }
 
-  /**
-   * 生成文本向量
-   */
+  // 生成文本向量
   async embed(text: string): Promise<number[]> {
     if (!this.isModelLoaded()) {
       await this.initialize();
@@ -206,9 +194,7 @@ export class SimpleEmbeddingService {
     }
   }
 
-  /**
-   * 生成模拟向量（降级方案）
-   */
+  // 生成模拟向量（降级方案）
   private generateMockEmbedding(text: string): number[] {
     const dim = 384;
     const embedding: number[] = [];
@@ -227,9 +213,7 @@ export class SimpleEmbeddingService {
     return embedding.map(val => val / (norm || 1));
   }
 
-  /**
-   * 批量生成向量
-   */
+  // 批量生成向量
   async batchEmbed(texts: string[]): Promise<number[][]> {
     const embeddings: number[][] = [];
     
@@ -241,9 +225,7 @@ export class SimpleEmbeddingService {
     return embeddings;
   }
 
-  /**
-   * 卸载模型
-   */
+  // 卸载模型
   async unload(): Promise<void> {
     this.session = null;
     this.vocab.clear();

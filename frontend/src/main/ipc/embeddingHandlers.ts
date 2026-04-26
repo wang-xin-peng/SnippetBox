@@ -2,16 +2,12 @@ import { ipcMain } from 'electron';
 import { getLocalEmbeddingService } from '../services/LocalEmbeddingService';
 import { getEmbeddingWorkerManager } from '../services/EmbeddingWorkerManager';
 
-/**
- * 嵌入服务 IPC 处理器
- */
+// 嵌入服务 IPC 处理器
 export function registerEmbeddingHandlers(): void {
   const embeddingService = getLocalEmbeddingService();
   const workerManager = getEmbeddingWorkerManager();
 
-  /**
-   * 初始化嵌入模型
-   */
+  // 初始化嵌入模型
   ipcMain.handle('embedding:initialize', async (event, useWorker = false) => {
     try {
       if (useWorker) {
@@ -26,9 +22,7 @@ export function registerEmbeddingHandlers(): void {
     }
   });
 
-  /**
-   * 检查模型是否已加载
-   */
+  // 检查模型是否已加载
   ipcMain.handle('embedding:isLoaded', async (event, useWorker = false) => {
     try {
       if (useWorker) {
@@ -42,9 +36,7 @@ export function registerEmbeddingHandlers(): void {
     }
   });
 
-  /**
-   * 生成单个文本的向量
-   */
+  // 生成单个文本的向量
   ipcMain.handle('embedding:embed', async (event, text: string, useWorker = false) => {
     try {
       let embedding: number[];
@@ -62,9 +54,7 @@ export function registerEmbeddingHandlers(): void {
     }
   });
 
-  /**
-   * 批量生成向量
-   */
+  // 批量生成向量
   ipcMain.handle('embedding:batchEmbed', async (event, texts: string[], useWorker = false) => {
     try {
       let embeddings: number[][];
@@ -82,9 +72,7 @@ export function registerEmbeddingHandlers(): void {
     }
   });
 
-  /**
-   * 卸载模型
-   */
+  // 卸载模型
   ipcMain.handle('embedding:unload', async (event, useWorker = false) => {
     try {
       if (useWorker) {
@@ -99,9 +87,7 @@ export function registerEmbeddingHandlers(): void {
     }
   });
 
-  /**
-   * 获取模型信息
-   */
+  // 获取模型信息
   ipcMain.handle('embedding:getInfo', async () => {
     try {
       const info = embeddingService.getModelInfo();
@@ -112,9 +98,7 @@ export function registerEmbeddingHandlers(): void {
     }
   });
 
-  /**
-   * 为所有片段生成向量（异步执行，立即返回，通过事件通知进度）
-   */
+  // 为所有片段生成向量（异步执行，立即返回，通过事件通知进度）
   ipcMain.handle('embedding:generateVectors', async (event) => {
     try {
       console.log('[EmbeddingHandlers] Starting vector generation (async)...');

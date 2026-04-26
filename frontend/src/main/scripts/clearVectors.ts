@@ -1,6 +1,4 @@
-/**
- * 清空所有向量的脚本
- */
+// 清空所有向量的脚本
 
 import { DatabaseManager } from '../database';
 

@@ -1,8 +1,3 @@
-/**
- * Snippet Manager Service
- * Handles all snippet-related operations
- */
-
 import Database from 'better-sqlite3';
 import { randomUUID } from 'crypto';
 import { Snippet, CreateSnippetDTO, UpdateSnippetDTO, SnippetFilter } from '../../shared/types/index';
@@ -40,9 +35,7 @@ export class SnippetManager {
     this.vectorStore = new VectorStore();
   }
 
-  /**
-   * 创建片段
-   */
+  // 创建片段
   async createSnippet(data: CreateSnippetDTO, storageScope: 'local' | 'cloud' = 'local'): Promise<Snippet> {
     const id = randomUUID();
     const now = Date.now();
@@ -83,9 +76,7 @@ export class SnippetManager {
     }
   }
 
-  /**
-   * 获取片段列表
-   */
+  // 获取片段列表
   async listSnippets(filter?: SnippetFilter): Promise<Snippet[]> {
     try {
       let sql = `
@@ -136,9 +127,7 @@ export class SnippetManager {
     }
   }
 
-  /**
-   * 获取单个片段
-   */
+  // 获取单个片段
   async getSnippet(id: string): Promise<Snippet> {
     try {
       const dbSnippet = this.db
@@ -169,9 +158,7 @@ export class SnippetManager {
     }
   }
 
-  /**
-   * 更新片段
-   */
+  // 更新片段
   async updateSnippet(id: string, data: UpdateSnippetDTO): Promise<Snippet> {
     const now = Date.now();
 
@@ -251,9 +238,7 @@ export class SnippetManager {
     }
   }
 
-  /**
-   * 删除片段
-   */
+  // 删除片段
   async deleteSnippet(id: string): Promise<void> {
     try {
       const now = Date.now();
@@ -339,37 +324,27 @@ export class SnippetManager {
     }
   }
 
-  /**
-   * 按分类过滤
-   */
+  // 按分类过滤
   async filterByCategory(categoryId: string): Promise<Snippet[]> {
     return this.listSnippets({ category: categoryId });
   }
 
-  /**
-   * 按标签过滤
-   */
+  // 按标签过滤
   async filterByTags(tagIds: string[]): Promise<Snippet[]> {
     return this.listSnippets({ tags: tagIds });
   }
 
-  /**
-   * 按语言过滤
-   */
+  // 按语言过滤
   async filterByLanguage(language: string): Promise<Snippet[]> {
     return this.listSnippets({ language });
   }
 
-  /**
-   * 搜索片段
-   */
+  // 搜索片段
   async searchSnippets(query: string): Promise<Snippet[]> {
     return this.listSnippets({ searchQuery: query });
   }
 
-  /**
-   * 获取片段的标签
-   */
+  // 获取片段的标签
   private getSnippetTags(snippetId: string): string[] {
     const tags = this.db
       .prepare(
@@ -385,9 +360,7 @@ export class SnippetManager {
     return tags.map((t) => t.name);
   }
 
-  /**
-   * 添加标签到片段
-   */
+  // 添加标签到片段
   private addTagsToSnippet(snippetId: string, tagNames: string[]): void {
     const now = Date.now();
 
@@ -424,9 +397,7 @@ export class SnippetManager {
     });
   }
 
-  /**
-   * 获取分类名称
-   */
+  // 获取分类名称
   private getCategoryName(categoryId: string | null): string {
     if (!categoryId) {
       return '';
@@ -438,9 +409,7 @@ export class SnippetManager {
     return category?.name || '';
   }
 
-  /**
-   * 将数据库记录转换为 Snippet 对象
-   */
+  // 将数据库记录转换为 Snippet 对象
   private async dbSnippetToSnippet(dbSnippet: DbSnippet): Promise<Snippet> {
     const tags = this.getSnippetTags(dbSnippet.id);
     let category: string;
@@ -475,9 +444,7 @@ export class SnippetManager {
     };
   }
 
-  /**
-   * 批量删除片段
-   */
+  // 批量删除片段
   async batchDelete(snippetIds: string[]): Promise<BatchResult> {
     const result: BatchResult = {
       success: 0,
@@ -504,9 +471,7 @@ export class SnippetManager {
     return result;
   }
 
-  /**
-   * 批量修改标签
-   */
+  // 批量修改标签
   async batchUpdateTags(snippetIds: string[], tags: string[]): Promise<BatchResult> {
     const result: BatchResult = {
       success: 0,
@@ -527,9 +492,7 @@ export class SnippetManager {
     return result;
   }
 
-  /**
-   * 批量修改分类
-   */
+  // 批量修改分类
   async batchUpdateCategory(snippetIds: string[], categoryId: string): Promise<BatchResult> {
     const result: BatchResult = {
       success: 0,
@@ -550,15 +513,11 @@ export class SnippetManager {
     return result;
   }
 
-  /**
-   * 向量生成队列
-   */
+  // 向量生成队列
   private vectorGenerationQueue: Array<{ snippetId: string; content: string }> = [];
   private isProcessingQueue = false;
 
-  /**
-   * 为片段生成向量
-   */
+  // 为片段生成向量
   private generateVectorForSnippet(snippet: Snippet): void {
     // 组合标题、描述和代码，提高语义搜索准确性
     const content = [
@@ -574,9 +533,7 @@ export class SnippetManager {
     this.processVectorGenerationQueue();
   }
 
-  /**
-   * 处理向量生成队列
-   */
+  // 处理向量生成队列
   private async processVectorGenerationQueue(): Promise<void> {
     if (this.isProcessingQueue || this.vectorGenerationQueue.length === 0) {
       return;

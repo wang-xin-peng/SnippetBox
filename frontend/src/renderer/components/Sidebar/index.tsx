@@ -108,7 +108,7 @@ function Sidebar({
       try {
         const trashItems = await (window as any).electronAPI?.trash?.list();
         setTrashCount(trashItems?.length || 0);
-      } catch {}
+      } catch { /* ignore */ }
     } catch (e) {
       console.error('Sidebar load failed:', e);
     }

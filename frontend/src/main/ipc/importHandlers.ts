@@ -4,9 +4,7 @@ import { ImportService } from '../services/ImportService';
 
 let importService: ImportService | null = null;
 
-/**
- * 注册导入相关的 IPC 处理器
- */
+// 注册导入相关的 IPC 处理器
 export function registerImportHandlers() {
   console.log('[ImportHandlers] Registering import IPC handlers...');
   

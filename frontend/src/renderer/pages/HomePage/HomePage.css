@@ -5,7 +5,7 @@
   min-width: 0;
 }
 
-/* ── 中间片段列表面板 ── */
+/* 中间片段列表面板 */
 .snippet-panel {
   flex: 1; /* 占据剩余空间 */
   min-width: 280px;
@@ -161,7 +161,7 @@
 
 .subbar-sort--active { color: var(--primary-color); font-weight: 600; }
 
-/* ── 筛选下拉菜单 ── */
+/* 筛选下拉菜单 */
 .filter-dropdown-wrap {
   position: relative;
 }
@@ -217,7 +217,7 @@
   flex-shrink: 0;
 }
 
-/* ── 卡片网格 ── */
+/* 卡片网格 */
 .snippet-grid {
   flex: 1;
   overflow-y: auto;
@@ -241,7 +241,7 @@
 
 .no-snippets-icon { font-size: 36px; opacity: 0.5; }
 
-/* ── 片段卡片 ── */
+/* 片段卡片 */
 .snippet-card {
   background: var(--bg-card);
   border: 1.5px solid var(--border-color);
@@ -384,7 +384,7 @@
   font-weight: 600;
 }
 
-/* ── 右侧拖拽条 ── */
+/* 右侧拖拽条 */
 .resize-handle-right {
   width: 4px;
   flex-shrink: 0;
@@ -398,7 +398,7 @@
   background: var(--primary-color);
 }
 
-/* ── 右侧预览面板 ── */
+/* 右侧预览面板 */
 .preview-panel {
   flex-shrink: 0; /* 不收缩，保持固定宽度 */
   min-width: 350px; /* 最小宽度 */
@@ -437,7 +437,7 @@
   color: var(--text-tertiary);
 }
 
-/* ── 预览头部 ── */
+/* 预览头部 */
 .preview-header {
   padding: 16px 18px 12px;
   border-bottom: 1px solid var(--border-color);
@@ -508,7 +508,7 @@
   font-weight: 500;
 }
 
-/* ── 预览操作栏 ── */
+/* 预览操作栏 */
 .preview-actions {
   display: flex;
   align-items: center;
@@ -573,7 +573,7 @@
 .action-btn.print { color: var(--text-secondary); border-color: var(--border-color); }
 .action-btn.print:hover { background: var(--bg-hover); color: var(--text-primary); }
 
-/* ── 预览代码区 ── */
+/* 预览代码区 */
 .preview-code-area {
   flex: 1;
   overflow: hidden;
@@ -581,7 +581,7 @@
   flex-direction: column;
 }
 
-/* ── 列表视图 ── */
+/* 列表视图 */
 .snippet-list {
   flex: 1;
   overflow-y: auto;
@@ -681,7 +681,7 @@
   color: var(--text-tertiary);
 }
 
-/* ── 确认对话框 ── */
+/* 确认对话框 */
 .confirm-overlay {
   position: fixed;
   inset: 0;
@@ -808,7 +808,7 @@
   background: var(--primary-light);
 }
 
-/* ── 防止搜索框与按钮重叠 ── */
+/* 防止搜索框与按钮重叠 */
 @media (max-width: 1300px) {
   /* 在较大屏幕就开始换行，避免重叠 */
   .snippet-panel-toolbar {
@@ -856,7 +856,7 @@
   }
 }
 
-/* ── 平板端响应式设计 ── */
+/* 平板端响应式设计 */
 @media (max-width: 1024px) {
   /* 工具栏在平板上调整 */
   .snippet-panel-toolbar {
@@ -925,7 +925,7 @@
   }
 }
 
-/* ── 小屏幕优化（平板竖屏/大手机） ── */
+/* 小屏幕优化（平板竖屏/大手机） */
 @media (max-width: 900px) {
   /* 工具栏在小屏幕上换行 */
   .snippet-panel-toolbar {
@@ -953,7 +953,7 @@
   }
 }
 
-/* ── 中等屏幕优化 ── */
+/* 中等屏幕优化 */
 @media (max-width: 820px) and (min-width: 769px) {
   /* 在这个范围内，确保按钮不会与搜索框重叠 */
   .snippet-panel-toolbar {
@@ -973,7 +973,7 @@
   }
 }
 
-/* ── 移动端响应式设计 ── */
+/* 移动端响应式设计 */
 @media (max-width: 768px) {
   .home-page {
     flex-direction: column;
@@ -1053,7 +1053,7 @@
   }
 }
 
-/* ── 小屏幕优化 ── */
+/* 小屏幕优化 */
 @media (max-width: 480px) {
   /* 工具栏按钮在小屏幕上稍小 */
   .toolbar-btn {

@@ -9,6 +9,7 @@ export const settingsApi = {
     return result.data || {};
   },
 
+  // 更新设置
   async updateSettings(settings: Record<string, any>): Promise<void> {
     const result = await window.electron.ipcRenderer.invoke('settings:update', settings);
     if (!result.success) {
@@ -16,17 +17,13 @@ export const settingsApi = {
     }
   },
 
-  /**
-   * 检测是否首次启动
-   */
+  // 检测是否首次启动
   async isFirstLaunch(): Promise<boolean> {
     const result = await window.electron.ipcRenderer.invoke('settings:isFirstLaunch');
     return result?.isFirstLaunch ?? true;
   },
 
-  /**
-   * 标记首次启动完成
-   */
+  // 标记首次启动完成
   async markFirstLaunchComplete(): Promise<void> {
     const result = await window.electron.ipcRenderer.invoke('settings:markFirstLaunchComplete');
     if (!result.success) {
@@ -34,9 +31,7 @@ export const settingsApi = {
     }
   },
 
-  /**
-   * 保存向导选择
-   */
+  // 保存向导选择
   async saveWizardChoices(choices: WizardChoices): Promise<void> {
     const result = await window.electron.ipcRenderer.invoke('settings:saveWizardChoices', choices);
     if (!result.success) {
@@ -44,9 +39,7 @@ export const settingsApi = {
     }
   },
 
-  /**
-   * 获取向导选择
-   */
+  // 获取向导选择
   async getWizardChoices(): Promise<WizardChoices | undefined> {
     const result = await window.electron.ipcRenderer.invoke('settings:getWizardChoices');
     if (!result.success) {
@@ -55,9 +48,7 @@ export const settingsApi = {
     return result.data;
   },
 
-  /**
-   * 重置首次启动状态（用于测试）
-   */
+  // 重置首次启动状态（用于测试）
   async resetFirstLaunch(): Promise<void> {
     const result = await window.electron.ipcRenderer.invoke('settings:resetFirstLaunch');
     if (!result.success) {

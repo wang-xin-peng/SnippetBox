@@ -8,7 +8,7 @@
   overflow: hidden;
 }
 
-/* ── 收藏夹 ── */
+/* 收藏夹 */
 .sidebar-favorites {
   display: flex;
   align-items: center;
@@ -74,7 +74,7 @@
   margin: 0 12px 8px;
 }
 
-/* ── 分类区 ── */
+/* 分类区 */
 .sidebar-categories {
   flex: 1;
   overflow-y: auto;
@@ -151,7 +151,7 @@
   color: var(--primary-color);
 }
 
-/* ── 分类条目 ── */
+/* 分类条目 */
 .category-group {
   margin-bottom: 1px;
 }
@@ -219,7 +219,7 @@
   text-align: center;
 }
 
-/* ── 子片段列表 ── */
+/* 子片段列表 */
 .category-children {
   padding-left: 28px;
   margin: 2px 0;
@@ -248,7 +248,7 @@
   color: var(--text-primary);
 }
 
-/* ── 底部导航 ── */
+/* 底部导航 */
 .sidebar-bottom {
   padding: 8px 8px;
   border-top: 1px solid var(--border-light);

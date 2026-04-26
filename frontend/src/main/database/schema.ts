@@ -34,12 +34,14 @@ CREATE TABLE IF NOT EXISTS snippets (
 export const CREATE_CATEGORIES_TABLE = `
 CREATE TABLE IF NOT EXISTS categories (
   id TEXT PRIMARY KEY,
-  name TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
   description TEXT,
   color TEXT,
   icon TEXT,
+  user_id TEXT DEFAULT 'local',
   created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
+  updated_at INTEGER NOT NULL,
+  UNIQUE(name, user_id)
 );
 `;
 

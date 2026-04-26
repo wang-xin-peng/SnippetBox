@@ -21,9 +21,7 @@ export class ImportService {
     this.db = db;
   }
 
-  /**
-   * 从 Markdown 文件导入片段
-   */
+  // 从 Markdown 文件导入片段
   async importFromMarkdown(filePath: string, options: ImportOptions = {}): Promise<ImportResult> {
     const result: ImportResult = {
       imported: 0,
@@ -77,9 +75,7 @@ export class ImportService {
     }
   }
 
-  /**
-   * 从 JSON 文件导入片段
-   */
+  // 从 JSON 文件导入片段
   async importFromJSON(filePath: string, options: ImportOptions = {}): Promise<ImportResult> {
     const result: ImportResult = {
       imported: 0,
@@ -135,9 +131,7 @@ export class ImportService {
     }
   }
 
-  /**
-   * 解析 Markdown 片段
-   */
+  // 解析 Markdown 片段
   private parseMarkdownSnippet(markdown: string): any | null {
     try {
       // 提取标题
@@ -177,9 +171,7 @@ export class ImportService {
     }
   }
 
-  /**
-   * 查找重复片段
-   */
+  // 查找重复片段
   private findDuplicate(title: string, code: string): any | null {
     try {
       const snippet = this.db.prepare(`
@@ -193,9 +185,7 @@ export class ImportService {
     }
   }
 
-  /**
-   * 创建片段
-   */
+  // 创建片段
   private createSnippet(snippet: any): void {
     const id = randomUUID();
     const now = new Date().toISOString();
@@ -203,7 +193,7 @@ export class ImportService {
     // 获取或创建分类
     let categoryId = null;
     if (snippet.category) {
-      let category = this.db.prepare('SELECT id FROM categories WHERE name = ?').get(snippet.category) as any;
+      const category = this.db.prepare('SELECT id FROM categories WHERE name = ?').get(snippet.category) as any;
       if (!category) {
         const catId = randomUUID();
         this.db.prepare('INSERT INTO categories (id, name, created_at) VALUES (?, ?, ?)').run(catId, snippet.category, now);
@@ -238,16 +228,14 @@ export class ImportService {
     }
   }
 
-  /**
-   * 更新片段
-   */
+  // 更新片段
   private updateSnippet(id: string, snippet: any): void {
     const now = new Date().toISOString();
 
     // 获取或创建分类
     let categoryId = null;
     if (snippet.category) {
-      let category = this.db.prepare('SELECT id FROM categories WHERE name = ?').get(snippet.category) as any;
+      const category = this.db.prepare('SELECT id FROM categories WHERE name = ?').get(snippet.category) as any;
       if (!category) {
         const catId = randomUUID();
         this.db.prepare('INSERT INTO categories (id, name, created_at) VALUES (?, ?, ?)').run(catId, snippet.category, now);

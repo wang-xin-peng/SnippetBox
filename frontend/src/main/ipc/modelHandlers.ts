@@ -11,7 +11,7 @@ function getModelDownloader(): ModelDownloader {
   return modelDownloader;
 }
 
-/** 在后台异步执行下载，立即返回不阻塞 IPC 队列 */
+// 在后台异步执行下载，立即返回不阻塞 IPC 队列
 function runDownloadAsync(downloader: ModelDownloader, mirrorUrl: string | undefined, sender: Electron.WebContents) {
   const win = BrowserWindow.fromWebContents(sender);
   downloader.setWebContents(win ? sender : null);
@@ -106,6 +106,10 @@ export function registerModelHandlers() {
   });
 
   ipcMain.handle('model:getPath', async () => {
-    return getModelDownloader().getModelPath();
+    try {
+      return getModelDownloader().getModelPath();
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
   });
 }

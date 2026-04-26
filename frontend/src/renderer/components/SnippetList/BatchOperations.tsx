@@ -15,9 +15,7 @@ interface BatchOperationsProps {
 
 type DialogType = 'delete' | 'tags' | 'category' | 'export' | null;
 
-/**
- * 批量操作工具栏：删除、修改标签、修改分类、导出
- */
+// 批量操作工具栏：删除、修改标签、修改分类、导出
 export const BatchOperations: React.FC<BatchOperationsProps> = ({
   selectedIds,
   onOperationComplete,
@@ -297,7 +295,7 @@ export const BatchOperations: React.FC<BatchOperationsProps> = ({
   );
 };
 
-/** 操作结果展示 */
+// 操作结果展示
 const ResultView: React.FC<{ result: BatchResult; onClose: () => void }> = ({ result, onClose }) => (
   <div className="batch-result">
     <div className="batch-result-summary">

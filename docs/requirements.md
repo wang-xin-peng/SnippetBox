@@ -27,12 +27,12 @@ SnippetBox 是一款面向开发者的轻量级代码片段管理工具。它提
 - **Auth_Service**: 认证服务，处理用户登录和授权
 - **Local_Embedding_Service**: 本地嵌入服务，使用本地模型将代码片段转换为向量表示
 - **Model_Downloader**: 模型下载器，负责下载和管理嵌入模型文件，支持后台下载、暂停/恢复
-- **Vector_Store**: 向量存储（SQLite + sqlite-vss 或 DuckDB），存储和检索片段向量
+- **Vector_Store**: 向量存储（SQLite），存储和检索片段向量
 - **Cloud_API**: 云端 API 服务（FastAPI）
 - **Desktop_Client**: 桌面客户端（Electron 应用）
 - **Valid_Snippet**: 包含标题和代码内容的片段对象
 - **Conflict**: 本地和云端数据不一致的情况
-- **Embedding_Model**: 嵌入模型，默认为 all-MiniLM-L6-v2（约 80MB）
+- **Embedding_Model**: 嵌入模型，使用 multilingual-e5-small（约 134MB，多语言支持）
 - **Model_Cache**: 模型缓存目录，存储已下载的模型文件
 - **Welcome_Wizard**: 欢迎向导，在首次启动时引导用户选择功能模式
 - **Lightweight_Mode**: 轻量模式，不使用语义搜索，仅使用全文搜索，节省存储空间
@@ -103,7 +103,18 @@ SnippetBox 是一款面向开发者的轻量级代码片段管理工具。它提
 3. IF 复制失败，THEN THE Desktop_Client SHALL 显示错误提示信息
 4. THE Desktop_Client SHALL 在复制成功后 2 秒内自动隐藏提示信息
 
-### 需求 6: 导出功能
+### 需求 6: 打印功能
+
+**用户故事**: 作为开发者，我想要打印代码片段，以便离线查看或分享。
+
+#### 验收标准
+
+1. WHEN 用户点击打印按钮时，THE Desktop_Client SHALL 打开浏览器打印对话框
+2. THE Desktop_Client SHALL 生成包含语法高亮的打印页面
+3. THE Desktop_Client SHALL 支持选择打印机和打印份数
+4. THE Desktop_Client SHALL 在打印页面中包含片段的标题和元数据
+
+### 需求 7: 导出功能
 
 **用户故事**: 作为开发者，我想要将片段导出为 Markdown 或 PDF 格式，以便分享或备份。
 
@@ -160,6 +171,7 @@ SnippetBox 是一款面向开发者的轻量级代码片段管理工具。它提
 6. IF 同步失败超过 3 次，THEN THE Sync_Service SHALL 记录错误并通知用户
 7. THE Sync_Service SHALL 支持增量同步以减少数据传输量
 8. WHEN 用户删除片段时，THE Sync_Service SHALL 在云端标记该片段为已删除而不是物理删除
+9. WHEN 用户登录时检测到本地片段，THE Desktop_Client SHALL 提示用户选择是否合并到云端
 
 ### 需求 10: 智能搜索
 
@@ -170,9 +182,8 @@ SnippetBox 是一款面向开发者的轻量级代码片段管理工具。它提
 1. THE Desktop_Client SHALL 提供统一的搜索框，不区分全文搜索和语义搜索
 2. WHEN 用户输入搜索查询时，THE Search_Engine SHALL 根据当前配置自动选择搜索策略
 3. WHERE 本地模型已下载，THE Search_Engine SHALL 使用本地语义搜索
-4. WHERE 本地模型未下载且用户已登录，THE Search_Engine SHALL 使用云端语义搜索
-5. WHERE 本地模型未下载且用户未登录，THE Search_Engine SHALL 使用全文搜索（SQLite FTS5）
-6. WHEN 搜索完成时，THE Desktop_Client SHALL 在搜索结果旁显示当前使用的搜索模式指示器（本地搜索/云端搜索/关键词搜索）
+4. WHERE 本地模型未下载，THE Search_Engine SHALL 使用全文搜索（SQLite FTS5）
+5. WHEN 搜索完成时，THE Desktop_Client SHALL 在搜索结果旁显示当前使用的搜索模式指示器（本地搜索/关键词搜索）
 7. WHEN 用户悬停在搜索模式指示器上时，THE Desktop_Client SHALL 显示详细说明
 8. THE Search_Engine SHALL 返回相似度最高的前 10 个片段（语义搜索）或相关度最高的结果（全文搜索）
 9. THE Local_Embedding_Service SHALL 在 200 毫秒内完成查询向量的生成
@@ -186,7 +197,7 @@ SnippetBox 是一款面向开发者的轻量级代码片段管理工具。它提
 1. WHEN 片段被创建或修改时，WHERE 本地模型已下载，THE Local_Embedding_Service SHALL 将片段标题和代码内容组合后生成向量
 2. THE Local_Embedding_Service SHALL 使用 all-MiniLM-L6-v2 模型（ONNX 格式）进行本地推理
 3. THE Local_Embedding_Service SHALL 生成 384 维的向量表示
-4. WHEN 向量生成完成时，THE Vector_Store SHALL 将向量存储到本地 SQLite 数据库（使用 sqlite-vss 扩展）
+4. WHEN 向量生成完成时，THE Vector_Store SHALL 将向量存储到本地 SQLite 数据库
 5. THE Vector_Store SHALL 支持基于余弦相似度的向量检索
 6. THE Vector_Store SHALL 在检索时返回相似度分数
 7. WHEN 片段被删除时，THE Vector_Store SHALL 删除对应的向量数据
@@ -199,7 +210,7 @@ SnippetBox 是一款面向开发者的轻量级代码片段管理工具。它提
 #### 验收标准
 
 1. WHEN 用户首次启动应用时，THE Desktop_Client SHALL 显示 Welcome_Wizard 欢迎向导
-2. THE Welcome_Wizard SHALL 询问用户是否需要语义搜索功能，并说明模型大小（约 80MB）和用途
+2. THE Welcome_Wizard SHALL 询问用户是否需要语义搜索功能，并说明模型大小（约 134MB，支持多语言）和用途
 3. WHEN 用户选择需要语义搜索时，THE Model_Downloader SHALL 在后台开始下载模型文件
 4. WHEN 用户选择跳过时，THE Desktop_Client SHALL 进入轻量模式，仅使用全文搜索
 5. WHEN 下载进行中时，THE Desktop_Client SHALL 在界面上显示下载进度（百分比、速度、剩余时间）
@@ -212,7 +223,7 @@ SnippetBox 是一款面向开发者的轻量级代码片段管理工具。它提
 12. THE Desktop_Client SHALL 在设置中提供"下载本地模型"按钮，显示当前搜索能力状态
 13. THE Desktop_Client SHALL 在设置中显示已下载的模型和占用空间
 14. THE Desktop_Client SHALL 允许用户删除已下载的模型以释放空间并切换到轻量模式
-15. WHEN 模型被删除后，THE Search_Engine SHALL 自动降级到全文搜索或云端搜索（如果已登录）
+15. WHEN 模型被删除后，THE Search_Engine SHALL 自动降级到全文搜索
 
 ### 需求 13: 数据持久化和完整性
 
@@ -653,15 +664,6 @@ SnippetBox 是一款面向开发者的轻量级代码片段管理工具。它提
 - 使用属性测试框架（如 Hypothesis for Python、fast-check for TypeScript）验证正确性属性
 - 测试覆盖率目标：80% 以上
 
-### 集成测试
-
-- 测试客户端与本地数据库的交互
-- 测试客户端与云端 API 的交互
-- 测试本地嵌入服务与向量存储的集成
-- 测试模型下载和缓存机制
-- 测试本地模式和云端模式的切换
-- 使用 1-3 个代表性示例验证端到端流程
-
 ### 端到端测试
 
 - 使用自动化测试工具（如 Playwright）模拟用户操作
@@ -698,7 +700,7 @@ SnippetBox 是一款面向开发者的轻量级代码片段管理工具。它提
 - 完成 Markdown 和 PDF 导出
 - 完成本地嵌入模型集成（all-MiniLM-L6-v2 + ONNX Runtime）
 - 完成模型下载器（支持后台下载、暂停/恢复、多镜像源）
-- 完成本地向量存储（SQLite + sqlite-vss）
+- 完成本地向量存储（SQLite）
 - 完成智能搜索引擎（自动降级策略）
 - 完成搜索模式指示器
 - 完成短链接生成
@@ -723,7 +725,7 @@ SnippetBox 是一款面向开发者的轻量级代码片段管理工具。它提
 
 ### 风险 1: 本地嵌入模型性能不足
 
-**缓解**: 使用 ONNX Runtime 优化推理性能，选择轻量级模型（all-MiniLM-L6-v2），实施向量缓存机制，提供云端语义搜索作为降级选项。
+**缓解**: 使用 ONNX Runtime 优化推理性能，选择轻量级模型（multilingual-e5-small），实施向量缓存机制，提供云端语义搜索作为降级选项。
 
 ### 风险 2: 模型下载失败或速度慢
 
@@ -747,10 +749,10 @@ SnippetBox 是一款面向开发者的轻量级代码片段管理工具。它提
 
 ### 风险 7: 数据库性能瓶颈
 
-**缓解**: 使用 SQLite FTS5 优化全文搜索，使用 sqlite-vss 扩展优化向量检索，实施分页加载，定期优化数据库。
+**缓解**: 使用 SQLite FTS5 优化全文搜索，使用 SQLite 表存储向量，实施分页加载，定期优化数据库。
 
 ### 风险 8: 云服务成本超预算
 
-**缓解**: 本地模式作为主要使用方式减少云端调用，实施有效的缓存策略，优化向量存储，监控资源使用情况，云端搜索仅作为降级选项。
+**缓解**: 本地模式作为主要使用方式减少云端调用，实施有效的缓存策略，优化向量存储，监控资源使用情况。
 
 ---

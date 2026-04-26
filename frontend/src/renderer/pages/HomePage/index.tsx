@@ -852,7 +852,7 @@ export default function HomePage() {
   );
 }
 
-/* ---- Snippet Card ---- */
+/* Snippet Card */
 interface CardProps {
   snippet: Snippet;
   isSelected: boolean;
@@ -928,7 +928,7 @@ function SnippetCard({ snippet, isSelected, onClick, onDelete, onToggleStar, bat
   );
 }
 
-/* ---- Snippet List Item ---- */
+/* Snippet List Item */
 function SnippetListItem({ snippet, isSelected, onClick, onToggleStar, batchMode, checked, onToggleCheck }: CardProps) {
   const lang = snippet.language?.toLowerCase() || '';
   const color = getLangColor(lang);
@@ -992,7 +992,7 @@ function SnippetListItem({ snippet, isSelected, onClick, onToggleStar, batchMode
   );
 }
 
-/* ---- Preview Panel ---- */
+/* Preview Panel */
 interface PreviewProps {
   snippet: Snippet;
   onEdit: () => void;

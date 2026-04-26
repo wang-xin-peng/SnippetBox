@@ -77,9 +77,8 @@ export class SettingsManager {
     }
   }
 
-  /**
-   * 获取设置
-   */
+  
+  // 获取设置
   async getSettings(): Promise<Settings> {
     if (this.settingsCache) {
       return this.settingsCache;
@@ -105,9 +104,7 @@ export class SettingsManager {
     }
   }
 
-  /**
-   * 更新设置
-   */
+  // 更新设置
   async updateSettings(settings: Partial<Settings>): Promise<void> {
     try {
       const currentSettings = await this.getSettings();
@@ -121,9 +118,7 @@ export class SettingsManager {
     }
   }
 
-  /**
-   * 保存设置
-   */
+  // 保存设置
   private saveSettings(settings: Settings): void {
     const now = Date.now();
     const stmt = this.db.prepare(`
@@ -136,9 +131,7 @@ export class SettingsManager {
     }
   }
 
-  /**
-   * 重置设置
-   */
+  // 重置设置
   async resetSettings(): Promise<void> {
     try {
       this.db.exec('DELETE FROM settings');
@@ -150,9 +143,7 @@ export class SettingsManager {
     }
   }
 
-  /**
-   * 导出设置
-   */
+  // 导出设置
   async exportSettings(filePath: string): Promise<void> {
     try {
       const settings = await this.getSettings();
@@ -169,9 +160,7 @@ export class SettingsManager {
     }
   }
 
-  /**
-   * 导入设置
-   */
+  // 导入设置
   async importSettings(filePath: string): Promise<void> {
     try {
       if (!fs.existsSync(filePath)) {
@@ -193,9 +182,7 @@ export class SettingsManager {
     }
   }
 
-  /**
-   * 验证设置
-   */
+  // 验证设置
   private validateSettings(settings: any): Settings {
     return {
       theme: this.validateTheme(settings.theme),
@@ -270,9 +257,7 @@ export class SettingsManager {
     return num;
   }
 
-  /**
-   * 合并设置与默认值
-   */
+  // 合并设置与默认值
   private mergeWithDefaults(settingsMap: Record<string, any>): Settings {
     return {
       ...settingsMap,
@@ -284,9 +269,7 @@ export class SettingsManager {
     };
   }
 
-  /**
-   * 深度合并对象
-   */
+  // 深度合并对象
   private deepMerge(target: any, source: any): any {
     if (source === null || source === undefined) {
       return target;

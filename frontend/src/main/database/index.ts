@@ -148,7 +148,7 @@ export class DatabaseManager {
       if (!catColNames.includes('user_id')) {
         this.db.exec("ALTER TABLE categories ADD COLUMN user_id TEXT DEFAULT 'local'");
       }
-      // 检测并重建表以移除旧 name 列级 UNIQUE 约束（列约束无法通过 DROP INDEX 消除）
+      // 检测并重建表以移除旧 name 列级 UNIQUE 约束
       try {
         this.db.exec("INSERT INTO categories (id, name, description, color, icon, created_at, updated_at, user_id) VALUES ('__test_dup__', '__test_name__', NULL, '#6c757d', '📁', 0, 0, 'test_user1')");
         this.db.exec("INSERT INTO categories (id, name, description, color, icon, created_at, updated_at, user_id) VALUES ('__test_dup2__', '__test_name__', NULL, '#6c757d', '📁', 0, 0, 'test_user2')");

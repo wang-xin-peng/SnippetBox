@@ -12,9 +12,7 @@ import { registerAuthHandlers } from './authHandlers';
 import { registerSyncHandlers } from './syncHandlers';
 import { registerShareHandlers } from './shareHandlers';
 
-/**
- * 注册所有 IPC 处理器
- */
+// 注册所有 IPC 处理器
 export function registerAllHandlers() {
   registerSnippetHandlers();
   registerCategoryHandlers();
