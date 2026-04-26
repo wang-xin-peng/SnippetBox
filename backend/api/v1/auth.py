@@ -60,10 +60,8 @@ async def login(
 ):
     """
     用户登录
-    
     - **email**: 邮箱地址
     - **password**: 密码
-    
     返回访问令牌和刷新令牌
     """
     try:
@@ -110,9 +108,7 @@ async def refresh_token(
 ):
     """
     刷新访问令牌
-    
     - **refresh_token**: 刷新令牌
-    
     返回新的访问令牌和刷新令牌
     """
     # 验证刷新令牌
@@ -160,7 +156,6 @@ async def logout(
 ):
     """
     用户登出
-    
     将当前访问令牌加入黑名单
     需要在请求头中提供有效的访问令牌
     """
@@ -179,7 +174,6 @@ async def get_current_user_info(
 ):
     """
     获取当前用户信息
-    
     需要在请求头中提供有效的访问令牌
     """
     user_id = current_user["user_id"]
@@ -210,9 +204,7 @@ async def send_verification_code(
 ):
     """
     发送邮箱验证码
-
     - **email**: 邮箱地址
-
     返回验证码发送结果
     """
     email = request.email
@@ -254,10 +246,8 @@ async def login_with_code(
 ):
     """
     使用邮箱验证码登录
-
     - **email**: 邮箱地址
     - **code**: 验证码
-
     返回访问令牌和刷新令牌
     """
     email = verify_data.email
@@ -310,9 +300,7 @@ async def send_register_code(
 ):
     """
     发送注册验证码
-
     - **email**: 邮箱地址（必须未注册）
-
     返回验证码发送结果
     """
     email = request.email
@@ -354,12 +342,10 @@ async def register_with_code(
 ):
     """
     使用验证码注册
-
     - **email**: 邮箱地址
     - **code**: 验证码
     - **password**: 密码
     - **username**: 用户名
-
     验证码验证通过后自动注册并登录
     """
     success, error_msg = email_code_service.verify_register_code(register_data.email, register_data.code)
@@ -414,7 +400,6 @@ async def send_reset_code(
 ):
     """
     发送重置密码验证码
-
     - **email**: 邮箱地址（必须已注册）
     """
     email = request.email
@@ -456,7 +441,6 @@ async def reset_password(
 ):
     """
     重置密码
-
     - **email**: 邮箱地址
     - **code**: 验证码
     - **new_password**: 新密码

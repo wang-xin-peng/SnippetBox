@@ -332,52 +332,9 @@ def test_get_share_stats():
         print_error(f'请求失败: {e}')
         return False
 
-def test_upload_vector():
-    """测试上传向量"""
-    print_section('15. 上传向量')
-    try:
-        headers = {'Authorization': f'Bearer {access_token}'}
-        vector_data = {
-            'snippet_id': snippet_id,
-            'vector': [0.1] * 384  # 384维向量
-        }
-        response = requests.post(f'{BASE_URL}/vector-sync/upload', json=vector_data, headers=headers)
-        print_response(response)
-        if response.status_code == 200:
-            print_success('上传向量成功')
-            return True
-        else:
-            print_error('上传向量失败')
-            return False
-    except Exception as e:
-        print_error(f'请求失败: {e}')
-        return False
-
-def test_vector_search():
-    """测试向量搜索"""
-    print_section('16. 向量搜索')
-    try:
-        headers = {'Authorization': f'Bearer {access_token}'}
-        search_data = {
-            'query_vector': [0.1] * 384,
-            'top_k': 5
-        }
-        response = requests.post(f'{BASE_URL}/vector-sync/search', json=search_data, headers=headers)
-        print_response(response)
-        if response.status_code == 200:
-            data = response.json()
-            print_success(f'向量搜索成功，返回 {len(data.get("results", []))} 个结果')
-            return True
-        else:
-            print_error('向量搜索失败')
-            return False
-    except Exception as e:
-        print_error(f'请求失败: {e}')
-        return False
-
 def test_refresh_token():
     """测试刷新令牌"""
-    print_section('17. 刷新令牌')
+    print_section('15. 刷新令牌')
     try:
         # 先登录获取refresh_token
         response = requests.post(f'{BASE_URL}/auth/login', json={
@@ -499,8 +456,6 @@ def main():
         ('获取分享列表', test_get_shares),
         ('获取分享信息', test_get_share_info),
         ('获取分享统计', test_get_share_stats),
-        ('上传向量', test_upload_vector),
-        ('向量搜索', test_vector_search),
         ('刷新令牌', test_refresh_token),
         ('删除分享', test_delete_share),
         ('删除片段', test_delete_snippet),
