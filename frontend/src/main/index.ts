@@ -26,12 +26,12 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:3000');
   } else {
     // 生产环境加载打包后的文件
-    mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+    mainWindow.loadFile(path.join(__dirname, '../../renderer/index.html'));
   }
 
   // 始终打开开发者工具 - 等待页面加载完成后打开
   mainWindow.webContents.on('did-finish-load', () => {
-    mainWindow?.webContents.openDevTools();
+    if (isDev) mainWindow?.webContents.openDevTools();
   });
 
   mainWindow.on('closed', () => {

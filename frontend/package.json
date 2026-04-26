@@ -53,8 +53,7 @@
     "pdfkit": "^0.15.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.20.0",
-    "snippetbox": "file:"
+    "react-router-dom": "^6.20.0"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.3",
@@ -106,6 +105,10 @@
         "nsis"
       ],
       "icon": "resources/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
     },
     "mac": {
       "target": [
