@@ -65,7 +65,7 @@ export function ModelDownloadPage({
             <li>✓ 语义理解</li>
             <li>✓ 智能推荐</li>
             <li>✓ 离线可用</li>
-            <li>✓ 需要下载模型（~118MB）</li>
+            <li>✓ 需要下载模型（~133.71MB）</li>
           </ul>
           <div className="mode-badge advanced">高级</div>
         </div>
@@ -76,7 +76,7 @@ export function ModelDownloadPage({
           <div className="notice-icon">ℹ️</div>
           <div className="notice-content">
             <strong>提示：</strong>
-            本地模型大小约为 118MB。您可以现在下载，也可以稍后在设置中下载。
+            本地模型大小约为 133.71MB。您可以现在下载，也可以稍后在设置中下载。
           </div>
           <button className="btn-download" onClick={handleDownloadNow}>
             立即下载模型

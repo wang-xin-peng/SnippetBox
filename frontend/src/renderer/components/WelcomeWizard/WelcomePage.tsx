@@ -46,13 +46,43 @@ export function WelcomePage({ onNext, onSkip }: WizardStepProps) {
         <div className="feature-item">
           <div className="feature-icon">🏷️</div>
           <h3>分类管理</h3>
-          <p>使用分类和标签组织代码</p>
+          <p>使用自定义分类和标签组织代码</p>
         </div>
 
         <div className="feature-item">
           <div className="feature-icon">💡</div>
           <h3>语法高亮</h3>
           <p>支持多种编程语言高亮显示</p>
+        </div>
+
+        <div className="feature-item">
+          <div className="feature-icon">📥</div>
+          <h3>导入导出</h3>
+          <p>支持多种格式导入导出您的代码片段</p>
+        </div>
+
+        <div className="feature-item">
+          <div className="feature-icon">🔗</div>
+          <h3>链接分享</h3>
+          <p>一键生成分享链接，方便协作</p>
+        </div>
+
+        <div className="feature-item">
+          <div className="feature-icon">☁️</div>
+          <h3>云端同步</h3>
+          <p>数据自动同步，多设备无缝切换</p>
+        </div>
+
+        <div className="feature-item">
+          <div className="feature-icon">📴</div>
+          <h3>离线支持</h3>
+          <p>无需网络即可正常工作</p>
+        </div>
+
+        <div className="feature-item">
+          <div className="feature-icon">📋</div>
+          <h3>一键复制</h3>
+          <p>轻轻一触，代码片段即刻复制到剪贴板</p>
         </div>
       </div>
 
