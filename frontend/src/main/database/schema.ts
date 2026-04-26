@@ -89,6 +89,14 @@ CREATE TABLE IF NOT EXISTS sync_queue (
 );
 `;
 
+// 7. deleted_cloud_ids - 已永久删除的云端片段黑名单
+export const CREATE_DELETED_CLOUD_IDS_TABLE = `
+CREATE TABLE IF NOT EXISTS deleted_cloud_ids (
+  cloud_id TEXT PRIMARY KEY,
+  deleted_at INTEGER NOT NULL
+);
+`;
+
 // 创建索引
 export const CREATE_INDEXES = [
   // snippets 表索引
@@ -146,6 +154,7 @@ export const INIT_SCRIPTS = [
   CREATE_SNIPPET_TAGS_TABLE,
   CREATE_SETTINGS_TABLE,
   CREATE_SYNC_QUEUE_TABLE,
+  CREATE_DELETED_CLOUD_IDS_TABLE,
   ...CREATE_INDEXES,
   CREATE_FTS_TABLE,
   ...CREATE_FTS_TRIGGERS,

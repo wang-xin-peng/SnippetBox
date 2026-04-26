@@ -31,13 +31,14 @@ export class SyncService {
   }
 
   private setupNetworkMonitor(): void {
+    // 延迟首次检测，避免阻塞启动
+    setTimeout(() => this.checkOnlineStatus(), 1000);
     setInterval(() => this.checkOnlineStatus(), 30000);
-    this.checkOnlineStatus();
   }
 
   private async checkOnlineStatus(): Promise<boolean> {
     try {
-      await axios.get(`http://8.141.108.146:8000/health`, { timeout: 5000 });
+      await axios.get(`http://8.141.108.146:8000/health`, { timeout: 2000 });
       const wasOffline = !this.isOnline;
       this.isOnline = true;
       this.status.isOnline = true;
@@ -54,32 +55,57 @@ export class SyncService {
     }
   }
 
+  private async quickCheckOnlineStatus(): Promise<boolean> {
+    try {
+      await axios.get(`http://8.141.108.146:8000/health`, { timeout: 2000 });
+      this.isOnline = true;
+      this.status.isOnline = true;
+      return true;
+    } catch {
+      this.isOnline = false;
+      this.status.isOnline = false;
+      return false;
+    }
+  }
+
   private async processOfflineQueue(): Promise<void> {
     const queue = getOfflineQueue();
     const ops = queue.getPendingOperations();
-    if (ops.length === 0) return;
+    if (ops.length === 0) {
+      // 没有离线队列，直接走完整同步
+      this.sync().catch((e) => console.error('[SyncService] Sync after reconnect failed:', e));
+      return;
+    }
 
     const token = getAuthService().getAccessToken();
     if (!token) return;
+
+    const db = getDatabaseManager().getDb();
 
     for (const op of ops) {
       try {
         const headers = { Authorization: `Bearer ${token}` };
         if (op.type === 'create') {
-          await this.http.post('/snippets', op.data, { headers });
+          // create 操作统一由 pushChanges 处理，避免重复推送
+          // 只需标记为已处理，pushChanges 会根据 is_synced=0 重新推
+          await queue.markProcessed(op.id);
         } else if (op.type === 'update') {
-          await this.http.put(`/snippets/${op.snippetId}`, op.data, { headers });
+          const cloudId = op.data?.cloudId ?? op.snippetId;
+          await this.http.put(`/snippets/${cloudId}`, op.data, { headers });
+          await queue.markProcessed(op.id);
         } else if (op.type === 'delete') {
-          await this.http.delete(`/snippets/${op.snippetId}`, { headers });
+          const cloudId = op.data?.cloudId ?? op.snippetId;
+          const hardDelete = op.data?.hardDelete ? '?hard_delete=true' : '';
+          await this.http.delete(`/snippets/${cloudId}${hardDelete}`, { headers });
+          await queue.markProcessed(op.id);
         }
-        await queue.markProcessed(op.id);
       } catch (e) {
         console.error('[SyncService] Failed to process offline op:', op.id, e);
       }
     }
 
-    this.updatePendingCount();
-    this.notifyRenderer();
+    // 处理完队列后执行完整同步
+    this.sync().catch((e) => console.error('[SyncService] Sync after reconnect failed:', e));
   }
 
   async pushChanges(): Promise<PushResult> {
@@ -118,7 +144,12 @@ export class SyncService {
             await this.http.put(`/snippets/${cloudId}`, payload, { headers });
           } else {
             const res = await this.http.post('/snippets', payload, { headers });
-            cloudId = res.data?.id ?? res.data?.snippet_id;
+            cloudId = res.data?.id ?? res.data?.snippet_id ?? res.data?.data?.id;
+          }
+
+          if (!cloudId) {
+            console.warn(`[SyncService] No cloudId returned for snippet ${row.id}, skipping is_synced update`);
+            continue;
           }
 
           const updateResult = db.prepare(
@@ -173,8 +204,16 @@ export class SyncService {
       const currentUser = await getAuthService().getCurrentUser();
       const cloudUserId = currentUser?.id || 'local';
 
+      // 加载永久删除黑名单
+      const blacklist = new Set(
+        (db.prepare('SELECT cloud_id FROM deleted_cloud_ids').all() as { cloud_id: string }[]).map(r => r.cloud_id)
+      );
+
       for (const cloud of cloudSnippets) {
         const cloudId = cloud.id ?? cloud.snippet_id;
+
+        // 跳过已永久删除的片段
+        if (blacklist.has(cloudId)) continue;
         const cloudUpdatedAt = new Date(cloud.updated_at ?? cloud.updatedAt).getTime();
 
         try {
@@ -267,6 +306,7 @@ export class SyncService {
   }
 
   getSyncStatus(): SyncStatus {
+    this.quickCheckOnlineStatus().catch(() => {});
     this.updatePendingCount();
     return { ...this.status };
   }

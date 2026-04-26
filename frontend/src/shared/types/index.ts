@@ -15,6 +15,8 @@ export interface Snippet {
   isSynced: boolean;
   cloudId?: string;
   storageScope?: 'local' | 'cloud';
+  skipSync?: boolean;
+  deletedAt?: number | null;
 }
 
 export interface CreateSnippetDTO {

@@ -4,7 +4,7 @@
 
 .manager-tabs {
   display: flex;
-  border-bottom: 1px solid #dee2e6;
+  border-bottom: 1px solid var(--border-color);
   margin-bottom: 16px;
 }
 
@@ -16,23 +16,23 @@
   border-bottom: 2px solid transparent;
   font-size: 14px;
   font-weight: 500;
-  color: #6c757d;
+  color: var(--text-secondary);
   transition: all 0.2s;
 }
 
 .tab:hover {
-  color: #007bff;
+  color: var(--primary-color);
 }
 
 .tab.active {
-  color: #007bff;
-  border-bottom-color: #007bff;
+  color: var(--primary-color);
+  border-bottom-color: var(--primary-color);
 }
 
 .form-section {
   margin-bottom: 24px;
   padding: 16px;
-  background-color: #f8f9fa;
+  background-color: var(--bg-secondary);
   border-radius: 8px;
 }
 
@@ -41,7 +41,7 @@
   margin-bottom: 16px;
   font-size: 14px;
   font-weight: 600;
-  color: #495057;
+  color: var(--text-primary);
 }
 
 .form-group {
@@ -53,22 +53,24 @@
   margin-bottom: 4px;
   font-size: 13px;
   font-weight: 500;
-  color: #495057;
+  color: var(--text-primary);
 }
 
 .form-group input {
   width: 100%;
   padding: 8px 12px;
-  border: 1px solid #ced4da;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   font-size: 14px;
+  color: var(--text-primary);
+  background: var(--bg-primary);
   transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 }
 
 .form-group input:focus {
   outline: none;
-  border-color: #80bdff;
-  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 0.2rem var(--primary-color-alpha);
 }
 
 .form-actions {
@@ -88,21 +90,21 @@
 }
 
 .btn-primary {
-  background-color: #007bff;
+  background-color: var(--primary-color);
   color: white;
 }
 
 .btn-primary:hover {
-  background-color: #0069d9;
+  background-color: var(--primary-hover);
 }
 
 .btn-secondary {
-  background-color: #6c757d;
+  background-color: var(--text-secondary);
   color: white;
 }
 
 .btn-secondary:hover {
-  background-color: #5a6268;
+  background-color: var(--text-primary);
 }
 
 .btn:disabled {
@@ -119,27 +121,28 @@
   margin-bottom: 12px;
   font-size: 14px;
   font-weight: 600;
-  color: #495057;
+  color: var(--text-primary);
 }
 
 .category-list, .tag-list {
   max-height: 300px;
   overflow-y: auto;
-  border: 1px solid #dee2e6;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   padding: 8px;
+  background: var(--bg-primary);
 }
 
 .category-item, .tag-item {
   display: flex;
   align-items: center;
   padding: 8px 12px;
-  border-bottom: 1px solid #f8f9fa;
+  border-bottom: 1px solid var(--border-light);
   transition: background-color 0.2s;
 }
 
 .category-item:hover, .tag-item:hover {
-  background-color: #f8f9fa;
+  background-color: var(--bg-hover);
 }
 
 .category-item:last-child, .tag-item:last-child {
@@ -154,14 +157,14 @@
 .category-name, .tag-name {
   flex: 1;
   font-size: 13px;
-  color: #495057;
+  color: var(--text-primary);
 }
 
 .tag-count {
   font-size: 11px;
-  color: #6c757d;
+  color: var(--text-secondary);
   margin-right: 12px;
-  background-color: #e9ecef;
+  background-color: var(--bg-tertiary);
   padding: 2px 6px;
   border-radius: 10px;
 }
@@ -182,59 +185,132 @@
 }
 
 .action-btn.edit {
-  background-color: #ffc107;
-  color: #212529;
+  background-color: var(--accent-color);
+  color: #1a1a1a;
 }
 
 .action-btn.edit:hover {
-  background-color: #e0a800;
+  background-color: #d97706;
 }
 
 .action-btn.delete {
-  background-color: #dc3545;
+  background-color: var(--danger-color);
   color: white;
 }
 
 .action-btn.delete:hover {
-  background-color: #c82333;
+  background-color: var(--danger-hover);
 }
 
-.no-items {
-  text-align: center;
-  color: #6c757d;
+/* 确认对话框 */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+  backdrop-filter: blur(2px);
+}
+
+.confirm-dialog {
+  background: var(--bg-primary);
+  border-radius: 12px;
+  padding: 24px;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  animation: slideIn 0.15s ease;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.confirm-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-bright);
+  margin-bottom: 8px;
+}
+
+.confirm-msg {
   font-size: 13px;
-  padding: 40px 0;
-  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 20px;
 }
 
-.category-system-badge {
-  font-size: 11px;
-  color: #6c757d;
-  background-color: #e9ecef;
-  padding: 4px 8px;
-  border-radius: 4px;
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.confirm-btn {
+  padding: 7px 16px;
+  border-radius: 7px;
+  font-size: 13px;
   font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  transition: all 0.15s;
 }
 
-.tag-item input[type="checkbox"] {
-  margin-right: 12px;
+.confirm-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
-@media (max-width: 768px) {
-  .category-tag-manager {
-    padding: 0;
-  }
-  
-  .form-section {
-    padding: 12px;
-  }
-  
-  .category-item, .tag-item {
-    padding: 6px 8px;
-  }
-  
-  .action-btn {
-    padding: 2px 6px;
-    font-size: 11px;
-  }
+.confirm-btn--danger {
+  background: var(--danger-color);
+  color: white;
+  border-color: var(--danger-color);
+}
+
+.confirm-btn--danger:hover {
+  opacity: 0.88;
+}
+
+.icon-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 0;
+}
+
+.icon-option {
+  width: 36px;
+  height: 36px;
+  border: 1.5px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  transition: all 0.15s;
+}
+
+.icon-option:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: var(--primary-light);
+}
+
+.icon-option.selected {
+  border-color: var(--primary-color);
+  background: var(--primary-light);
 }

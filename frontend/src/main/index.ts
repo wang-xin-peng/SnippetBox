@@ -29,7 +29,10 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
 
-  // mainWindow.webContents.openDevTools();
+  // 始终打开开发者工具 - 等待页面加载完成后打开
+  mainWindow.webContents.on('did-finish-load', () => {
+    mainWindow?.webContents.openDevTools();
+  });
 
   mainWindow.on('closed', () => {
     mainWindow = null;

@@ -8,7 +8,7 @@ let categoryManager: CategoryManager | null = null;
 async function getEffectiveUserId(userId?: string): Promise<string> {
   const authService = getAuthService();
   if (authService.isLoggedIn()) {
-    const user = await authService.getCurrentUser();
+    const user = authService.getCachedUser();
     return user?.id || 'local';
   }
   return 'local';

@@ -3,6 +3,8 @@ import { getDatabaseManager } from '../database';
 import { SnippetManager } from '../services/SnippetManager';
 import { VectorStore } from '../services/VectorStore';
 import { getAuthService } from '../services/AuthService';
+import { getSyncService } from '../services/SyncService';
+import { getOfflineQueue } from '../services/OfflineQueue';
 import { CreateSnippetDTO, UpdateSnippetDTO, SnippetFilter } from '../../shared/types';
 
 let snippetManager: SnippetManager | null = null;
@@ -55,9 +57,21 @@ export function registerSnippetHandlers() {
       console.log('[SnippetHandlers] Creating snippet:', data.title);
       if (!snippetManager) throw new Error('SnippetManager not initialized');
       const authService = getAuthService();
-      const storageScope = authService.isLoggedIn() ? 'cloud' : 'local';
+      // 使用 'local' 存储，这样同步逻辑会将其同步到云端
+      const storageScope = 'local';
       const snippet = await snippetManager.createSnippet(data, storageScope);
       console.log('[SnippetHandlers] Snippet created successfully:', snippet.id, 'storageScope:', storageScope);
+      
+      // 如果用户已登录，尝试同步到云端（失败不影响本地保存）
+      if (authService.isLoggedIn()) {
+        const syncService = getSyncService();
+        if (syncService) {
+          syncService.pushChanges().catch((e: any) => {
+            console.warn('[SnippetHandlers] Cloud sync failed (offline?), snippet saved locally:', e?.message);
+          });
+        }
+      }
+      
       // 异步生成向量，不阻塞返回
       generateVectorAsync(snippet.id, snippet.title, snippet.code, snippet.description);
       return snippet;
@@ -104,16 +118,31 @@ export function registerSnippetHandlers() {
       if (!snippetManager) throw new Error('SnippetManager not initialized');
       const snippet = await snippetManager.updateSnippet(id, data);
       console.log('[SnippetHandlers] Snippet updated successfully');
+
+      // 如果已登录，尝试同步到云端（失败则入离线队列）
+      const authService = getAuthService();
+      if (authService.isLoggedIn()) {
+        const syncService = getSyncService();
+        if (syncService) {
+          syncService.pushChanges().catch(async (e: any) => {
+            console.warn('[SnippetHandlers] Cloud sync failed, queuing update:', e?.message);
+            if (snippet.cloudId) {
+              await getOfflineQueue().enqueue({
+                type: 'update',
+                snippetId: id,
+                data: { cloudId: snippet.cloudId, title: snippet.title, code: snippet.code, language: snippet.language, description: snippet.description },
+                timestamp: Date.now(),
+              });
+            }
+          });
+        }
+      }
+
       // 更新向量（先删旧的再生成新的）
       setImmediate(async () => {
         try {
           await getVectorStore().deleteVector(id);
-          // 组合标题、描述和代码
-          const content = [
-            snippet.title,
-            snippet.description || '',
-            snippet.code
-          ].filter(Boolean).join('\n');
+          const content = [snippet.title, snippet.description || '', snippet.code].filter(Boolean).join('\n');
           await getVectorStore().addVector(id, content);
         } catch (e) {
           console.warn(`[SnippetHandlers] Vector update skipped for ${id}:`, (e as any).message);
@@ -131,8 +160,41 @@ export function registerSnippetHandlers() {
     try {
       console.log('[SnippetHandlers] Moving snippet to trash:', id);
       if (!snippetManager) throw new Error('SnippetManager not initialized');
+      const db = getDatabaseManager().getDb();
+      const row = db.prepare('SELECT cloud_id FROM snippets WHERE id = ?').get(id) as { cloud_id: string | null } | undefined;
       await snippetManager.deleteSnippet(id);
       console.log('[SnippetHandlers] Snippet moved to trash successfully');
+
+      const authService = getAuthService();
+      if (row?.cloud_id && authService.isLoggedIn()) {
+        const syncService = getSyncService();
+        if (!syncService) return true;
+        // 离线时直接入队，不等超时
+        if (!(syncService as any).isOnline) {
+          await getOfflineQueue().enqueue({
+            type: 'delete',
+            snippetId: id,
+            data: { cloudId: row.cloud_id },
+            timestamp: Date.now(),
+          });
+          (syncService as any).updatePendingCount();
+          (syncService as any).notifyRenderer();
+        } else {
+          (syncService as any).http.delete(`/snippets/${row.cloud_id}`, {
+            headers: { Authorization: `Bearer ${authService.getAccessToken()}` },
+          }).catch(async (e: any) => {
+            console.warn('[SnippetHandlers] Cloud delete failed, queuing:', e?.message);
+            await getOfflineQueue().enqueue({
+              type: 'delete',
+              snippetId: id,
+              data: { cloudId: row.cloud_id },
+              timestamp: Date.now(),
+            });
+            (syncService as any).updatePendingCount();
+            (syncService as any).notifyRenderer();
+          });
+        }
+      }
       return true;
     } catch (error) {
       console.error('[SnippetHandlers] Failed to delete snippet:', error);
@@ -143,8 +205,11 @@ export function registerSnippetHandlers() {
   // 列出回收站片段
   ipcMain.handle('trash:list', async () => {
     try {
+      console.log('[SnippetHandlers] trash:list called');
       if (!snippetManager) throw new Error('SnippetManager not initialized');
-      return await snippetManager.listTrash();
+      const result = await snippetManager.listTrash();
+      console.log('[SnippetHandlers] trash:list returned', result.length, 'items');
+      return result;
     } catch (error) {
       console.error('[SnippetHandlers] Failed to list trash:', error);
       throw error;
@@ -166,7 +231,34 @@ export function registerSnippetHandlers() {
   ipcMain.handle('trash:permanentDelete', async (_event, id: string) => {
     try {
       if (!snippetManager) throw new Error('SnippetManager not initialized');
+      const db = getDatabaseManager().getDb();
+      const row = db.prepare('SELECT cloud_id FROM snippets WHERE id = ?').get(id) as { cloud_id: string | null } | undefined;
       await snippetManager.permanentDelete(id);
+      const authService = getAuthService();
+      if (row?.cloud_id && authService.isLoggedIn()) {
+        const syncService = getSyncService();
+        if (!syncService) return true;
+        const enqueueHardDelete = async () => {
+          await getOfflineQueue().enqueue({
+            type: 'delete',
+            snippetId: id,
+            data: { cloudId: row.cloud_id, hardDelete: true },
+            timestamp: Date.now(),
+          });
+          (syncService as any).updatePendingCount();
+          (syncService as any).notifyRenderer();
+        };
+        if (!(syncService as any).isOnline) {
+          await enqueueHardDelete();
+        } else {
+          (syncService as any).http.delete(`/snippets/${row.cloud_id}?hard_delete=true`, {
+            headers: { Authorization: `Bearer ${authService.getAccessToken()}` },
+          }).catch(async (e: any) => {
+            console.warn('[SnippetHandlers] Cloud hard delete failed, queuing:', e?.message);
+            await enqueueHardDelete();
+          });
+        }
+      }
       return true;
     } catch (error) {
       console.error('[SnippetHandlers] Failed to permanently delete snippet:', error);
@@ -178,7 +270,37 @@ export function registerSnippetHandlers() {
   ipcMain.handle('trash:empty', async () => {
     try {
       if (!snippetManager) throw new Error('SnippetManager not initialized');
+      const db = getDatabaseManager().getDb();
+      const trashRows = db.prepare('SELECT id, cloud_id FROM snippets WHERE is_deleted = 1 AND cloud_id IS NOT NULL').all() as { id: string; cloud_id: string }[];
       await snippetManager.emptyTrash();
+      const authService = getAuthService();
+      if (trashRows.length > 0 && authService.isLoggedIn()) {
+        const syncService = getSyncService();
+        if (!syncService) return true;
+        const token = authService.getAccessToken();
+        for (const row of trashRows) {
+          const enqueueHardDelete = async () => {
+            await getOfflineQueue().enqueue({
+              type: 'delete',
+              snippetId: row.id,
+              data: { cloudId: row.cloud_id, hardDelete: true },
+              timestamp: Date.now(),
+            });
+          };
+          if (!(syncService as any).isOnline) {
+            await enqueueHardDelete();
+          } else {
+            (syncService as any).http.delete(`/snippets/${row.cloud_id}?hard_delete=true`, {
+              headers: { Authorization: `Bearer ${token}` },
+            }).catch(async (e: any) => {
+              console.warn('[SnippetHandlers] Cloud hard delete failed for', row.cloud_id, ':', e?.message);
+              await enqueueHardDelete();
+            });
+          }
+        }
+        (syncService as any).updatePendingCount();
+        (syncService as any).notifyRenderer();
+      }
       return true;
     } catch (error) {
       console.error('[SnippetHandlers] Failed to empty trash:', error);

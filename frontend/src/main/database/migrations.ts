@@ -36,6 +36,85 @@ function migrateSnippetsTable(db: Database.Database): void {
 }
 
 /**
+ * 清理重复的 cloud_id 片段（保留最新的一条）
+ */
+function deduplicateCloudSnippets(db: Database.Database): void {
+  try {
+    const result = db.prepare(`
+      DELETE FROM snippets
+      WHERE cloud_id IS NOT NULL
+        AND (is_deleted = 0 OR is_deleted IS NULL)
+        AND id NOT IN (
+          SELECT id FROM snippets
+          WHERE cloud_id IS NOT NULL
+            AND (is_deleted = 0 OR is_deleted IS NULL)
+          GROUP BY cloud_id
+          HAVING id = MAX(id)
+        )
+    `).run();
+    if (result.changes > 0) {
+      console.log(`[Migration] Removed ${result.changes} duplicate cloud snippets`);
+    }
+  } catch (error) {
+    console.error('[Migration] Failed to deduplicate cloud snippets:', error);
+  }
+}
+
+/**
+ * 为 cloud_id 添加唯一索引，防止重复插入
+ */
+function migrateCloudIdUniqueIndex(db: Database.Database): void {
+  try {
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_snippets_cloud_id_unique ON snippets(cloud_id) WHERE cloud_id IS NOT NULL`);
+  } catch (error) {
+    // 如果已存在或不支持 partial index，忽略
+    console.warn('[Migration] Could not create unique index on cloud_id:', (error as any).message);
+  }
+}
+
+/**
+ * 创建 deleted_cloud_ids 表（已永久删除的云端片段黑名单）
+ */
+function migrateDeletedCloudIdsTable(db: Database.Database): void {
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS deleted_cloud_ids (
+        cloud_id TEXT PRIMARY KEY,
+        deleted_at INTEGER NOT NULL
+      )
+    `);
+  } catch (error) {
+    console.error('[Migration] Failed to create deleted_cloud_ids table:', error);
+  }
+}
+
+/**
+ * 将默认分类的 emoji 图标迁移为 Font Awesome class
+ */
+function migrateDefaultCategoryIcons(db: Database.Database): void {
+  const iconMap: Record<string, string> = {
+    '📁': 'fas fa-inbox',
+    '🧮': 'fas fa-brain',
+    '🎨': 'fas fa-palette',
+    '🔧': 'fas fa-wrench',
+    '🌐': 'fas fa-plug',
+    '🗂️': 'fas fa-layer-group',
+    '💾': 'fas fa-database',
+    '⚙️': 'fas fa-cog',
+    '🪝': 'fas fa-code-branch',
+    '✅': 'fas fa-check-circle',
+  };
+  try {
+    const stmt = db.prepare('UPDATE categories SET icon = ? WHERE icon = ?');
+    for (const [emoji, fa] of Object.entries(iconMap)) {
+      stmt.run(fa, emoji);
+    }
+  } catch (e) {
+    console.warn('[Migration] Failed to migrate category icons:', e);
+  }
+}
+
+/**
  * 迁移 categories 表，添加 user_id 列
  */
 function migrateCategoriesTable(db: Database.Database): void {
@@ -73,11 +152,11 @@ export function initializeDefaultCategories(db: Database.Database): void {
       
       const now = Date.now();
       const defaults = [
-        { id: 'cat_local_default', name: '未分类', description: '未分类的代码片段', color: '#6B7280', icon: '📁' },
-        { id: 'cat_local_algorithm', name: '算法', description: '排序、搜索、动态规划等', color: '#3B82F6', icon: '🧮' },
-        { id: 'cat_local_ui', name: 'UI组件', description: '可复用的界面组件和样式', color: '#8B5CF6', icon: '🎨' },
-        { id: 'cat_local_utils', name: '工具函数', description: '通用工具函数和辅助方法', color: '#F59E0B', icon: '🔧' },
-        { id: 'cat_local_api', name: 'API接口', description: 'HTTP请求、接口调用', color: '#06B6D4', icon: '🌐' },
+        { id: 'cat_local_default', name: '未分类', description: '未分类的代码片段', color: '#6B7280', icon: 'fas fa-inbox' },
+        { id: 'cat_local_algorithm', name: '算法', description: '排序、搜索、动态规划等', color: '#3B82F6', icon: 'fas fa-brain' },
+        { id: 'cat_local_ui', name: 'UI组件', description: '可复用的界面组件和样式', color: '#8B5CF6', icon: 'fas fa-palette' },
+        { id: 'cat_local_utils', name: '工具函数', description: '通用工具函数和辅助方法', color: '#F59E0B', icon: 'fas fa-wrench' },
+        { id: 'cat_local_api', name: 'API接口', description: 'HTTP请求、接口调用', color: '#06B6D4', icon: 'fas fa-plug' },
       ];
       
       for (const category of defaults) {
@@ -112,6 +191,10 @@ export function runMigrations(db: Database.Database): void {
   try {
     migrateSnippetsTable(db);
     migrateCategoriesTable(db);
+    migrateDefaultCategoryIcons(db);
+    migrateDeletedCloudIdsTable(db);
+    deduplicateCloudSnippets(db);
+    migrateCloudIdUniqueIndex(db);
     initializeDefaultCategories(db);
     console.log('[Migration] All migrations completed successfully');
   } catch (error) {

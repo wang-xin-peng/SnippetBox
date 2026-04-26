@@ -10,11 +10,11 @@
 
 .welcome-header {
   text-align: center;
-  margin-bottom: 56px;
+  margin-bottom: 32px;
 }
 
 .welcome-icon {
-  margin-bottom: 32px;
+  margin-bottom: 16px;
   animation: bounceIn 0.6s ease-out;
 }
 
@@ -46,10 +46,10 @@
 
 .welcome-features {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 32px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
   width: 100%;
-  margin-bottom: 56px;
+  margin-bottom: 48px;
   flex: 1;
 }
 

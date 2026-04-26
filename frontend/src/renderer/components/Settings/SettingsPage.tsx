@@ -24,8 +24,8 @@ export const SettingsPage: React.FC = () => {
   const [deleteCode, setDeleteCode] = useState('');
   const [deleteCountdown, setDeleteCountdown] = useState(0);
   const [deleteSending, setDeleteSending] = useState(false);
-  const [deleteVerifying, setDeleteVerifying] = useState(false);
-  const [deleteError, setDeleteError] = useState('');
+  const [showDeleteModelConfirm, setShowDeleteModelConfirm] = useState(false);
+  const [deleteModelMsg, setDeleteModelMsg] = useState<string | null>(null);
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [savingPassword, setSavingPassword] = useState(false);
 
@@ -113,32 +113,27 @@ export const SettingsPage: React.FC = () => {
   };
 
   const handleDeleteModel = async () => {
-    if (!confirm('确定要删除已下载的模型吗？删除后需要重新下载才能使用本地搜索功能。')) {
-      return;
-    }
+    setShowDeleteModelConfirm(true);
+  };
 
+  const confirmDeleteModel = async () => {
+    setShowDeleteModelConfirm(false);
     try {
       const result = await window.electron.model.deleteModel();
       if (result.success) {
         setIsModelDownloaded(false);
         setModelPath('');
-        
-        // 删除模型后，自动切换到轻量级搜索
         const saveResult = await window.electron.ipcRenderer.invoke('settings:saveWizardChoices', {
           downloadModel: false,
           searchMode: 'lightweight'
         });
-        
-        if (saveResult.success) {
-          setSearchMode('lightweight');
-        }
-        
-        alert('模型已删除');
+        if (saveResult.success) setSearchMode('lightweight');
+        setDeleteModelMsg('模型已删除');
       } else {
-        alert(`删除失败: ${result.error}`);
+        setDeleteModelMsg(`删除失败: ${result.error}`);
       }
     } catch (error: any) {
-      alert(`删除失败: ${error.message}`);
+      setDeleteModelMsg(`删除失败: ${error.message}`);
     }
   };
 
@@ -154,17 +149,17 @@ export const SettingsPage: React.FC = () => {
       
       if (!result.success) {
         console.error('保存设置失败:', result.error);
-        alert('保存设置失败，请重试');
+        setNotification({ message: '保存设置失败，请重试', type: 'error' });
       }
     } catch (error) {
       console.error('保存设置失败:', error);
-      alert('保存设置失败，请重试');
+      setNotification({ message: '保存设置失败，请重试', type: 'error' });
     }
   };
 
   const handleGenerateVectors = async () => {
     if (!isModelDownloaded) {
-      alert('请先下载模型');
+      setNotification({ message: '请先下载模型', type: 'error' });
       return;
     }
 
@@ -425,13 +420,11 @@ export const SettingsPage: React.FC = () => {
                 </div>
                 <div className="setting-control">
                   <button
-                    className="btn-danger btn-sm"
+                    className="btn-secondary btn-sm"
                     onClick={async () => {
-                      if (confirm('确定要退出登录吗？')) {
-                        await logout();
-                        setNotification({ message: '已退出登录', type: 'success' });
-                        setTimeout(() => setNotification(null), 3000);
-                      }
+                      await logout();
+                      setNotification({ message: '已退出登录', type: 'success' });
+                      setTimeout(() => setNotification(null), 3000);
                     }}
                   >
                     退出登录
@@ -448,7 +441,7 @@ export const SettingsPage: React.FC = () => {
                 </div>
                 <div className="setting-control">
                   <button
-                    className="btn-danger btn-sm"
+                    className="btn-secondary btn-sm"
                     onClick={() => {
                       if (!user?.email) return;
                       setDeleteEmail(user.email);
@@ -513,7 +506,7 @@ export const SettingsPage: React.FC = () => {
                   />
                   <div className="radio-content">
                     <span className="radio-title">本地模型搜索</span>
-                    <span className="radio-desc">使用 AI 模型进行语义搜索</span>
+                    <span className="radio-desc">使用向量模型进行语义搜索</span>
                   </div>
                 </label>
               </div>
@@ -529,7 +522,7 @@ export const SettingsPage: React.FC = () => {
               <div className="setting-header">
                 <label className="setting-label">本地搜索模型</label>
                 <p className="setting-description">
-                  下载并管理用于语义搜索的 AI 模型（约 118MB，量化版）
+                  下载并管理用于语义搜索的 AI 模型（约 133.71MB，量化版）
                 </p>
               </div>
             <div className="setting-control">
@@ -562,26 +555,6 @@ export const SettingsPage: React.FC = () => {
               )}
             </div>
           </div>
-
-          {isModelDownloaded && (
-            <div className="setting-item">
-              <div className="setting-header">
-                <label className="setting-label">向量生成</label>
-                <p className="setting-description">
-                  为所有代码片段重新生成向量，用于语义搜索
-                </p>
-              </div>
-              <div className="setting-control">
-                <button 
-                  className="btn-secondary"
-                  onClick={handleGenerateVectors}
-                  disabled={isGeneratingVectors}
-                >
-                  {isGeneratingVectors ? '生成中...' : '重新生成向量'}
-                </button>
-              </div>
-            </div>
-          )}
         </section>
 
         {/* 关于 */}
@@ -618,13 +591,15 @@ export const SettingsPage: React.FC = () => {
                       const result = await window.electron.ipcRenderer.invoke('import:json', {
                         skipDuplicates: true
                       });
-                      if (result.success) {
-                        alert(`成功导入 ${result.imported} 个片段${result.skipped > 0 ? `，跳过 ${result.skipped} 个重复` : ''}`);
+                      if (result.imported > 0) {
+                        setNotification({ message: `成功导入 ${result.imported} 个片段${result.skipped > 0 ? `，跳过 ${result.skipped} 个重复` : ''}`, type: 'success' });
+                      } else if (result.errors && result.errors.length > 0) {
+                        setNotification({ message: '导入失败: ' + result.errors[0].error, type: 'error' });
                       } else {
-                        alert('导入失败: ' + result.error);
+                        setNotification({ message: '已取消导入', type: 'success' });
                       }
                     } catch (error: any) {
-                      alert('导入失败: ' + error.message);
+                      setNotification({ message: '导入失败: ' + error.message, type: 'error' });
                     }
                   }}
                 >
@@ -637,13 +612,15 @@ export const SettingsPage: React.FC = () => {
                       const result = await window.electron.ipcRenderer.invoke('import:markdown', {
                         skipDuplicates: true
                       });
-                      if (result.success) {
-                        alert(`成功导入 ${result.imported} 个片段${result.skipped > 0 ? `，跳过 ${result.skipped} 个重复` : ''}`);
+                      if (result.imported > 0) {
+                        setNotification({ message: `成功导入 ${result.imported} 个片段${result.skipped > 0 ? `，跳过 ${result.skipped} 个重复` : ''}`, type: 'success' });
+                      } else if (result.errors && result.errors.length > 0) {
+                        setNotification({ message: '导入失败: ' + result.errors[0].error, type: 'error' });
                       } else {
-                        alert('导入失败: ' + result.error);
+                        setNotification({ message: '已取消导入', type: 'success' });
                       }
                     } catch (error: any) {
-                      alert('导入失败: ' + error.message);
+                      setNotification({ message: '导入失败: ' + error.message, type: 'error' });
                     }
                   }}
                 >
@@ -657,32 +634,33 @@ export const SettingsPage: React.FC = () => {
             <div className="setting-header">
               <label className="setting-label">导出代码片段</label>
               <p className="setting-description">
-                将所有代码片段导出为 JSON 或 Markdown 文件
+                将所有代码片段导出为 JSON、Markdown 或 PDF 文件
               </p>
             </div>
             <div className="setting-control">
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <button
                   className="btn-secondary"
                   onClick={async () => {
                     try {
-                      // 获取所有片段ID
                       const snippets = await window.electron.ipcRenderer.invoke('snippet:list');
                       const snippetIds = snippets.map((s: any) => s.id);
-                      
+
                       if (snippetIds.length === 0) {
-                        alert('没有可导出的片段');
+                        setNotification({ message: '没有可导出的片段', type: 'error' });
                         return;
                       }
-                      
+
                       const result = await window.electron.ipcRenderer.invoke('export:json', snippetIds);
                       if (result.success) {
-                        alert(`成功导出 ${result.count} 个片段到 ${result.filePath}`);
+                        setNotification({ message: `成功导出 ${result.count} 个片段到 ${result.filePath}`, type: 'success' });
+                      } else if (result.error === 'User canceled') {
+                        setNotification({ message: '已取消导出', type: 'success' });
                       } else {
-                        alert('导出失败: ' + result.error);
+                        setNotification({ message: '导出失败: ' + result.error, type: 'error' });
                       }
                     } catch (error: any) {
-                      alert('导出失败: ' + error.message);
+                      setNotification({ message: '导出失败: ' + error.message, type: 'error' });
                     }
                   }}
                 >
@@ -694,24 +672,55 @@ export const SettingsPage: React.FC = () => {
                     try {
                       const snippets = await window.electron.ipcRenderer.invoke('snippet:list');
                       const snippetIds = snippets.map((s: any) => s.id);
-                      
+
                       if (snippetIds.length === 0) {
-                        alert('没有可导出的片段');
+                        setNotification({ message: '没有可导出的片段', type: 'error' });
                         return;
                       }
-                      
+
                       const result = await window.electron.ipcRenderer.invoke('export:batch-markdown', snippetIds);
                       if (result.success > 0) {
-                        alert(`成功导出 ${result.success} 个片段为 ZIP 压缩包`);
+                        setNotification({ message: `成功导出 ${result.success} 个片段为 ZIP 压缩包`, type: 'success' });
+                      } else if (result.errors?.[0]?.error === 'User canceled') {
+                        setNotification({ message: '已取消导出', type: 'success' });
+                      } else if (result.errors?.[0]?.error) {
+                        setNotification({ message: '导出失败: ' + result.errors[0].error, type: 'error' });
                       } else {
-                        alert('导出失败: ' + (result.errors?.[0]?.error || '未知错误'));
+                        setNotification({ message: '已取消导出', type: 'success' });
                       }
                     } catch (error: any) {
-                      alert('导出失败: ' + error.message);
+                      setNotification({ message: '导出失败: ' + error.message, type: 'error' });
                     }
                   }}
                 >
                   导出为 Markdown (ZIP)
+                </button>
+                <button
+                  className="btn-secondary"
+                  onClick={async () => {
+                    try {
+                      const snippets = await window.electron.ipcRenderer.invoke('snippet:list');
+                      const snippetIds = snippets.map((s: any) => s.id);
+
+                      if (snippetIds.length === 0) {
+                        setNotification({ message: '没有可导出的片段', type: 'error' });
+                        return;
+                      }
+
+                      const result = await window.electron.ipcRenderer.invoke('export:pdf', snippetIds);
+                      if (result.success) {
+                        setNotification({ message: `成功导出 ${snippetIds.length} 个片段到 PDF 文件`, type: 'success' });
+                      } else if (result.error === 'User canceled') {
+                        setNotification({ message: '已取消导出', type: 'success' });
+                      } else {
+                        setNotification({ message: '导出失败: ' + result.error, type: 'error' });
+                      }
+                    } catch (error: any) {
+                      setNotification({ message: '导出失败: ' + error.message, type: 'error' });
+                    }
+                  }}
+                >
+                  导出为 PDF
                 </button>
               </div>
             </div>
@@ -720,18 +729,18 @@ export const SettingsPage: React.FC = () => {
       </div>
 
       {showDeleteVerifyDialog && (
-        <div className="delete-modal-overlay">
-          <div className="delete-modal-content">
-            <h3 className="delete-modal-title">注销账号</h3>
-            <p className="delete-modal-warning">
-              注销账号将永久删除您的所有云端数据，此操作不可恢复
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h3 className="modal-title">注销账号</h3>
+            <p className="modal-warning">
+              ⚠️ 注销账号将永久删除您的所有云端数据，此操作不可恢复
             </p>
 
-            <div className="delete-modal-info">
-              验证码将发送至：<strong>{deleteEmail}</strong>
+            <div className="form-field">
+              <label>验证码将发送至：{deleteEmail}</label>
             </div>
 
-            <div className="delete-modal-info" style={{ marginTop: '16px' }}>
+            <div className="form-field">
               <label>邮箱验证码</label>
               <div className="code-input-row">
                 <input
@@ -743,24 +752,12 @@ export const SettingsPage: React.FC = () => {
                   className="code-input"
                 />
                 <button
-                  className={`send-code-btn ${deleteCountdown > 0 ? 'secondary' : 'primary'}`}
+                  className="btn-secondary btn-sm"
                   disabled={deleteCountdown > 0 || deleteSending}
                   onClick={async () => {
                     setDeleteSending(true);
-                    setDeleteError('');
                     try {
-                      const api = (window as any).electronAPI;
-                      console.log('[DeleteAccount] electronAPI exists:', !!api);
-                      console.log('[DeleteAccount] auth exists:', !!api?.auth);
-                      console.log('[DeleteAccount] deleteAccountSendCode type:', typeof api?.auth?.deleteAccountSendCode);
-                      console.log('[DeleteAccount] all auth keys:', api?.auth ? Object.keys(api.auth) : 'no auth');
-                      if (!api?.auth?.deleteAccountSendCode) {
-                        setDeleteError('electronAPI.auth.deleteAccountSendCode 不存在，请重启应用');
-                        setDeleteSending(false);
-                        return;
-                      }
-                      const res = await api.auth.deleteAccountSendCode(deleteEmail);
-                      console.log('[DeleteAccount] sendCode response:', JSON.stringify(res));
+                      const res = await (window as any).electronAPI?.auth?.deleteAccountSendCode?.(deleteEmail);
                       if (res?.success) {
                         setDeleteCountdown(60);
                         const timer = setInterval(() => {
@@ -770,15 +767,9 @@ export const SettingsPage: React.FC = () => {
                           });
                         }, 1000);
                       } else {
-                        const errMsg = res?.error || '发送失败（未知原因）';
-                        setDeleteError(errMsg);
-                        setNotification({ message: errMsg, type: 'error' });
+                        setNotification({ message: res?.error || '发送失败', type: 'error' });
                         setTimeout(() => setNotification(null), 3000);
                       }
-                    } catch (e: any) {
-                      const errMsg = e?.message || '发送异常';
-                      console.error('[DeleteAccount] sendCode exception:', errMsg);
-                      setDeleteError(errMsg);
                     } finally {
                       setDeleteSending(false);
                     }
@@ -787,9 +778,6 @@ export const SettingsPage: React.FC = () => {
                   {deleteCountdown > 0 ? `${deleteCountdown}s` : deleteSending ? '发送中...' : '发送验证码'}
                 </button>
               </div>
-              {deleteError && (
-                <div className="delete-modal-error">{deleteError}</div>
-              )}
             </div>
 
             <div className="modal-actions">
@@ -836,6 +824,33 @@ export const SettingsPage: React.FC = () => {
         }}
         onComplete={handleDownloadComplete}
       />
+
+      {/* 删除模型确认框 */}
+      {showDeleteModelConfirm && (
+        <div className="confirm-overlay" onClick={() => setShowDeleteModelConfirm(false)}>
+          <div className="confirm-dialog" onClick={e => e.stopPropagation()}>
+            <div className="confirm-title">确认删除模型</div>
+            <div className="confirm-msg">确定要删除已下载的模型吗？删除后需要重新下载才能使用本地搜索功能。</div>
+            <div className="confirm-actions">
+              <button className="confirm-btn" onClick={() => setShowDeleteModelConfirm(false)}>取消</button>
+              <button className="confirm-btn confirm-btn--danger" onClick={confirmDeleteModel}>删除</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 删除模型结果提示 */}
+      {deleteModelMsg && (
+        <div className="confirm-overlay" onClick={() => setDeleteModelMsg(null)}>
+          <div className="confirm-dialog" onClick={e => e.stopPropagation()}>
+            <div className="confirm-title">提示</div>
+            <div className="confirm-msg">{deleteModelMsg}</div>
+            <div className="confirm-actions">
+              <button className="confirm-btn confirm-btn--primary" onClick={() => setDeleteModelMsg(null)}>确定</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

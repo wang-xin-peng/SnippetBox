@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import CategoryTagManager from '../CategoryTagManager';
 import { useAuth } from '../../store/authStore';
@@ -43,16 +43,28 @@ function Sidebar({
   const navigate = useNavigate();
   const location = useLocation();
   const { isLoggedIn, user } = useAuth();
+  // 用 ref 保存最新的回调，避免 loadData 依赖外部函数引用
+  const onCategorySelectRef = useRef(onCategorySelect);
+  useEffect(() => { onCategorySelectRef.current = onCategorySelect; }, [onCategorySelect]);
+  const onFavoritesSelectRef = useRef(onFavoritesSelect);
+  useEffect(() => { onFavoritesSelectRef.current = onFavoritesSelect; }, [onFavoritesSelect]);
+  const onTrashSelectRef = useRef(onTrashSelect);
+  useEffect(() => { onTrashSelectRef.current = onTrashSelect; }, [onTrashSelect]);
+  const onSnippetSelectRef = useRef(onSnippetSelect);
+  useEffect(() => { onSnippetSelectRef.current = onSnippetSelect; }, [onSnippetSelect]);
 
-  const goHomeFirst = (cb: () => void) => {
+  const goHomeFirst = useCallback((cb: () => void) => {
     if (location.pathname !== '/') {
       navigate('/');
+      setTimeout(cb, 100);
+    } else {
+      cb();
     }
-    cb();
-  };
+  }, [location.pathname, navigate]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [snippets, setSnippets] = useState<SnippetItem[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [expandedInitialized, setExpandedInitialized] = useState(false);
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [tags, setTags] = useState<any[]>([]);
 
@@ -62,8 +74,7 @@ function Sidebar({
     try {
       const api = (window as any).electronAPI;
       if (!api) return;
-      const userId = isLoggedIn && user ? user.id : 'local';
-      
+      const userId = isLoggedIn && user ? user.id : 'local';      
       await api.category?.ensureDefaults?.(userId);
       
       const [cats, snips, tagList] = await Promise.all([
@@ -72,16 +83,27 @@ function Sidebar({
         api.tag?.list?.() || []
       ]);
       
-      const sortedCats = cats.sort((a: Category, b: Category) => {
-        if (a.name === '未分类') return 1;
-        if (b.name === '未分类') return -1;
-        return 0;
-      });
+      const sortedCats = cats
+        .filter((c: Category) => !c.name.startsWith('#')) // 过滤掉以 # 开头的无效分类
+        .sort((a: Category, b: Category) => {
+          if (a.name === '未分类') return 1;
+          if (b.name === '未分类') return -1;
+          return 0;
+        });
       
       setCategories(sortedCats);
       setSnippets(snips);
       setTags(tagList || []);
-      setExpanded(new Set(sortedCats.map((c: Category) => c.id)));
+      // 只在首次加载时初始化展开状态：默认只展开"未分类"
+      if (!expandedInitialized) {
+        const uncategorized = sortedCats.find((c: Category) => c.name === '未分类');
+        setExpanded(uncategorized ? new Set([uncategorized.id]) : new Set());
+        setExpandedInitialized(true);
+        // 默认选中"未分类"
+        if (uncategorized) {
+          onCategorySelectRef.current?.(uncategorized.name);
+        }
+      }
 
       try {
         const trashItems = await (window as any).electronAPI?.trash?.list();
@@ -105,18 +127,24 @@ function Sidebar({
   const getSnippets = (catId: string, catName: string) => {
     return snippets.filter(s => {
       if (isLoggedIn) {
-        if ((s as any).storageScope !== 'cloud' && !(s as any).cloudId) return false;
+        if ((s as any).skipSync) return false;
       } else {
         if ((s as any).storageScope === 'cloud' || (s as any).cloudId) return false;
       }
-      return (s as any).categoryId === catId || s.category === catName;
+      const sCategory = s.category || '';
+      const sCategoryId = (s as any).categoryId || '';
+      // 匹配分类：按 id 或名称匹配；若片段无分类则归入"未分类"
+      if (catName === '未分类') {
+        return sCategoryId === catId || sCategory === catName || (!sCategoryId && !sCategory);
+      }
+      return sCategoryId === catId || sCategory === catName;
     });
   };
   const getCount = (catId: string, catName: string) => getSnippets(catId, catName).length;
   const favCount = snippets.filter(s => {
     if (!s.starred) return false;
     if (isLoggedIn) {
-      return (s as any).storageScope === 'cloud' || (s as any).cloudId;
+      return !(s as any).skipSync;
     } else {
       return (s as any).storageScope !== 'cloud' && !(s as any).cloudId;
     }
@@ -149,9 +177,6 @@ function Sidebar({
   };
 
   const handleDeleteCategory = async (categoryId: string) => {
-    if (!confirm('确定要删除这个分类吗？该分类下的代码片段将变为无分类状态。')) {
-      return;
-    }
     try {
       await (window as any).electronAPI?.category?.delete?.(categoryId);
       await loadData();
@@ -172,9 +197,6 @@ function Sidebar({
   };
 
   const handleDeleteTag = async (tagId: string) => {
-    if (!confirm('确定要删除这个标签吗？')) {
-      return;
-    }
     try {
       await (window as any).electronAPI?.tag?.delete?.(tagId);
       await loadData();
@@ -199,9 +221,11 @@ function Sidebar({
       {/* 收藏夹 */}
       <div
         className={`sidebar-favorites ${showingFavorites ? 'active' : ''}`}
-        onClick={() => goHomeFirst(() => onFavoritesSelect?.())}
+        onClick={() => goHomeFirst(() => onFavoritesSelectRef.current?.())}
       >
-        <span className="sidebar-fav-icon">{showingFavorites ? '★' : '☆'}</span>
+        <span className="sidebar-fav-icon">
+          <i className={`${showingFavorites ? 'fas' : 'far'} fa-star`}></i>
+        </span>
         <span className="sidebar-fav-label">收藏夹</span>
         <span className="sidebar-section-badge">{favCount}</span>
       </div>
@@ -210,9 +234,11 @@ function Sidebar({
 
       <div
         className={`sidebar-favorites ${showingTrash ? 'active' : ''}`}
-        onClick={() => goHomeFirst(() => onTrashSelect?.())}
+        onClick={() => goHomeFirst(() => onTrashSelectRef.current?.())}
       >
-        <span className="sidebar-fav-icon">🗑️</span>
+        <span className="sidebar-fav-icon">
+          <i className="fas fa-trash-alt"></i>
+        </span>
         <span className="sidebar-fav-label">回收站</span>
         {trashCount > 0 && <span className="sidebar-section-badge">{trashCount}</span>}
       </div>
@@ -221,15 +247,14 @@ function Sidebar({
 
       {/* 分类 */}
       <div className="sidebar-categories">
-        <div className="category-header" onClick={() => goHomeFirst(() => onCategorySelect?.(null))}>
-          <span className="category-header-title">分类</span>
-          <button
-            className="category-header-manage"
-            onClick={(e) => { e.stopPropagation(); setShowCategoryManager(true); }}
-            title="管理分类和标签"
-          >
-            ⚙️
-          </button>
+        <div
+          className={`sidebar-favorites ${selectedCategory === null ? 'active' : ''}`}
+          onClick={() => goHomeFirst(() => onCategorySelectRef.current?.(null))}
+        >
+          <span className="sidebar-fav-icon">
+            <i className="fas fa-layer-group"></i>
+          </span>
+          <span className="sidebar-fav-label">分类</span>
         </div>
 
         {categories.map(cat => {
@@ -242,13 +267,41 @@ function Sidebar({
             <div key={cat.id} className="category-group">
               <div
                 className={`category-row ${isActive ? 'active' : ''}`}
-                onClick={() => { toggle(cat.id); goHomeFirst(() => onCategorySelect?.(cat.name)); }}
+                onClick={() => {
+                  setExpanded(new Set([cat.id]));
+                  if (location.pathname !== '/') {
+                    navigate('/');
+                    setTimeout(() => onCategorySelectRef.current?.(cat.name), 100);
+                  } else {
+                    onCategorySelectRef.current?.(cat.name);
+                  }
+                }}
               >
-                <span className={`category-chevron ${isOpen ? 'open' : ''}`}>›</span>
-                <span className="category-icon" style={{ color: cat.color || '#8b949e' }}>
-                  {cat.icon || '📁'}
+                <span 
+                  className={`category-chevron ${isOpen ? 'open' : ''}`}
+                  onClick={(e) => { 
+                    e.stopPropagation();
+                    // 箭头单独控制展开/收起，不影响选中状态
+                    toggle(cat.id);
+                  }}
+                >
+                  <i className="fas fa-chevron-right"></i>
                 </span>
-                <span className="category-name">{cat.name}</span>
+                <span 
+                  className="category-icon" 
+                  style={{ color: cat.color || '#8b949e' }}
+                >
+                  {cat.icon
+                    ? cat.icon.startsWith('fa')
+                      ? <i className={cat.icon}></i>
+                      : cat.icon
+                    : <i className="fas fa-folder"></i>
+                  }
+                </span>
+                <span 
+                  className="category-name"
+                  style={{ flex: 1 }}
+                >{cat.name}</span>
                 <span className="category-badge">{count}</span>
               </div>
 
@@ -258,7 +311,7 @@ function Sidebar({
                     <button
                       key={s.id}
                       className="snippet-nav-item"
-                      onClick={e => { e.stopPropagation(); onSnippetSelect?.(s.id); }}
+                      onClick={e => { e.stopPropagation(); onSnippetSelectRef.current?.(s.id); }}
                     >
                       {s.title}
                     </button>
@@ -272,11 +325,18 @@ function Sidebar({
 
       {/* 底部 */}
       <div className="sidebar-bottom">
+        <button
+          className="nav-item"
+          onClick={() => setShowCategoryManager(true)}
+        >
+          <span><i className="fas fa-folder-plus"></i></span>
+          <span>管理分类与标签</span>
+        </button>
         <NavLink
           to="/settings"
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
         >
-          <span>⚙️</span>
+          <span><i className="fas fa-cog"></i></span>
           <span>设置</span>
         </NavLink>
       </div>

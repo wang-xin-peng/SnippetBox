@@ -48,9 +48,10 @@ export class AuthService {
   private tokens: StoredTokens | null = null;
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
   private capabilitiesCache: { value: AuthCapabilities; expiresAt: number } | null = null;
+  private cachedUser: User | null = null;
 
   constructor() {
-    this.http = axios.create({ baseURL: BASE_URL, timeout: 10000 });
+    this.http = axios.create({ baseURL: BASE_URL, timeout: 5000 });
     this.loadTokens();
   }
 
@@ -296,15 +297,22 @@ export class AuthService {
         headers: { Authorization: `Bearer ${this.tokens.accessToken}` },
       });
       const d = res.data;
-      return {
+      const user = {
         id: d.id ?? d.user_id ?? '',
         email: d.email,
         username: d.username ?? d.name ?? d.email,
         avatar: d.avatar,
       };
+      this.cachedUser = user;
+      return user;
     } catch {
-      return null;
+      return this.cachedUser; // 网络失败时返回缓存
     }
+  }
+
+  // 不发网络请求，直接返回缓存的用户信息
+  getCachedUser(): User | null {
+    return this.cachedUser;
   }
 
   // ── 是否已登录 ────────────────────────────────────────
@@ -356,6 +364,10 @@ export class AuthService {
     return path.join(app.getPath('userData'), 'auth_tokens.dat');
   }
 
+  private get userFilePath(): string {
+    return path.join(app.getPath('userData'), 'auth_user.json');
+  }
+
   private saveTokens(tokens: StoredTokens): void {
     try {
       const json = JSON.stringify(tokens);
@@ -367,6 +379,12 @@ export class AuthService {
       }
     } catch (e) {
       console.error('[AuthService] Failed to save tokens:', e);
+    }
+    // 同时持久化缓存的用户信息
+    if (this.cachedUser) {
+      try {
+        fs.writeFileSync(this.userFilePath, JSON.stringify(this.cachedUser), 'utf-8');
+      } catch {}
     }
   }
 
@@ -382,9 +400,17 @@ export class AuthService {
       }
       this.tokens = JSON.parse(json);
 
+      // 恢复缓存的用户信息
+      try {
+        if (fs.existsSync(this.userFilePath)) {
+          this.cachedUser = JSON.parse(fs.readFileSync(this.userFilePath, 'utf-8'));
+        }
+      } catch {}
+
       if (this.tokens && this.tokens.expiresAt > Date.now()) {
         this.scheduleRefresh(this.tokens.expiresAt);
       } else if (this.tokens) {
+        // token 过期，后台静默刷新，不阻塞启动
         this.refreshToken().catch(() => this.clearTokens());
       }
     } catch {
@@ -394,7 +420,9 @@ export class AuthService {
 
   private clearTokens(): void {
     this.tokens = null;
+    this.cachedUser = null;
     try { fs.unlinkSync(this.tokenFilePath); } catch { /* ignore */ }
+    try { fs.unlinkSync(this.userFilePath); } catch { /* ignore */ }
     if (this.refreshTimer) {
       clearTimeout(this.refreshTimer);
       this.refreshTimer = null;

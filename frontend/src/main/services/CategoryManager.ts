@@ -81,7 +81,7 @@ export class CategoryManager {
            AND (s.is_deleted = 0 OR s.is_deleted IS NULL)
            AND ${storageCondition}) as snippet_count
       FROM categories c
-      WHERE c.user_id = ?
+      WHERE c.user_id = ? AND c.name NOT LIKE '#%'
       ORDER BY c.created_at DESC
     `
       )
@@ -175,7 +175,12 @@ export class CategoryManager {
     }
 
     const transaction = this.db.transaction(() => {
-      this.db.prepare('UPDATE snippets SET category_id = NULL WHERE category_id = ?').run(id);
+      // 获取"未分类"的 ID
+      const userId = existingCategory.userId || 'local';
+      const uncategorizedId = `cat_${userId}_default`;
+      
+      // 将该分类下的片段移到"未分类"
+      this.db.prepare('UPDATE snippets SET category_id = ? WHERE category_id = ?').run(uncategorizedId, id);
       this.db.prepare('DELETE FROM categories WHERE id = ?').run(id);
     });
 

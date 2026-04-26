@@ -97,5 +97,30 @@ export function registerExportHandlers() {
     }
   });
 
+  // 导出为 PDF
+  ipcMain.handle('export:pdf', async (_event, snippetIds: string[]) => {
+    try {
+      console.log('[ExportHandlers] Export to PDF:', snippetIds.length, 'snippets');
+      if (!exportService) throw new Error('ExportService not initialized');
+
+      const result = await dialog.showSaveDialog({
+        title: '导出为 PDF',
+        defaultPath: 'snippets.pdf',
+        filters: [
+          { name: 'PDF Files', extensions: ['pdf'] }
+        ]
+      });
+
+      if (result.canceled || !result.filePath) {
+        return { success: false, error: 'User canceled' };
+      }
+
+      return await exportService.exportToPDF(snippetIds, result.filePath);
+    } catch (error) {
+      console.error('[ExportHandlers] Export to PDF failed:', error);
+      throw error;
+    }
+  });
+
   console.log('[ExportHandlers] All export handlers registered successfully');
 }

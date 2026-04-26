@@ -24,10 +24,8 @@ async def sync_snippets(
 ):
     """
     增量同步片段
-    
     - **last_sync_time**: 上次同步时间（可选，首次同步为 None）
     - **changes**: 客户端的变更列表
-    
     返回服务器的变更和冲突
     需要认证
     """
@@ -214,7 +212,6 @@ async def list_categories(
 ):
     """
     获取用户的分类
-    
     需要认证
     """
     user_id = current_user["user_id"]
@@ -245,7 +242,6 @@ async def list_tags(
 ):
     """
     获取用户的标签
-    
     需要认证
     """
     user_id = current_user["user_id"]
@@ -275,7 +271,6 @@ async def sync_metadata(
 ):
     """
     同步分类和标签元数据
-    
     需要认证
     """
     user_id = current_user["user_id"]

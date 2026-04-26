@@ -10,16 +10,19 @@ import './HomePage.css';
 interface OutletCtx {
   selectedCategory: string | null;
   setSelectedCategory: (v: string | null) => void;
+  categoryUpdateKey: number;
   previewWidth: number;
   startDragRight: (e: React.MouseEvent) => void;
   refreshKey: number;
   showingFavorites: boolean;
   showingTrash: boolean;
   selectedSnippetId: string | null;
+  setSelectedSnippetId: (id: string | null) => void;
   triggerRefresh: () => void;
 }
 
 type SearchMode = 'keyword' | 'semantic';
+type SortOption = 'updatedAt' | 'createdAt' | 'title' | 'language';
 
 function getLangColor(lang: string) {
   const map: Record<string, string> = {
@@ -37,8 +40,8 @@ function formatDate(d: any) {
 }
 
 export default function HomePage() {
-  const { selectedCategory, previewWidth, startDragRight, refreshKey, showingFavorites, showingTrash, selectedSnippetId, triggerRefresh } = useOutletContext<OutletCtx>();
-  const { isLoggedIn } = useAuth();
+  const { selectedCategory, setSelectedCategory, categoryUpdateKey, previewWidth, startDragRight, refreshKey, showingFavorites, showingTrash, selectedSnippetId, setSelectedSnippetId, triggerRefresh } = useOutletContext<OutletCtx>();
+  const { isLoggedIn, loading: authLoading } = useAuth();
 
   const [snippets, setSnippets] = useState<Snippet[]>([]);
   const [filtered, setFiltered] = useState<Snippet[]>([]);
@@ -49,24 +52,30 @@ export default function HomePage() {
   const [hasSemanticSupport, setHasSemanticSupport] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [filterLang, setFilterLang] = useState<string | null>(null);
+  const [filterTag, setFilterTag] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<SortOption>('updatedAt');
+  const [langDropdownOpen, setLangDropdownOpen] = useState(false);
+  const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
+  const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [trashSnippets, setTrashSnippets] = useState<Snippet[]>([]);
   const [trashSelected, setTrashSelected] = useState<Snippet | null>(null);
   const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isAutoSwitchingCategory = useRef(false); // 标记是否是自动切换分类
 
   const loadSnippets = useCallback(async () => {
     try {
       setSnippets([]);
       setFiltered([]);
       setLoading(true);
-      const [isCurrentlyLoggedIn, data] = await Promise.all([
-        (window as any).electron?.ipcRenderer?.invoke?.('auth:isLoggedIn') ?? false,
-        (window as any).electronAPI?.snippet?.list?.() || []
-      ]);
-      const filteredData = isCurrentlyLoggedIn
-        ? data.filter((s: any) => s.storageScope === 'cloud' || s.cloudId)
+      const data = await (window as any).electronAPI?.snippet?.list?.() || [];
+      // 直接使用 React 状态的 isLoggedIn，避免状态不一致
+      const filteredData = isLoggedIn
+        ? data.filter((s: any) => !s.skipSync)
         : data.filter((s: any) => s.storageScope !== 'cloud' && !s.cloudId);
-      setSnippets(data);
+      // 只设置过滤后的数据，避免闪现
+      setSnippets(filteredData);
       const sorted = filteredData.sort((a: any, b: any) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
       setFiltered(sorted);
     } catch (e) {
@@ -74,7 +83,7 @@ export default function HomePage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isLoggedIn]);
 
   // 启动时读取设置里的搜索模式
   useEffect(() => {
@@ -92,21 +101,36 @@ export default function HomePage() {
     }).catch(() => {});
   }, []);
 
-  useEffect(() => { loadSnippets(); }, [refreshKey]);
+  useEffect(() => { 
+    if (!authLoading) {
+      loadSnippets(); 
+    }
+  }, [refreshKey, authLoading, loadSnippets]);
+
+  // 监听登录状态变化，立即重新加载片段
+  useEffect(() => {
+    if (!authLoading) {
+      loadSnippets();
+    }
+  }, [isLoggedIn, authLoading, loadSnippets]);
 
   useEffect(() => {
+    console.log('[Trash] useEffect triggered, showingTrash:', showingTrash, 'refreshKey:', refreshKey);
     if (showingTrash) {
+      console.log('[Trash] Calling trash:list...');
       (window as any).electronAPI?.trash?.list()?.then((data: Snippet[]) => {
+        console.log('[Trash] trash:list returned:', data?.length, 'items', data);
         setTrashSnippets(data);
         setTrashSelected(null);
-      }).catch(console.error);
+      }).catch((e: any) => {
+        console.error('[Trash] trash:list failed:', e);
+      });
     }
   }, [showingTrash, refreshKey]);
 
   // 监听登录后的刷新事件
   useEffect(() => {
     const handleRefresh = () => {
-      console.log('[HomePage] Received snippets-refresh event');
       loadSnippets();
     };
 
@@ -117,7 +141,6 @@ export default function HomePage() {
   // 监听登录后分类切换事件：重置选中分类，显示全部片段
   useEffect(() => {
     const handleCategoriesRefresh = () => {
-      console.log('[HomePage] Received categories-refresh event, resetting selectedCategory');
       setSelectedCategory(null);
     };
 
@@ -127,31 +150,54 @@ export default function HomePage() {
 
   useEffect(() => {
     const el = document.getElementById('snippet-count');
-    if (el) el.textContent = filtered.length ? `${filtered.length} 个片段` : '';
+    if (el) el.textContent = `${filtered.length} 个片段`;
   }, [filtered.length]);
 
   // 关键词过滤（本地，无需 IPC）
   const applyKeywordFilter = useCallback((allSnippets: Snippet[], query: string, category: string | null) => {
-    let result = [...allSnippets];
-    // 登录时只显示云端片段，未登录时只显示本地片段
-    if (isLoggedIn) {
-      result = result.filter(s => (s.storageScope ?? 'local') === 'cloud' || s.cloudId);
-    } else {
-      result = result.filter(s => (s.storageScope ?? 'local') === 'local' && !s.cloudId);
-    }
-    if (showingFavorites) result = result.filter(s => s.starred);
-    if (category) result = result.filter(s => s.category === category);
-    if (query.trim()) {
-      const q = query.toLowerCase();
-      result = result.filter(s =>
-        s.title.toLowerCase().includes(q) ||
-        s.code.toLowerCase().includes(q) ||
-        s.tags.some(t => t.toLowerCase().includes(q))
-      );
-    }
-    result.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    const q = query.trim().toLowerCase();
+    
+    // 一次性过滤，避免多次遍历
+    const result = allSnippets.filter(s => {
+      // 存储范围过滤
+      if (isLoggedIn) {
+        if (s.skipSync) return false;
+      } else {
+        if ((s.storageScope ?? 'local') === 'cloud' || s.cloudId) return false;
+      }
+      
+      // 分类过滤和收藏过滤互斥，分类优先
+      if (category) {
+        if (s.category !== category) return false;
+      } else if (showingFavorites) {
+        if (!s.starred) return false;
+      }
+      
+      // 语言筛选
+      if (filterLang && s.language?.toLowerCase() !== filterLang.toLowerCase()) return false;
+      
+      // 标签筛选
+      if (filterTag && !s.tags.some(t => t.toLowerCase() === filterTag.toLowerCase())) return false;
+      
+      // 搜索关键词过滤
+      if (q) {
+        return s.title.toLowerCase().includes(q) ||
+               s.code.toLowerCase().includes(q) ||
+               s.tags.some(t => t.toLowerCase().includes(q));
+      }
+      
+      return true;
+    });
+    
+    // 排序
+    result.sort((a, b) => {
+      if (sortBy === 'title') return a.title.localeCompare(b.title);
+      if (sortBy === 'language') return (a.language || '').localeCompare(b.language || '');
+      if (sortBy === 'createdAt') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    });
     setFiltered(result);
-  }, [showingFavorites, isLoggedIn]);
+  }, [showingFavorites, isLoggedIn, filterLang, filterTag, sortBy]);
 
   // 语义搜索（IPC）
   const runSemanticSearch = useCallback(async (query: string, category: string | null) => {
@@ -162,14 +208,10 @@ export default function HomePage() {
     }
     setIsSearching(true);
     try {
-      console.log('[HomePage] Starting semantic search for:', query);
       const results = await (window as any).electron.search.semantic(query);
-      console.log('[HomePage] Semantic search returned:', results.length, 'results');
-      console.log('[HomePage] Results:', results);
 
       if (results.length === 0 && snippets.length > 0) {
         // 向量库可能是空的，降级到关键词
-        console.warn('[HomePage] Semantic search returned 0 results, falling back to keyword search');
         applyKeywordFilter(snippets, query, category);
         return;
       }
@@ -181,7 +223,6 @@ export default function HomePage() {
         })
         .filter(Boolean) as Snippet[];
       
-      console.log('[HomePage] Matched snippets:', matched.length);
       if (category) matched = matched.filter(s => s.category === category);
       setFiltered(matched);
     } catch (e) {
@@ -192,23 +233,33 @@ export default function HomePage() {
     }
   }, [snippets, applyKeywordFilter]);
 
+  // 切换分类或收藏夹时，清空选中的片段（除非是自动切换）
+  useEffect(() => {
+    if (!isAutoSwitchingCategory.current) {
+      setSelected(null);
+      setSelectedSnippetId(null);
+    }
+    isAutoSwitchingCategory.current = false; // 重置标志
+  }, [selectedCategory, showingFavorites, setSelectedSnippetId]);
+
   // 搜索 debounce
   useEffect(() => {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
 
     if (searchMode === 'keyword') {
+      // 关键词搜索立即执行
       applyKeywordFilter(snippets, searchQuery, selectedCategory);
     } else if (searchMode === 'semantic') {
-      // 本地语义搜索 debounce 500ms
+      // 语义搜索 debounce 300ms（减少延迟）
       searchTimerRef.current = setTimeout(() => {
         runSemanticSearch(searchQuery, selectedCategory);
-      }, 500);
+      }, 300);
     }
 
     return () => {
       if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     };
-  }, [snippets, selectedCategory, searchQuery, searchMode, applyKeywordFilter, runSemanticSearch, showingFavorites]);
+  }, [snippets, selectedCategory, categoryUpdateKey, searchQuery, searchMode, applyKeywordFilter, runSemanticSearch, showingFavorites]);
 
   // 登录状态变化时重新过滤片段
   useEffect(() => {
@@ -221,13 +272,20 @@ export default function HomePage() {
     setSearchQuery('');
   };
 
-  // 侧边栏点击片段时选中
+  // 侧边栏点击片段时选中，并自动切换到该片段所属的分类
   useEffect(() => {
     if (selectedSnippetId && snippets.length > 0) {
       const s = snippets.find(sn => sn.id === selectedSnippetId);
-      if (s) setSelected(s);
+      if (s) {
+        setSelected(s);
+        // 如果片段有分类，且当前选中的分类不是该片段的分类，则自动切换
+        if (s.category && s.category !== selectedCategory) {
+          isAutoSwitchingCategory.current = true; // 标记为自动切换
+          setSelectedCategory(s.category);
+        }
+      }
     }
-  }, [selectedSnippetId, snippets]);
+  }, [selectedSnippetId, snippets, selectedCategory, setSelectedCategory]);
 
   const handleToggleStar = async (snippet: Snippet, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -248,10 +306,20 @@ export default function HomePage() {
   };
 
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [trashDeleteConfirmId, setTrashDeleteConfirmId] = useState<string | null>(null);
+  const [showEmptyTrashConfirm, setShowEmptyTrashConfirm] = useState(false);
+  const [showBatchDeleteConfirm, setShowBatchDeleteConfirm] = useState(false);
 
   // 批量选择
   const [batchMode, setBatchMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // 点击外部关闭所有下拉
+  useEffect(() => {
+    const close = () => { setLangDropdownOpen(false); setTagDropdownOpen(false); setSortDropdownOpen(false); };
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, []);
 
   const toggleBatchMode = () => {
     setBatchMode(prev => { if (prev) setSelectedIds(new Set()); return !prev; });
@@ -266,8 +334,13 @@ export default function HomePage() {
     });
   };
 
-  const handleBatchDelete = async () => {
-    if (!selectedIds.size || !window.confirm(`确定删除选中的 ${selectedIds.size} 个片段吗？`)) return;
+  const handleBatchDelete = () => {
+    if (!selectedIds.size) return;
+    setShowBatchDeleteConfirm(true);
+  };
+
+  const confirmBatchDelete = async () => {
+    setShowBatchDeleteConfirm(false);
     try {
       await (window as any).electron.ipcRenderer.invoke('batch:delete', [...selectedIds]);
       const ids = selectedIds;
@@ -275,8 +348,15 @@ export default function HomePage() {
       setFiltered(prev => prev.filter(s => !ids.has(s.id)));
       if (selected && ids.has(selected.id)) setSelected(null);
       setSelectedIds(new Set());
-      triggerRefresh();
-    } catch (e) { console.error('Batch delete failed:', e); }
+      // 使用 requestIdleCallback 延迟刷新
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(() => triggerRefresh());
+      } else {
+        setTimeout(() => triggerRefresh(), 100);
+      }
+    } catch (e) { 
+      console.error('Batch delete failed:', e); 
+    }
   };
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
@@ -289,7 +369,9 @@ export default function HomePage() {
     const id = deleteConfirmId;
     setDeleteConfirmId(null);
     try {
-      await (window as any).electronAPI.snippet.delete(id);
+      console.log('[Delete] Calling snippet:delete for id:', id);
+      const result = await (window as any).electronAPI.snippet.delete(id);
+      console.log('[Delete] snippet:delete result:', result);
       setSnippets(prev => prev.filter(s => s.id !== id));
       setFiltered(prev => prev.filter(s => s.id !== id));
       if (selected?.id === id) setSelected(null);
@@ -316,6 +398,8 @@ export default function HomePage() {
         if (updated) setSelected(updated);
       }
     }).catch(console.error);
+    // 触发 Sidebar 刷新
+    triggerRefresh();
   };
 
   const isAiMode = searchMode === 'semantic';
@@ -325,29 +409,56 @@ export default function HomePage() {
       await (window as any).electronAPI?.trash?.restore(id);
       setTrashSnippets(prev => prev.filter(s => s.id !== id));
       if (trashSelected?.id === id) setTrashSelected(null);
-      triggerRefresh();
+      // 使用 requestIdleCallback 在浏览器空闲时刷新，避免阻塞 UI
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(() => triggerRefresh());
+      } else {
+        setTimeout(() => triggerRefresh(), 100);
+      }
     } catch (e) {
       console.error('Restore failed:', e);
     }
   };
 
-  const handlePermanentDelete = async (id: string) => {
-    if (!confirm('永久删除后无法恢复，确定要彻底删除这个片段吗？')) return;
+  const handlePermanentDelete = (id: string) => {
+    setTrashDeleteConfirmId(id);
+  };
+
+  const confirmPermanentDelete = async () => {
+    if (!trashDeleteConfirmId) return;
+    const id = trashDeleteConfirmId;
+    setTrashDeleteConfirmId(null);
     try {
       await (window as any).electronAPI?.trash?.permanentDelete(id);
       setTrashSnippets(prev => prev.filter(s => s.id !== id));
       if (trashSelected?.id === id) setTrashSelected(null);
+      // 使用 requestIdleCallback 在浏览器空闲时刷新，避免阻塞 UI
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(() => triggerRefresh());
+      } else {
+        setTimeout(() => triggerRefresh(), 100);
+      }
     } catch (e) {
       console.error('Permanent delete failed:', e);
     }
   };
 
-  const handleEmptyTrash = async () => {
-    if (!confirm('确定要清空回收站吗？所有片段将被永久删除，无法恢复！')) return;
+  const handleEmptyTrash = () => {
+    setShowEmptyTrashConfirm(true);
+  };
+
+  const confirmEmptyTrash = async () => {
+    setShowEmptyTrashConfirm(false);
     try {
       await (window as any).electronAPI?.trash?.empty();
       setTrashSnippets([]);
       setTrashSelected(null);
+      // 使用 requestIdleCallback 在浏览器空闲时刷新，避免阻塞 UI
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(() => triggerRefresh());
+      } else {
+        setTimeout(() => triggerRefresh(), 100);
+      }
     } catch (e) {
       console.error('Empty trash failed:', e);
     }
@@ -425,7 +536,7 @@ export default function HomePage() {
                 </div>
                 <div className="preview-meta-row">
                   <span className="preview-meta-item">{trashSelected.language}</span>
-                  <span className="preview-meta-item">📅 删除于: {formatDate((trashSelected as any).deletedAt || trashSelected.updatedAt)}</span>
+                  <span className="preview-meta-item">📅 删除于: {formatDate(trashSelected.deletedAt || trashSelected.updatedAt)}</span>
                 </div>
               </div>
               <div className="preview-actions">
@@ -438,12 +549,39 @@ export default function HomePage() {
                   language={trashSelected.language?.toLowerCase() || 'plaintext'}
                   readOnly
                   height="100%"
-                  theme="vs-dark"
+                  theme="custom-dark"
                 />
               </div>
             </>
           )}
         </div>
+
+        {/* 回收站确认对话框 */}
+        {trashDeleteConfirmId && (
+          <div className="confirm-overlay" onClick={() => setTrashDeleteConfirmId(null)}>
+            <div className="confirm-dialog" onClick={e => e.stopPropagation()}>
+              <div className="confirm-title">确认彻底删除</div>
+              <div className="confirm-msg">永久删除后无法恢复，确定要彻底删除这个片段吗？</div>
+              <div className="confirm-actions">
+                <button className="confirm-btn" onClick={() => setTrashDeleteConfirmId(null)}>取消</button>
+                <button className="confirm-btn confirm-btn--danger" onClick={confirmPermanentDelete}>彻底删除</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showEmptyTrashConfirm && (
+          <div className="confirm-overlay" onClick={() => setShowEmptyTrashConfirm(false)}>
+            <div className="confirm-dialog" onClick={e => e.stopPropagation()}>
+              <div className="confirm-title">确认清空回收站</div>
+              <div className="confirm-msg">确定要清空回收站吗？所有片段将被永久删除，无法恢复！</div>
+              <div className="confirm-actions">
+                <button className="confirm-btn" onClick={() => setShowEmptyTrashConfirm(false)}>取消</button>
+                <button className="confirm-btn confirm-btn--danger" onClick={confirmEmptyTrash}>清空回收站</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -457,7 +595,7 @@ export default function HomePage() {
             <span className="search-icon">{isAiMode ? '🔮' : '🔍'}</span>
             <input
               className="search-input"
-              placeholder={isAiMode ? 'AI 语义搜索...' : '搜索代码片段...'}
+              placeholder={isAiMode ? '智能语义搜索...' : '搜索代码片段...'}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
             />
@@ -467,7 +605,7 @@ export default function HomePage() {
               onClick={toggleSearchMode}
               title={!hasSemanticSupport && !isAiMode ? '需要先下载模型才能使用 AI 搜索' : '切换搜索模式'}
             >
-              {isAiMode ? '✦ AI' : '✦ 关键词'}
+              {isAiMode ? '✦ 语义' : '✦ 关键词'}
             </button>
           </div>
           <button
@@ -524,11 +662,83 @@ export default function HomePage() {
         {/* Sub toolbar */}
         <div className="snippet-panel-subbar">
           <div className="subbar-filters">
-            <span className="filter-chip">语言 ▾</span>
-            <span className="filter-chip">标签 ▾</span>
+            {/* 语言筛选下拉 */}
+            <div className="filter-dropdown-wrap" onClick={e => e.stopPropagation()}>
+              <span
+                className={`filter-chip ${filterLang ? 'filter-chip--active' : ''}`}
+                onClick={() => { setLangDropdownOpen(o => !o); setTagDropdownOpen(false); setSortDropdownOpen(false); }}
+              >
+                {filterLang ? filterLang : '语言'} ▾
+              </span>
+              {langDropdownOpen && (
+                <div className="filter-dropdown">
+                  <div
+                    className={`filter-dropdown-item ${!filterLang ? 'active' : ''}`}
+                    onClick={() => { setFilterLang(null); setLangDropdownOpen(false); }}
+                  >全部语言</div>
+                  {Array.from(new Set(snippets.map(s => s.language?.toLowerCase()).filter(Boolean))).sort().map(lang => (
+                    <div
+                      key={lang}
+                      className={`filter-dropdown-item ${filterLang === lang ? 'active' : ''}`}
+                      onClick={() => { setFilterLang(lang === filterLang ? null : lang!); setLangDropdownOpen(false); }}
+                    >
+                      <span className="filter-dropdown-dot" style={{ background: getLangColor(lang!) }} />
+                      {lang}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 标签筛选下拉 */}
+            <div className="filter-dropdown-wrap" onClick={e => e.stopPropagation()}>
+              <span
+                className={`filter-chip ${filterTag ? 'filter-chip--active' : ''}`}
+                onClick={() => { setTagDropdownOpen(o => !o); setLangDropdownOpen(false); setSortDropdownOpen(false); }}
+              >
+                {filterTag ? filterTag : '标签'} ▾
+              </span>
+              {tagDropdownOpen && (
+                <div className="filter-dropdown">
+                  <div
+                    className={`filter-dropdown-item ${!filterTag ? 'active' : ''}`}
+                    onClick={() => { setFilterTag(null); setTagDropdownOpen(false); }}
+                  >全部标签</div>
+                  {Array.from(new Set(snippets.flatMap(s => s.tags || []).filter(Boolean))).sort().map(tag => (
+                    <div
+                      key={tag}
+                      className={`filter-dropdown-item ${filterTag === tag ? 'active' : ''}`}
+                      onClick={() => { setFilterTag(tag === filterTag ? null : tag); setTagDropdownOpen(false); }}
+                    >{tag}</div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-          <div className="subbar-sort">
-            <span>≡ 筛选</span>
+
+          {/* 排序下拉 */}
+          <div className="filter-dropdown-wrap" onClick={e => e.stopPropagation()}>
+            <span
+              className={`subbar-sort ${sortBy !== 'updatedAt' ? 'subbar-sort--active' : ''}`}
+              onClick={() => { setSortDropdownOpen(o => !o); setLangDropdownOpen(false); setTagDropdownOpen(false); }}
+            >
+              ≡ 筛选
+            </span>
+            {sortDropdownOpen && (
+              <div className="filter-dropdown filter-dropdown--right">
+                {([
+                  { value: 'updatedAt', label: '最近更新' },
+                  { value: 'createdAt', label: '创建时间' },
+                  { value: 'title', label: '名称 A-Z' },
+                ] as { value: SortOption; label: string }[]).map(opt => (
+                  <div
+                    key={opt.value}
+                    className={`filter-dropdown-item ${sortBy === opt.value ? 'active' : ''}`}
+                    onClick={() => { setSortBy(opt.value); setSortDropdownOpen(false); }}
+                  >{opt.label}</div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -547,7 +757,10 @@ export default function HomePage() {
                   key={snippet.id}
                   snippet={snippet}
                   isSelected={selected?.id === snippet.id}
-                  onClick={() => setSelected(snippet)}
+                  onClick={() => {
+                    setSelected(snippet);
+                    setSelectedSnippetId(snippet.id);
+                  }}
                   onDelete={handleDelete}
                   onToggleStar={handleToggleStar}
                   batchMode={batchMode}
@@ -559,7 +772,10 @@ export default function HomePage() {
                   key={snippet.id}
                   snippet={snippet}
                   isSelected={selected?.id === snippet.id}
-                  onClick={() => setSelected(snippet)}
+                  onClick={() => {
+                    setSelected(snippet);
+                    setSelectedSnippetId(snippet.id);
+                  }}
                   onDelete={handleDelete}
                   onToggleStar={handleToggleStar}
                   batchMode={batchMode}
@@ -588,6 +804,13 @@ export default function HomePage() {
             onCopy={handleCopy}
             onDelete={e => handleDelete(selected.id, e)}
             onToggleStar={e => handleToggleStar(selected, e)}
+            onSaved={loadSnippets}
+            selectedCategory={selectedCategory}
+            setSelectedCategory={setSelectedCategory}
+            setSearchQuery={setSearchQuery}
+            triggerRefresh={triggerRefresh}
+            showingFavorites={showingFavorites}
+            showingTrash={showingTrash}
           />
         )}
       </div>
@@ -608,6 +831,19 @@ export default function HomePage() {
             <div className="confirm-actions">
               <button className="confirm-btn" onClick={() => setDeleteConfirmId(null)}>取消</button>
               <button className="confirm-btn confirm-btn--danger" onClick={confirmDelete}>删除</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showBatchDeleteConfirm && (
+        <div className="confirm-overlay" onClick={() => setShowBatchDeleteConfirm(false)}>
+          <div className="confirm-dialog" onClick={e => e.stopPropagation()}>
+            <div className="confirm-title">确认批量删除</div>
+            <div className="confirm-msg">确定删除选中的 {selectedIds.size} 个片段吗？片段将被移到回收站。</div>
+            <div className="confirm-actions">
+              <button className="confirm-btn" onClick={() => setShowBatchDeleteConfirm(false)}>取消</button>
+              <button className="confirm-btn confirm-btn--danger" onClick={confirmBatchDelete}>删除</button>
             </div>
           </div>
         </div>
@@ -763,9 +999,46 @@ interface PreviewProps {
   onCopy: () => void;
   onDelete: (e: React.MouseEvent) => void;
   onToggleStar: (e: React.MouseEvent) => void;
+  onSaved?: () => void;
+  selectedCategory: string | null;
+  setSelectedCategory: (category: string | null) => void;
+  setSearchQuery: (query: string) => void;
+  triggerRefresh: () => void;
+  showingFavorites: boolean;
+  showingTrash: boolean;
 }
 
-function PreviewPanel({ snippet, onEdit, onCopy, onDelete, onToggleStar }: PreviewProps) {
+function PreviewPanel({ snippet, onEdit, onCopy, onDelete, onToggleStar, onSaved, selectedCategory, setSelectedCategory, setSearchQuery, triggerRefresh, showingFavorites, showingTrash }: PreviewProps) {
+  const [code, setCode] = useState(snippet.code);
+  const [isSaving, setIsSaving] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+
+  // 当切换片段时重置代码
+  useEffect(() => {
+    setCode(snippet.code);
+    setHasChanges(false);
+  }, [snippet.id, snippet.code]);
+
+  const handleCodeChange = (newCode: string) => {
+    setCode(newCode);
+    setHasChanges(newCode !== snippet.code);
+  };
+
+  const handleSave = async () => {
+    if (!hasChanges) return;
+    setIsSaving(true);
+    try {
+      await (window as any).electronAPI?.snippet?.update(snippet.id, { code });
+      setHasChanges(false);
+      onSaved?.(); // 触发刷新
+    } catch (e) {
+      console.error('Save failed:', e);
+      alert('保存失败');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleDownload = () => {
     // 获取文件扩展名
     const langExtMap: Record<string, string> = {
@@ -880,6 +1153,23 @@ function PreviewPanel({ snippet, onEdit, onCopy, onDelete, onToggleStar }: Previ
           <span className="preview-meta-item">📅 发布: {formatDate(snippet.createdAt)}</span>
           <span className="preview-meta-item">📅 更新: {formatDate(snippet.updatedAt)}</span>
           <span className="preview-meta-item">{snippet.language}</span>
+          {snippet.category && (
+            <span 
+              className="preview-meta-item preview-meta-category" 
+              onClick={() => {
+                // 通过设置 selectedCategory 来切换分类
+                setSelectedCategory(snippet.category);
+                setSearchQuery('');
+                // 触发刷新以确保状态同步
+                setTimeout(() => {
+                  triggerRefresh();
+                }, 50);
+              }}
+              title="点击查看该分类的所有片段"
+            >
+              <i className="fas fa-folder"></i> {snippet.category}
+            </span>
+          )}
         </div>
         {snippet.tags?.length > 0 && (
           <div className="preview-tags">
@@ -891,22 +1181,38 @@ function PreviewPanel({ snippet, onEdit, onCopy, onDelete, onToggleStar }: Previ
       </div>
 
       <div className="preview-actions">
-        <button className="action-btn primary" onClick={onCopy}>📋 复制代码</button>
-        <button className="action-btn" onClick={onEdit}>✏️ 编辑信息</button>
+        <button className="action-btn" onClick={onEdit}>
+          <i className="fas fa-edit"></i> 编辑信息
+        </button>
+        {hasChanges && (
+          <button 
+            className="action-btn primary" 
+            onClick={handleSave}
+            disabled={isSaving}
+          >
+            <i className="fas fa-save"></i> {isSaving ? '保存中...' : '保存代码'}
+          </button>
+        )}
+        <button className="action-btn danger" onClick={onDelete}>
+          <i className="fas fa-trash"></i> 删除
+        </button>
         <ShareButton snippet={snippet} />
-        <button className="action-btn" onClick={handleDownload}>📤 下载</button>
-        <div className="action-btn-spacer" />
-        <button className="action-btn danger" onClick={onDelete}>🗑️ 删除</button>
-        <button className="action-btn colorize" onClick={handleColorize}>🎨 染色</button>
+        <button className="action-btn" onClick={handleDownload}>
+          <i className="fas fa-download"></i> 下载
+        </button>
+        <button className="action-btn print" onClick={handleColorize}>
+          <i className="fas fa-print"></i> 打印
+        </button>
       </div>
 
       <div className="preview-code-area">
         <CodeEditor
-          value={snippet.code}
+          value={code}
+          onChange={handleCodeChange}
           language={snippet.language?.toLowerCase() || 'plaintext'}
-          readOnly
+          readOnly={false}
           height="100%"
-          theme="vs-dark"
+          theme="custom-dark"
         />
       </div>
     </>

@@ -39,6 +39,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     merge: (sourceId: string, targetId: string): Promise<void> =>
       ipcRenderer.invoke('tag:merge', sourceId, targetId),
   },
+  trash: {
+    list: (): Promise<any[]> => ipcRenderer.invoke('trash:list'),
+    restore: (id: string): Promise<any> => ipcRenderer.invoke('trash:restore', id),
+    permanentDelete: (id: string): Promise<boolean> => ipcRenderer.invoke('trash:permanentDelete', id),
+    empty: (): Promise<boolean> => ipcRenderer.invoke('trash:empty'),
+  },
+  batch: {
+    delete: (snippetIds: string[]) => ipcRenderer.invoke('batch:delete', snippetIds),
+    updateTags: (snippetIds: string[], tags: string[]) =>
+      ipcRenderer.invoke('batch:update-tags', snippetIds, tags),
+    updateCategory: (snippetIds: string[], categoryId: string) =>
+      ipcRenderer.invoke('batch:update-category', snippetIds, categoryId),
+    export: (snippetIds: string[], format: string) =>
+      ipcRenderer.invoke('batch:export', snippetIds, format),
+  },
   auth: {
     register: (email: string, password: string, username: string) =>
       ipcRenderer.invoke('auth:register', email, password, username),
@@ -54,6 +69,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('auth:deleteAccountSendCode', email),
     deleteAccountVerify: (email: string, code: string): Promise<{ success: boolean; error?: string }> =>
       ipcRenderer.invoke('auth:deleteAccountVerify', email, code),
+  },
+  sync: {
+    push: () => ipcRenderer.invoke('sync:push'),
+    pull: () => ipcRenderer.invoke('sync:pull'),
+    sync: () => ipcRenderer.invoke('sync:sync'),
+    getStatus: () => ipcRenderer.invoke('sync:getStatus'),
+    enableAutoSync: (intervalMinutes: number) =>
+      ipcRenderer.invoke('sync:enableAutoSync', intervalMinutes),
+    disableAutoSync: () => ipcRenderer.invoke('sync:disableAutoSync'),
+    resolveConflict: (conflict: Conflict, resolution: ConflictResolution) =>
+      ipcRenderer.invoke('sync:resolveConflict', conflict, resolution),
+    autoResolve: (conflicts: Conflict[], strategy: 'local' | 'cloud' | 'latest') =>
+      ipcRenderer.invoke('sync:autoResolve', conflicts, strategy),
+    getConflictHistory: () => ipcRenderer.invoke('sync:getConflictHistory'),
+    getQueueStatus: () => ipcRenderer.invoke('sync:getQueueStatus'),
+    clearFailedQueue: () => ipcRenderer.invoke('sync:clearFailedQueue'),
+    onStatusChanged: (callback: (status: any) => void) => {
+      const listener = (_event: any, status: any) => callback(status);
+      ipcRenderer.on('sync:statusChanged', listener);
+      return () => ipcRenderer.removeListener('sync:statusChanged', listener);
+    },
   },
 });
 

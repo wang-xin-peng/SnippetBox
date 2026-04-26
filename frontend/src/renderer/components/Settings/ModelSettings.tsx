@@ -116,8 +116,8 @@ export const ModelSettings: React.FC<ModelSettingsProps> = ({ onDownloadComplete
         <div>
           <div style={{ marginBottom: 8 }}>
             <Text strong>本地搜索模型</Text>
-            <p style={{ color: '#888', marginTop: 4 }}>
-              下载并管理用于语义搜索的 AI 模型（约 118MB，量化版）
+            <p style={{ color: 'var(--text-secondary)', marginTop: 4 }}>
+              下载并管理用于语义搜索的 AI 模型（约 133.71MB，量化版）
             </p>
           </div>
 

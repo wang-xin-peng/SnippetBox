@@ -81,10 +81,12 @@ export function registerSearchHandlers() {
     searchEngine = new SearchEngine(db);
     vectorStore = new VectorStore();
     
-    // 初始化嵌入服务（异步，不阻塞）
-    embeddingService.initialize().catch(err => {
-      console.warn('[SearchHandlers] Embedding service unavailable (model not downloaded)')
-    })
+    // 延迟初始化嵌入服务，等窗口加载完成后再执行，避免阻塞启动
+    setTimeout(() => {
+      embeddingService.initialize().catch(() => {
+        console.warn('[SearchHandlers] Embedding service unavailable (model not downloaded)');
+      });
+    }, 3000);
 
     
     console.log('[SearchHandlers] SearchEngine initialized successfully');

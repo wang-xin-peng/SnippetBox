@@ -29,7 +29,7 @@
 .topbar-logo {
   width: 34px;
   height: 34px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, #0ea5e9, #06b6d4);
   border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
@@ -63,29 +63,83 @@
 }
 
 .topbar-count {
-  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: var(--bg-primary);
   color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
   font-weight: 500;
+  transition: all 0.15s;
+}
+
+.topbar-count:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .btn-new-snippet {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 16px;
-  background: #111827;
-  color: #ffffff;
-  border: none;
+  padding: 6px 14px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: all 0.15s;
   letter-spacing: 0.01em;
 }
 
 .btn-new-snippet:hover {
-  background: #1f2937;
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.btn-theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  color: var(--text-primary);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-theme-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--primary-color);
+}
+
+.btn-mobile-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  color: var(--text-primary);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-right: 8px;
+}
+
+.btn-mobile-back:hover {
+  background: var(--bg-hover);
 }
 
 /* ── 下方内容区 ── */

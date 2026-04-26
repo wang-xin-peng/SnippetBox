@@ -61,6 +61,12 @@ export function registerAuthHandlers() {
     }
   });
 
+  // 不发网络请求，直接返回缓存的用户信息（用于启动时快速恢复登录状态）
+  ipcMain.handle('auth:getCachedUser', () => {
+    const user = auth.getCachedUser();
+    return { success: !!user, user };
+  });
+
   ipcMain.handle('auth:isLoggedIn', () => {
     return { isLoggedIn: auth.isLoggedIn() };
   });

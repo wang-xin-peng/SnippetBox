@@ -75,7 +75,7 @@ export const ShareDialog: React.FC<ShareDialogProps> = ({ snippet, onClose }) =>
         <div className="share-dialog-body">
           <div className="share-field">
             <span className="share-label">片段名称</span>
-            <div style={{ fontSize: 13, color: '#374151', padding: '6px 0' }}>{snippet.title}</div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', padding: '6px 0' }}>{snippet.title}</div>
           </div>
 
           {/* 有效期 */}
@@ -143,7 +143,7 @@ export const ShareDialog: React.FC<ShareDialogProps> = ({ snippet, onClose }) =>
                 </button>
               </div>
               {shareInfo.expiresAt && (
-                <div style={{ fontSize: 12, color: '#6b7280' }}>
+                <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
                   过期时间：{new Date(shareInfo.expiresAt).toLocaleString()}
                 </div>
               )}
