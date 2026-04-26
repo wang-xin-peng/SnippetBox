@@ -10,11 +10,11 @@
 
 .complete-header {
   text-align: center;
-  margin-bottom: 48px;
+  margin-bottom: 24px;
 }
 
 .complete-icon {
-  margin-bottom: 32px;
+  margin-bottom: 16px;
   animation: scaleIn 0.5s ease-out;
 }
 
@@ -33,14 +33,14 @@
 }
 
 .complete-header h2 {
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 700;
   color: var(--text-primary);
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 }
 
 .complete-subtitle {
-  font-size: 16px;
+  font-size: 15px;
   color: var(--text-secondary);
 }
 
@@ -49,22 +49,22 @@
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: 16px;
-  padding: 32px;
-  margin-bottom: 40px;
+  padding: 20px;
+  margin-bottom: 24px;
   animation: fadeInUp 0.5s ease-out 0.2s backwards;
 }
 
 .settings-summary h3 {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 
 .summary-item {
   display: flex;
   justify-content: space-between;
-  padding: 16px 0;
+  padding: 10px 0;
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -85,42 +85,42 @@
 
 .quick-tips {
   width: 100%;
-  margin-bottom: 40px;
+  margin-bottom: 24px;
   animation: fadeInUp 0.5s ease-out 0.3s backwards;
 }
 
 .quick-tips h3 {
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 
 .tip-item {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 14px 0;
-  font-size: 15px;
+  gap: 12px;
+  padding: 8px 0;
+  font-size: 14px;
   color: var(--text-secondary);
 }
 
 .tip-icon {
-  font-size: 24px;
+  font-size: 20px;
   flex-shrink: 0;
 }
 
 .complete-actions {
   display: flex;
-  gap: 20px;
+  gap: 16px;
   justify-content: center;
   width: 100%;
 }
 
 .complete-actions button {
-  min-width: 160px;
-  padding: 14px 32px;
-  font-size: 16px;
+  min-width: 140px;
+  padding: 12px 24px;
+  font-size: 15px;
 }
 
 /* 响应式布局 */

@@ -38,15 +38,7 @@ export function CompletePage({ onNext, onPrev, choices }: WizardStepProps) {
       </div>
 
       <div className="quick-tips">
-        <h3>快速提示</h3>
-        <div className="tip-item">
-          <span className="tip-icon">💡</span>
-          <span>使用 Ctrl+N 快速创建新代码片段</span>
-        </div>
-        <div className="tip-item">
-          <span className="tip-icon">🔍</span>
-          <span>使用 Ctrl+F 快速搜索代码片段</span>
-        </div>
+        <h3>提示</h3>
         <div className="tip-item">
           <span className="tip-icon">⚙️</span>
           <span>您可以随时在设置中更改这些选项</span>

@@ -528,7 +528,7 @@ export const SettingsPage: React.FC = () => {
               <div className="setting-header">
                 <label className="setting-label">本地搜索模型</label>
                 <p className="setting-description">
-                  下载并管理用于语义搜索的 AI 模型（约 118MB，量化版）
+                  下载并管理用于语义搜索的 AI 模型（约 133.71MB，量化版）
                 </p>
               </div>
             <div className="setting-control">

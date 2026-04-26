@@ -5,7 +5,7 @@ export const MODEL_INFO: ModelInfo = {
   name: 'multilingual-e5-small',
   fileName: 'multilingual-e5-small.onnx',
   expectedHash: 'skip-verification',
-  size: 118000000 // 量化 ONNX 约 118MB
+  size: 140210000 // 量化 ONNX 约 133.71MB
 };
 
 // 模型文件列表（需要下载的所有文件）
