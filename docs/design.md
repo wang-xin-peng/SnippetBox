@@ -8,7 +8,7 @@ SnippetBox 是一款面向开发者的轻量级代码片段管理工具，采用
 
 1. **本地优先**：所有核心功能完全离线可用，数据存储在本地 SQLite 数据库
 2. **智能搜索**：统一搜索框自动选择最佳搜索策略（本地语义 → 云端语义 → 全文搜索）
-3. **按需下载**：嵌入模型（约 80MB）可选下载，支持轻量模式
+3. **按需下载**：嵌入模型（约 134MB，支持多语言）可选下载，支持轻量模式
 4. **渐进增强**：基础功能无需网络，高级功能（云同步、分享）需要登录
 5. **跨平台支持**：基于 Electron 构建，支持 Windows、macOS 和 Linux
 
@@ -19,7 +19,7 @@ SnippetBox 是一款面向开发者的轻量级代码片段管理工具，采用
 - 框架：Electron + React + TypeScript
 - 编辑器：Monaco Editor
 - 状态管理：React Context / Zustand
-- 本地数据库：SQLite + FTS5 + sqlite-vss
+- 本地数据库：SQLite + FTS5
 - 本地推理：ONNX Runtime Web
 
 **云端服务**：
@@ -52,7 +52,7 @@ graph TB
         SM --> LDB[(SQLite Database)]
         SE --> LDB
         SE --> LES
-        SE --> VS[(Vector Store<br/>sqlite-vss)]
+        SE --> VS[(Vector Store<br/>SQLite)]
         LES --> VS
         LES --> MC[Model Cache]
         MD --> MC
@@ -75,12 +75,9 @@ graph TB
         CloudSync --> PG[(PostgreSQL)]
         CloudSync --> Redis[(Redis Cache)]
         Share --> PG
-        Share --> S3[(Object Storage)]
         CloudEmbed --> PG
     end
-  
-    SE -.云端搜索降级.-> CloudAPI
-  
+
     style LDB fill:#e1f5ff
     style VS fill:#e1f5ff
     style MC fill:#fff4e1
@@ -107,7 +104,7 @@ graph TB
 **数据访问层（Data Access Layer）**：
 
 - SQLite 数据库访问
-- Vector Store 访问（sqlite-vss）
+- Vector Store 访问（SQLite 表）
 - 本地文件系统访问（模型缓存）
 
 **基础设施层（Infrastructure Layer）**：
@@ -215,16 +212,10 @@ interface BatchOperationResult {
 graph TD
     A[用户输入搜索查询] --> B{本地模型<br/>已下载?}
     B -->|是| C[本地语义搜索]
-    B -->|否| D{用户<br/>已登录?}
-    D -->|是| E[云端语义搜索]
-    D -->|否| F[全文搜索 FTS5]
-  
-    C --> G[返回结果 + 显示<br/>本地搜索指示器]
-    E --> H[返回结果 + 显示<br/>云端搜索指示器]
-    F --> I[返回结果 + 显示<br/>关键词搜索指示器]
-  
-    E -.网络失败.-> J[降级到全文搜索]
-    J --> I
+    B -->|否| D[全文搜索 FTS5]
+
+    C --> E[返回结果 + 显示<br/>本地搜索指示器]
+    D --> F[返回结果 + 显示<br/>关键词搜索指示器]
 ```
 
 **接口定义**：
@@ -273,9 +264,7 @@ interface SearchCapability {
 
 - 策略模式实现不同搜索方式
 - 本地语义搜索：使用 Local Embedding Service 生成查询向量，在 Vector Store 中检索
-- 云端语义搜索：调用云端 API，传递查询文本
 - 全文搜索：使用 SQLite FTS5 扩展
-- 自动降级：云端搜索失败时降级到全文搜索
 - 缓存搜索结果（5 分钟有效期）
 - 防抖处理（300ms）
 
@@ -306,8 +295,8 @@ interface LocalEmbeddingService {
 
 **实现要点**：
 
-- 使用 ONNX Runtime Web 加载 all-MiniLM-L6-v2 模型
-- 模型文件路径：`{userData}/models/all-MiniLM-L6-v2.onnx`
+- 使用 ONNX Runtime Web 加载 multilingual-e5-small 模型
+- 模型文件路径：`{userData}/models/multilingual-e5-small/`
 - 输入预处理：tokenization + padding
 - 输出：384 维向量
 - 性能目标：单次推理 < 200ms
@@ -346,11 +335,10 @@ interface VectorSearchResult {
 
 **实现要点**：
 
-- 使用 sqlite-vss 扩展
-- 相似度计算：余弦相似度
-- 索引类型：HNSW（Hierarchical Navigable Small World）
+- 使用 SQLite 表存储向量
+- 相似度计算：余弦相似度（应用层计算）
 - 向量维度：384
-- 性能优化：批量插入、定期 VACUUM
+- 性能优化：批量插入、定期清理
 
 ### 5. Model Downloader（模型下载器）
 
@@ -711,20 +699,20 @@ END;
 #### snippet_vectors 表（向量存储）
 
 ```sql
--- 使用 sqlite-vss 扩展
-CREATE VIRTUAL TABLE snippet_vectors USING vss0(
-  embedding(384)
-);
-
--- 关联表
-CREATE TABLE snippet_vector_mapping (
-  snippet_id TEXT PRIMARY KEY,
-  vector_rowid INTEGER NOT NULL,
+-- 使用 SQLite 表存储向量
+CREATE TABLE snippet_vectors (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  snippet_id TEXT NOT NULL,
+  embedding TEXT NOT NULL, -- JSON 序列化的 384 维向量
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (snippet_id) REFERENCES snippets(id) ON DELETE CASCADE
 );
 
-CREATE INDEX idx_vector_mapping_rowid ON snippet_vector_mapping(vector_rowid);
+-- 创建索引以加速相似度搜索
+CREATE INDEX idx_snippet_vectors_snippet_id ON snippet_vectors(snippet_id);
 ```
+
+> 注意：实际代码中向量以 JSON 文本形式存储在 SQLite 表中，相似度计算在应用层完成。
 
 #### sync_queue 表（同步队列）
 
@@ -859,14 +847,15 @@ GET  /api/v1/auth/me
 #### 片段同步
 
 ```
-GET    /api/v1/sync/changes?since={timestamp}
-POST   /api/v1/sync/push
-POST   /api/v1/sync/pull
+POST   /api/v1/sync
 GET    /api/v1/snippets
 GET    /api/v1/snippets/{id}
 POST   /api/v1/snippets
 PUT    /api/v1/snippets/{id}
 DELETE /api/v1/snippets/{id}
+GET    /api/v1/sync/categories
+GET    /api/v1/sync/tags
+POST   /api/v1/sync/metadata
 ```
 
 #### 语义搜索
@@ -1113,9 +1102,9 @@ async function handleNetworkError(error: NetworkError, operation: Operation) {
     return retry(operation);
   }
   
-  // 降级处理
-  if (operation.type === 'search' && operation.mode === 'cloud_semantic') {
-    return fallbackToLocalSearch(operation.query);
+  // 模型加载失败时降级到全文搜索
+  if (operation.type === 'search' && operation.mode === 'semantic') {
+    return fallbackToFullTextSearch(operation.query);
   }
   
   // 加入同步队列
@@ -1170,7 +1159,7 @@ async function handleDatabaseError(error: DatabaseError) {
 
 - 验证模型文件完整性
 - 如果校验失败，提示重新下载
-- 降级到云端搜索或全文搜索
+- 降级到全文搜索
 - 记录错误日志
 
 ```typescript
@@ -1187,7 +1176,7 @@ async function handleModelLoadError(error: ModelLoadError) {
     await deleteCorruptedModel();
   }
   
-  // 降级到其他搜索方式
+  // 禁用本地语义搜索，切换到全文搜索
   searchEngine.disableLocalSemantic();
 }
 ```
@@ -1458,53 +1447,6 @@ describe('Property Tests', () => {
     );
   });
 });
-```
-
-### 集成测试
-
-**测试场景**：
-
-- 客户端与本地数据库的交互
-- 客户端与云端 API 的交互
-- 本地嵌入服务与向量存储的集成
-- 模型下载和缓存机制
-- 搜索策略的自动降级
-
-**测试环境**：
-
-- 使用测试数据库（独立的 SQLite 文件）
-- 使用 Mock Server 模拟云端 API
-- 使用小型测试模型（减少下载时间）
-
-**示例**：
-
-```typescript
-describe('Search Engine Integration', () => {
-  it('should fallback to fulltext search when local model is not available', async () => {
-    // 确保本地模型未下载
-    await modelDownloader.deleteModel();
-  
-    // 确保用户未登录
-    await authService.logout();
-  
-    // 创建测试片段
-    const snippet = await snippetManager.createSnippet({
-      title: 'Test Snippet',
-      code: 'function test() { return 42; }',
-      language: 'javascript'
-    });
-  
-    // 执行搜索
-    const result = await searchEngine.search('test function');
-  
-    // 验证使用了全文搜索
-    expect(result.mode).toBe(SearchMode.FULLTEXT);
-    expect(result.snippets).toContainEqual(
-      expect.objectContaining({ id: snippet.id })
-    );
-  });
-});
-```
 
 ### 端到端测试
 
@@ -1554,57 +1496,6 @@ test('complete snippet workflow', async ({ page }) => {
 });
 ```
 
-### 性能测试
-
-**测试目标**：
-
-- 应用启动时间 < 2 秒
-- 本地搜索响应时间 < 200ms
-- 片段切换时间 < 100ms
-- 片段保存时间 < 100ms
-- 支持 10000 个片段无明显性能下降
-
-**测试工具**：
-
-- Lighthouse（应用启动性能）
-- Chrome DevTools Performance（运行时性能）
-- 自定义性能测试脚本
-
-**示例**：
-
-```typescript
-describe('Performance Tests', () => {
-  it('should handle 10000 snippets efficiently', async () => {
-    // 创建 10000 个片段
-    const snippets = [];
-    for (let i = 0; i < 10000; i++) {
-      snippets.push({
-        title: `Snippet ${i}`,
-        code: `function test${i}() { return ${i}; }`,
-        language: 'javascript'
-      });
-    }
-  
-    await snippetManager.batchCreate(snippets);
-  
-    // 测试列表加载时间
-    const start = performance.now();
-    const list = await snippetManager.listSnippets();
-    const duration = performance.now() - start;
-  
-    expect(duration).toBeLessThan(500); // 500ms
-    expect(list.length).toBe(10000);
-  
-    // 测试搜索性能
-    const searchStart = performance.now();
-    const results = await searchEngine.search('test');
-    const searchDuration = performance.now() - searchStart;
-  
-    expect(searchDuration).toBeLessThan(200); // 200ms
-  });
-});
-```
-
 ### 安全测试
 
 **测试场景**：
@@ -1624,7 +1515,6 @@ describe('Performance Tests', () => {
 ### 测试覆盖率目标
 
 - 单元测试覆盖率：≥ 80%
-- 集成测试覆盖率：≥ 60%
 - 端到端测试：覆盖所有主要用户流程
 - 属性测试：覆盖所有正确性属性
 
@@ -1662,12 +1552,7 @@ SnippetBox/
 4. 如果选择下载，后台开始下载模型文件
 5. 用户可以立即开始使用基础功能
 
-**自动更新**：
-
-- 使用 electron-updater
-- 检查更新频率：每天一次
-- 增量更新（仅下载变更部分）
-- 用户可选择立即安装或下次启动时安装
+**自动更新**：暂未实现
 
 ### 云端服务部署
 
@@ -2191,8 +2076,9 @@ src/
 │   └── utils/
 └── tests/              # 测试
     ├── unit/
-    ├── integration/
-    └── e2e/
+    ├── e2e/
+    ├── security/
+    └── property/
 ```
 
 ### 文档

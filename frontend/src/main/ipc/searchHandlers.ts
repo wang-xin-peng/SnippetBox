@@ -69,9 +69,7 @@ function computeTextMatchScore(query: string, snippet: { title?: string; code?: 
   return score;
 }
 
-/**
- * 注册搜索相关的 IPC 处理器
- */
+// 注册搜索相关的 IPC 处理器
 export function registerSearchHandlers() {
   console.log('[SearchHandlers] Registering search IPC handlers...');
   

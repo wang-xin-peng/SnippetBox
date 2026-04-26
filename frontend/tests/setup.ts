@@ -13,6 +13,23 @@ declare global {
   var testDb: Database.Database | null;
 }
 
+// Mock Electron app API
+const mockApp = {
+  getPath: jest.fn((name: string) => {
+    if (name === 'userData') {
+      return '/tmp/test-user-data';
+    }
+    return '/tmp';
+  }),
+  getName: jest.fn(() => 'SnippetBox'),
+  getVersion: jest.fn(() => '0.1.0'),
+};
+
+// Mock electron module
+jest.mock('electron', () => ({
+  app: mockApp,
+}));
+
 // Mock Electron APIs
 global.electronAPI = {
   send: jest.fn(),

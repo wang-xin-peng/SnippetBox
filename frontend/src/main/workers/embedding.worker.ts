@@ -2,9 +2,7 @@ import { parentPort, workerData } from 'worker_threads';
 import * as ort from 'onnxruntime-node';
 import * as path from 'path';
 
-/**
- * Embedding Worker 消息类型
- */
+// Embedding Worker 消息类型
 interface WorkerMessage {
   type: 'initialize' | 'embed' | 'batchEmbed' | 'unload';
   id: string;
@@ -18,9 +16,7 @@ interface WorkerResponse {
   error?: string;
 }
 
-/**
- * Worker 状态
- */
+// Worker 状态
 class EmbeddingWorker {
   private session: ort.InferenceSession | null = null;
   private tokenizer: any = null;
@@ -31,9 +27,7 @@ class EmbeddingWorker {
     this.modelPath = modelPath;
   }
 
-  /**
-   * 初始化模型
-   */
+  // 初始化模型
   async initialize(): Promise<void> {
     if (this.isInitialized) {
       return;
@@ -72,17 +66,13 @@ class EmbeddingWorker {
     }
   }
 
-  /**
-   * 生成单个文本的向量
-   */
+  
   async embed(text: string): Promise<number[]> {
     const embeddings = await this.batchEmbed([text]);
     return embeddings[0];
   }
 
-  /**
-   * 批量生成向量
-   */
+  // 批量生成向量
   async batchEmbed(texts: string[]): Promise<number[][]> {
     if (!this.isInitialized || !this.session || !this.tokenizer) {
       throw new Error('Worker not initialized');
@@ -146,9 +136,7 @@ class EmbeddingWorker {
     }
   }
 
-  /**
-   * Mean pooling 操作
-   */
+  // Mean pooling 操作
   private meanPooling(
     hiddenState: Float32Array,
     dims: number[],
@@ -184,9 +172,7 @@ class EmbeddingWorker {
     return embeddings;
   }
 
-  /**
-   * L2 归一化
-   */
+  // L2 归一化
   private normalize(embeddings: number[][]): number[][] {
     return embeddings.map(embedding => {
       const norm = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
@@ -194,9 +180,7 @@ class EmbeddingWorker {
     });
   }
 
-  /**
-   * 卸载模型
-   */
+  // 卸载模型
   async unload(): Promise<void> {
     this.session = null;
     this.tokenizer = null;

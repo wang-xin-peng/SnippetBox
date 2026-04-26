@@ -1,7 +1,6 @@
 /**
- * 任务 33.4: 端到端测试
+ * 端到端测试
  * 文件位置: tests/e2e/BackupRestoreFlow.test.ts
- * 
  * 验收标准: 备份恢复流程测试
  */
 

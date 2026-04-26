@@ -8,8 +8,7 @@ export const MODEL_INFO: ModelInfo = {
   size: 140210000 // 量化 ONNX 约 133.71MB
 };
 
-// 模型文件列表（需要下载的所有文件）
-// 注意：tokenizer.json 已包含词汇表，不需要额外的 vocab.txt
+// 模型文件列表
 export const MODEL_FILES = [
   { name: 'model.onnx', url: 'onnx/model_uint8.onnx' },
   { name: 'sentencepiece.bpe.model', url: 'sentencepiece.bpe.model' },
@@ -22,7 +21,7 @@ export const MODEL_FILES = [
 // 镜像源配置
 export const MODEL_MIRRORS: MirrorInfo[] = [
   {
-    // Hugging Face 国内镜像（优先使用，国内速度快）
+    // Hugging Face 国内镜像（优先）
     url: 'https://hf-mirror.com/Xenova/multilingual-e5-small/resolve/main/',
     name: 'Hugging Face 镜像',
     location: '中国',

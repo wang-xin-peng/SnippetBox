@@ -60,10 +60,15 @@ app.whenReady().then(async () => {
     console.warn('Please install Visual Studio Build Tools to compile better-sqlite3');
     
     // 即使数据库失败，也注册不依赖数据库的处理器
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { registerSettingsHandlers } = require('./ipc/settingsHandlers');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { registerModelHandlers } = require('./ipc/modelHandlers');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { registerAuthHandlers } = require('./ipc/authHandlers');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { registerSyncHandlers } = require('./ipc/syncHandlers');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const { registerShareHandlers } = require('./ipc/shareHandlers');
     registerSettingsHandlers();
     registerModelHandlers();

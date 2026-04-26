@@ -8,9 +8,7 @@ interface BatchSelectionProps {
   onClearAll: () => void;
 }
 
-/**
- * 批量选择工具栏：全选/取消全选 + 选择计数
- */
+// 批量选择工具栏：全选/取消全选 + 选择计数
 export const BatchSelection: React.FC<BatchSelectionProps> = ({
   totalCount,
   selectedIds,

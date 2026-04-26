@@ -18,8 +18,8 @@ export const SyncDialog: React.FC<SyncDialogProps> = ({ count, onConfirm, onCanc
           <p>检测到 {count} 个本地片段。</p>
           <p>是否将这些片段合并到您的云端账户？</p>
           <ul>
-            <li>点击"确定"：本地片段将上传到云端，登录后可查看</li>
-            <li>点击"取消"：本地片段保留在本地，登录状态下不会显示</li>
+            <li>点击&quot;确定&quot;：本地片段将上传到云端，登录后可查看</li>
+            <li>点击&quot;取消&quot;：本地片段保留在本地，登录状态下不会显示</li>
           </ul>
           <p className="sync-dialog-note">退出登录后，本地片段仍可正常查看。</p>
         </div>

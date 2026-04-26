@@ -378,7 +378,7 @@ export class AuthService {
     if (this.cachedUser) {
       try {
         fs.writeFileSync(this.userFilePath, JSON.stringify(this.cachedUser), 'utf-8');
-      } catch {}
+      } catch { /* ignore */ }
     }
   }
 
@@ -399,7 +399,7 @@ export class AuthService {
         if (fs.existsSync(this.userFilePath)) {
           this.cachedUser = JSON.parse(fs.readFileSync(this.userFilePath, 'utf-8'));
         }
-      } catch {}
+      } catch { /* ignore */ }
 
       if (this.tokens && this.tokens.expiresAt > Date.now()) {
         this.scheduleRefresh(this.tokens.expiresAt);

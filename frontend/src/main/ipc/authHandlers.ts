@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron';
 import { getAuthService } from '../services/AuthService';
 
-/** 将后端错误（可能是 Pydantic detail 数组或字符串）统一转为字符串 */
+// 将后端错误（可能是 Pydantic detail 数组或字符串）统一转为字符串
 function extractError(err: any): string {
   const detail = err?.response?.data?.detail;
   if (!detail) return err?.message ?? '未知错误';
@@ -13,6 +13,7 @@ function extractError(err: any): string {
   return String(detail);
 }
 
+// 注册认证事件处理函数
 export function registerAuthHandlers() {
   const auth = getAuthService();
 
@@ -61,7 +62,7 @@ export function registerAuthHandlers() {
     }
   });
 
-  // 不发网络请求，直接返回缓存的用户信息（用于启动时快速恢复登录状态）
+  // 不发网络请求，直接返回缓存的用户信息
   ipcMain.handle('auth:getCachedUser', () => {
     const user = auth.getCachedUser();
     return { success: !!user, user };

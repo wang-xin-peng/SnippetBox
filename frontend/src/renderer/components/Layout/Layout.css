@@ -7,7 +7,7 @@
   background: var(--bg-secondary);
 }
 
-/* ── 顶部栏 ── */
+/* 顶部栏 */
 .topbar {
   height: var(--topbar-height);
   background: var(--bg-topbar);
@@ -142,7 +142,7 @@
   background: var(--bg-hover);
 }
 
-/* ── 下方内容区 ── */
+/* 下方内容区 */
 .layout-body {
   flex: 1;
   display: flex;
@@ -150,7 +150,7 @@
   min-height: 0;
 }
 
-/* ── 左侧边栏 ── */
+/* 左侧边栏 */
 .layout-sidebar {
   flex-shrink: 0;
   overflow: hidden;
@@ -158,7 +158,7 @@
   max-width: 360px;
 }
 
-/* ── 拖拽条 ── */
+/* 拖拽条 */
 .resize-handle {
   width: 4px;
   flex-shrink: 0;
@@ -174,7 +174,7 @@
   background: var(--primary-color);
 }
 
-/* ── 主内容区 ── */
+/* 主内容区 */
 .layout-main {
   flex: 1;
   display: flex;

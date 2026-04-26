@@ -61,16 +61,12 @@ export class ModelDownloader {
     this.loadDownloadState();
   }
 
-  /**
-   * 设置用于推送进度的 WebContents
-   */
+  // 设置用于推送进度的 WebContents
   setWebContents(wc: WebContents | null) {
     this.webContents = wc;
   }
 
-  /**
-   * 开始下载模型
-   */
+  // 开始下载模型
   async startDownload(mirrorUrl?: string): Promise<void> {
     if (this.progress.status === 'downloading') {
       throw new Error('下载已在进行中');
@@ -227,9 +223,7 @@ export class ModelDownloader {
     }
   }
 
-  /**
-   * 暂停下载
-   */
+  // 暂停下载
   async pauseDownload(): Promise<void> {
     if (this.progress.status !== 'downloading') {
       throw new Error('没有正在进行的下载');
@@ -246,9 +240,7 @@ export class ModelDownloader {
     setTimeout(() => { this.isPausing = false; }, 200);
   }
 
-  /**
-   * 恢复下载
-   */
+  // 恢复下载
   async resumeDownload(): Promise<void> {
     if (this.progress.status !== 'paused') {
       throw new Error('下载未暂停');
@@ -257,13 +249,11 @@ export class ModelDownloader {
     await this.startDownload(this.currentMirrorUrl || undefined);
   }
 
-  /**
-   * 取消下载
-   */
+  // 取消下载
   async cancelDownload(): Promise<void> {
     // 先主动关闭当前 writer，释放文件句柄
     if (this.currentWriter) {
-      try { this.currentWriter.destroy(); } catch (e) {}
+      try { this.currentWriter.destroy(); } catch { /* ignore */ }
       this.currentWriter = null;
     }
 
@@ -321,16 +311,12 @@ export class ModelDownloader {
     };
   }
 
-  /**
-   * 获取下载进度
-   */
+  // 获取下载进度
   getProgress(): DownloadProgress {
     return { ...this.progress };
   }
 
-  /**
-   * 验证模型文件
-   */
+  // 验证模型文件
   async verifyModel(filePath: string): Promise<boolean> {
     if (!fs.existsSync(filePath)) {
       return false;
@@ -357,9 +343,7 @@ export class ModelDownloader {
     });
   }
 
-  /**
-   * 删除模型
-   */
+  // 删除模型
   async deleteModel(): Promise<void> {
     if (fs.existsSync(this.modelPath)) {
       fs.rmSync(this.modelPath, { recursive: true, force: true });
@@ -387,9 +371,7 @@ export class ModelDownloader {
     }
   }
 
-  /**
-   * 清理所有遗留的 state 文件（兼容旧版本路径）
-   */
+  // 清理所有遗留的 state 文件（兼容旧版本路径）
   private cleanLegacyStateFiles(): void {
     const modelsRoot = path.join(app.getPath('userData'), 'models');
     const legacyPath = path.join(modelsRoot, `${MODEL_INFO.fileName}.state`);
@@ -403,9 +385,7 @@ export class ModelDownloader {
     }
   }
 
-  /**
-   * 检查模型是否已下载
-   */
+  // 检查模型是否已下载
   async isModelDownloaded(): Promise<boolean> {
     if (!fs.existsSync(this.modelPath)) {
       return false;
@@ -423,16 +403,12 @@ export class ModelDownloader {
     return true;
   }
 
-  /**
-   * 获取模型路径
-   */
+  // 获取模型路径
   getModelPath(): string {
     return this.modelPath;
   }
 
-  /**
-   * 选择镜像源
-   */
+  // 选择镜像源
   private selectMirror(): string {
     const mirrors = getSortedMirrors();
     if (mirrors.length === 0) {
@@ -441,9 +417,7 @@ export class ModelDownloader {
     return mirrors[0].url;
   }
 
-  /**
-   * 更新下载进度
-   */
+  // 更新下载进度
   private updateProgress(progressEvent: any, startByte: number): void {
     const currentDownloaded = startByte + (progressEvent.loaded || 0);
     this.progress.downloaded = currentDownloaded;
@@ -477,9 +451,7 @@ export class ModelDownloader {
     }
   }
 
-  /**
-   * 保存下载状态
-   */
+  // 保存下载状态
   private saveDownloadState(): void {
     if (!this.currentMirrorUrl) return;
 
@@ -494,9 +466,7 @@ export class ModelDownloader {
     fs.writeFileSync(this.stateFilePath, JSON.stringify(state, null, 2));
   }
 
-  /**
-   * 加载下载状态
-   */
+  // 加载下载状态
   private loadDownloadState(): void {
     if (!fs.existsSync(this.stateFilePath)) {
       return;
@@ -524,9 +494,7 @@ export class ModelDownloader {
     }
   }
 
-  /**
-   * 清理下载状态
-   */
+  // 清理下载状态
   private clearDownloadState(): void {
     if (fs.existsSync(this.stateFilePath)) {
       fs.unlinkSync(this.stateFilePath);

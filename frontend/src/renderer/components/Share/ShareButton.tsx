@@ -7,7 +7,7 @@ import './Share.css';
 
 interface ShareButtonProps {
   snippet: Snippet;
-  /** 仅显示图标，不显示文字（用于列表卡片） */
+  // 仅显示图标，不显示文字（用于列表卡片）
   iconOnly?: boolean;
 }
 

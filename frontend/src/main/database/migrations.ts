@@ -5,9 +5,7 @@
 
 import Database from 'better-sqlite3';
 
-/**
- * 添加缺失的列到 snippets 表（用于已有数据库的升级）
- */
+// 添加缺失的列到 snippets 表（用于已有数据库的升级）
 function migrateSnippetsTable(db: Database.Database): void {
   const columnsToAdd = [
     { name: 'starred', type: 'INTEGER DEFAULT 0' },
@@ -35,9 +33,7 @@ function migrateSnippetsTable(db: Database.Database): void {
   }
 }
 
-/**
- * 清理重复的 cloud_id 片段（保留最新的一条）
- */
+// 清理重复的 cloud_id 片段（保留最新的一条）
 function deduplicateCloudSnippets(db: Database.Database): void {
   try {
     const result = db.prepare(`
@@ -60,9 +56,7 @@ function deduplicateCloudSnippets(db: Database.Database): void {
   }
 }
 
-/**
- * 为 cloud_id 添加唯一索引，防止重复插入
- */
+// 为 cloud_id 添加唯一索引，防止重复插入
 function migrateCloudIdUniqueIndex(db: Database.Database): void {
   try {
     db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_snippets_cloud_id_unique ON snippets(cloud_id) WHERE cloud_id IS NOT NULL`);
@@ -72,9 +66,7 @@ function migrateCloudIdUniqueIndex(db: Database.Database): void {
   }
 }
 
-/**
- * 创建 deleted_cloud_ids 表（已永久删除的云端片段黑名单）
- */
+// 创建 deleted_cloud_ids 表（已永久删除的云端片段黑名单）
 function migrateDeletedCloudIdsTable(db: Database.Database): void {
   try {
     db.exec(`
@@ -88,9 +80,7 @@ function migrateDeletedCloudIdsTable(db: Database.Database): void {
   }
 }
 
-/**
- * 将默认分类的 emoji 图标迁移为 Font Awesome class
- */
+// 将默认分类的 emoji 图标迁移为 Font Awesome class
 function migrateDefaultCategoryIcons(db: Database.Database): void {
   const iconMap: Record<string, string> = {
     '📁': 'fas fa-inbox',
@@ -114,9 +104,7 @@ function migrateDefaultCategoryIcons(db: Database.Database): void {
   }
 }
 
-/**
- * 迁移 categories 表，添加 user_id 列
- */
+// 迁移 categories 表，添加 user_id 列
 function migrateCategoriesTable(db: Database.Database): void {
   try {
     const checkSql = `PRAGMA table_info(categories)`;
@@ -135,9 +123,7 @@ function migrateCategoriesTable(db: Database.Database): void {
   }
 }
 
-/**
- * 初始化默认分类（仅当分类表完全为空时，为本地用户创建默认分类）
- */
+// 初始化默认分类
 export function initializeDefaultCategories(db: Database.Database): void {
   try {
     const count = db.prepare('SELECT COUNT(*) as count FROM categories').get() as { count: number };
@@ -182,9 +168,7 @@ export function initializeDefaultCategories(db: Database.Database): void {
   }
 }
 
-/**
- * 运行所有迁移
- */
+// 运行所有迁移
 export function runMigrations(db: Database.Database): void {
   console.log('[Migration] Running database migrations...');
 

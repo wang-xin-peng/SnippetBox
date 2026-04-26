@@ -4,9 +4,7 @@ import { ExportService } from '../services/ExportService';
 
 let exportService: ExportService | null = null;
 
-/**
- * 注册导出相关的 IPC 处理器
- */
+// 注册导出相关的 IPC 处理器
 export function registerExportHandlers() {
   console.log('[ExportHandlers] Registering export IPC handlers...');
   

@@ -3,10 +3,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { getEmbeddingModelDir } from './embeddingModel';
 
-/**
- * 本地嵌入服务
- * 使用 ONNX Runtime 和多语言检索模型生成文本向量
- */
+// 本地嵌入服务
+// 使用 ONNX Runtime 和多语言检索模型生成文本向量
 export class LocalEmbeddingService {
   private session: ort.InferenceSession | null = null;
   private tokenizer: any = null;
@@ -19,9 +17,7 @@ export class LocalEmbeddingService {
     this.modelPath = getEmbeddingModelDir();
   }
 
-  /**
-   * 初始化模型（懒加载）
-   */
+  // 初始化模型（懒加载）
   async initialize(): Promise<void> {
     // 如果已经初始化，直接返回
     if (this.isInitialized) {
@@ -45,9 +41,7 @@ export class LocalEmbeddingService {
     }
   }
 
-  /**
-   * 执行实际的初始化操作
-   */
+  // 执行实际的初始化操作
   private async _doInitialize(): Promise<void> {
     try {
       // 使用 eval 来绕过 TypeScript 编译器的静态分析
@@ -65,7 +59,7 @@ export class LocalEmbeddingService {
         console.log('[LocalEmbedding] Transformers library loaded successfully');
       }
 
-      // 关键：设置 cacheDir 为模型父目录，避免运行时拼出错误路径
+      // 设置 cacheDir 为模型父目录，避免运行时拼出错误路径
       const modelsDir = path.dirname(this.modelPath);
       const modelName = path.basename(this.modelPath);
       this.transformers.env.cacheDir = modelsDir;
@@ -79,7 +73,7 @@ export class LocalEmbeddingService {
         throw new Error(`Model file not found at ${modelFile}. Please download the model first.`);
       }
 
-      // 加载 tokenizer（用 modelName 而非绝对路径，配合 cacheDir 使用）
+      // 加载 tokenizer
       console.log('[LocalEmbedding] Loading tokenizer...');
       this.tokenizer = await this.transformers.AutoTokenizer.from_pretrained(modelName, {
         local_files_only: true,
@@ -101,9 +95,7 @@ export class LocalEmbeddingService {
     }
   }
 
-  /**
-   * 检查模型是否已加载
-   */
+  // 检查模型是否已加载
   isModelLoaded(): boolean {
     return this.isInitialized && this.session !== null && this.tokenizer !== null;
   }
@@ -122,11 +114,9 @@ export class LocalEmbeddingService {
     return embeddings[0];
   }
 
-  /**
-   * 批量生成向量
-   * @param texts 输入文本数组
-   * @returns 向量数组
-   */
+  // 批量生成向量
+  // @param texts 输入文本数组
+  // @returns 向量数组
   async batchEmbed(texts: string[]): Promise<number[][]> {
     if (!this.isModelLoaded()) {
       await this.initialize();
@@ -201,9 +191,7 @@ export class LocalEmbeddingService {
     }
   }
 
-  /**
-   * Mean pooling 操作
-   */
+  // Mean pooling 操作
   private meanPooling(
     hiddenState: Float32Array,
     dims: number[],
@@ -240,9 +228,7 @@ export class LocalEmbeddingService {
     return embeddings;
   }
 
-  /**
-   * L2 归一化
-   */
+  // L2 归一化
   private normalize(embeddings: number[][]): number[][] {
     return embeddings.map(embedding => {
       const norm = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
@@ -250,9 +236,7 @@ export class LocalEmbeddingService {
     });
   }
 
-  /**
-   * 卸载模型释放内存
-   */
+  // 卸载模型释放内存
   async unload(): Promise<void> {
     try {
       if (this.session) {
@@ -276,9 +260,7 @@ export class LocalEmbeddingService {
     }
   }
 
-  /**
-   * 获取模型信息
-   */
+  // 获取模型信息
   getModelInfo(): { name: string; path: string; loaded: boolean } {
     return {
       name: 'multilingual-e5-small',
@@ -291,9 +273,7 @@ export class LocalEmbeddingService {
 // 单例实例
 let instance: LocalEmbeddingService | null = null;
 
-/**
- * 获取 LocalEmbeddingService 单例
- */
+// 获取 LocalEmbeddingService 单例
 export function getLocalEmbeddingService(): LocalEmbeddingService {
   if (!instance) {
     instance = new LocalEmbeddingService();

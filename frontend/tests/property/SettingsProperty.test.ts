@@ -1,7 +1,6 @@
 /**
- * 任务 33.3: 属性测试
+ * 属性测试
  * 文件位置: tests/property/SettingsProperty.test.ts
- * 
  * 属性 19: 设置更新的原子性
  */
 

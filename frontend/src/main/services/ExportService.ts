@@ -30,9 +30,7 @@ export class ExportService {
     this.db = db;
   }
 
-  /**
-   * 导出单个片段为 Markdown
-   */
+  // 导出单个片段为 Markdown
   async exportToMarkdown(snippetId: string, filePath: string, options: ExportOptions = {}): Promise<ExportResult> {
     try {
       const snippet = this.db.prepare('SELECT * FROM snippets WHERE id = ?').get(snippetId) as any;
@@ -68,9 +66,7 @@ export class ExportService {
     }
   }
 
-  /**
-   * 批量导出片段为 Markdown
-   */
+  // 批量导出片段为 Markdown
   async batchExportToMarkdown(snippetIds: string[], filePath: string, options: ExportOptions = {}): Promise<BatchExportResult> {
     const result: BatchExportResult = {
       success: 0,
@@ -144,9 +140,7 @@ export class ExportService {
     });
   }
 
-  /**
-   * 导出为 JSON
-   */
+  // 导出为 JSON
   async exportToJSON(snippetIds: string[], filePath: string): Promise<ExportResult> {
     try {
       const snippets = [];
@@ -193,9 +187,7 @@ export class ExportService {
     }
   }
 
-  /**
-   * 导出片段为 PDF
-   */
+  // 导出片段为 PDF
   async exportToPDF(snippetIds: string[], filePath: string): Promise<ExportResult> {
     try {
       const doc = new PDFDocument({
@@ -330,9 +322,7 @@ export class ExportService {
     return { path: 'Helvetica', name: 'Helvetica' };
   }
 
-  /**
-   * 生成 Markdown 内容
-   */
+  // 生成 Markdown 内容
   private generateMarkdown(snippet: any, category: any, tags: any[], options: ExportOptions): string {
     let markdown = '';
 

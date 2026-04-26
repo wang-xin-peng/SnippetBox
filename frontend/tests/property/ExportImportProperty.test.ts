@@ -1,7 +1,6 @@
 /**
- * 任务 33.3: 属性测试
+ * 属性测试
  * 文件位置: tests/property/ExportImportProperty.test.ts
- * 
  * 属性 9: 导出-导入往返一致性
  */
 

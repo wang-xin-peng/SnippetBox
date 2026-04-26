@@ -2,9 +2,7 @@ import { Worker } from 'worker_threads';
 import * as path from 'path';
 import { getEmbeddingModelDir } from './embeddingModel';
 
-/**
- * Worker 消息类型
- */
+// Worker 消息类型
 interface WorkerMessage {
   type: 'initialize' | 'embed' | 'batchEmbed' | 'unload';
   id: string;
@@ -18,13 +16,11 @@ interface WorkerResponse {
   error?: string;
 }
 
-/**
- * Embedding Worker 管理器
- * 管理 Worker 线程的生命周期和通信
- */
+// Embedding Worker 管理器
+// 管理 Worker 线程的生命周期和通信
 export class EmbeddingWorkerManager {
   private worker: Worker | null = null;
-  private pendingRequests: Map<string, { resolve: Function; reject: Function }> = new Map();
+  private pendingRequests: Map<string, { resolve: (value: unknown) => void; reject: (error: unknown) => void }> = new Map();
   private requestIdCounter = 0;
   private modelPath: string;
 
@@ -32,9 +28,7 @@ export class EmbeddingWorkerManager {
     this.modelPath = getEmbeddingModelDir();
   }
 
-  /**
-   * 启动 Worker
-   */
+  // 启动 Worker
   async startWorker(): Promise<void> {
     if (this.worker) {
       return;
@@ -69,9 +63,7 @@ export class EmbeddingWorkerManager {
     console.log('[WorkerManager] Worker started');
   }
 
-  /**
-   * 停止 Worker
-   */
+  // 停止 Worker
   async stopWorker(): Promise<void> {
     if (!this.worker) {
       return;
@@ -88,17 +80,13 @@ export class EmbeddingWorkerManager {
     }
   }
 
-  /**
-   * 初始化模型
-   */
+  // 初始化模型
   async initialize(): Promise<void> {
     await this.startWorker();
     await this.sendMessage('initialize', {});
   }
 
-  /**
-   * 生成单个文本的向量
-   */
+  // 生成单个文本的向量
   async embed(text: string): Promise<number[]> {
     if (!this.worker) {
       await this.startWorker();
@@ -107,9 +95,7 @@ export class EmbeddingWorkerManager {
     return await this.sendMessage('embed', { text });
   }
 
-  /**
-   * 批量生成向量
-   */
+  // 批量生成向量
   async batchEmbed(texts: string[]): Promise<number[][]> {
     if (!this.worker) {
       await this.startWorker();
@@ -118,9 +104,7 @@ export class EmbeddingWorkerManager {
     return await this.sendMessage('batchEmbed', { texts });
   }
 
-  /**
-   * 发送消息到 Worker
-   */
+  // 发送消息到 Worker
   private sendMessage(type: string, data: any): Promise<any> {
     return new Promise((resolve, reject) => {
       if (!this.worker) {
@@ -149,9 +133,7 @@ export class EmbeddingWorkerManager {
     });
   }
 
-  /**
-   * 处理 Worker 响应
-   */
+  // 处理 Worker 响应
   private handleWorkerResponse(response: WorkerResponse): void {
     const { id, type, data, error } = response;
     const pending = this.pendingRequests.get(id);
@@ -170,9 +152,7 @@ export class EmbeddingWorkerManager {
     }
   }
 
-  /**
-   * 拒绝所有待处理的请求
-   */
+  // 拒绝所有待处理的请求
   private rejectAllPending(error: Error): void {
     for (const [id, pending] of this.pendingRequests.entries()) {
       pending.reject(error);
@@ -180,9 +160,7 @@ export class EmbeddingWorkerManager {
     this.pendingRequests.clear();
   }
 
-  /**
-   * 检查 Worker 是否运行
-   */
+  // 检查 Worker 是否运行
   isWorkerRunning(): boolean {
     return this.worker !== null;
   }
@@ -191,9 +169,7 @@ export class EmbeddingWorkerManager {
 // 单例实例
 let instance: EmbeddingWorkerManager | null = null;
 
-/**
- * 获取 EmbeddingWorkerManager 单例
- */
+// 获取 EmbeddingWorkerManager 单例
 export function getEmbeddingWorkerManager(): EmbeddingWorkerManager {
   if (!instance) {
     instance = new EmbeddingWorkerManager();

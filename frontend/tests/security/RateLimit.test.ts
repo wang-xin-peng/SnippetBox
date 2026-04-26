@@ -1,7 +1,6 @@
 /**
- * 任务 33.6: 安全测试
+ * 安全测试
  * 文件位置: tests/security/RateLimit.test.ts
- * 
  * 验收标准: 测试速率限制
  */
 

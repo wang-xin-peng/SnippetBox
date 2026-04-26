@@ -1,5 +1,5 @@
 /**
- * 任务 33.1: 短链接服务单元测试
+ * 短链接服务单元测试
  * 文件位置: tests/unit/ShareService.test.ts
  */
 
