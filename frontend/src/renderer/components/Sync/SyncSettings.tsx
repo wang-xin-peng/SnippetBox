@@ -13,12 +13,16 @@ export const SyncSettings: React.FC<Props> = ({ onClose }) => {
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
   const [intervalMinutes, setIntervalMinutes] = useState(15);
   const [queueStatus, setQueueStatus] = useState<any>(null);
+  const [storageUsage, setStorageUsage] = useState<any>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     refreshStatus();
     loadQueueStatus();
-  }, []);
+    if (isLoggedIn) {
+      loadStorageUsage();
+    }
+  }, [isLoggedIn]);
 
   const loadQueueStatus = async () => {
     try {
@@ -26,6 +30,19 @@ export const SyncSettings: React.FC<Props> = ({ onClose }) => {
       setQueueStatus(q);
     } catch {
       // ignore
+    }
+  };
+
+  const loadStorageUsage = async () => {
+    try {
+      const result = await window.electron.sync.getStorageUsage();
+      if (result.success) {
+        setStorageUsage(result.data);
+      } else {
+        console.error('Failed to load storage usage:', result.error);
+      }
+    } catch (error) {
+      console.error('Failed to load storage usage:', error);
     }
   };
 
@@ -104,6 +121,31 @@ export const SyncSettings: React.FC<Props> = ({ onClose }) => {
                   清除失败项
                 </button>
               )}
+            </div>
+          )}
+
+          {/* 存储使用情况 */}
+          {isLoggedIn && storageUsage && (
+            <div className="sync-setting-group">
+              <div className="sync-setting-title">存储使用情况</div>
+              <div className="sync-storage-info">
+                <div className="sync-storage-bar-container">
+                  <div 
+                    className="sync-storage-bar" 
+                    style={{
+                      width: `${Math.min(storageUsage.usage_percentage, 100)}%`,
+                      backgroundColor: storageUsage.usage_percentage > 90 ? '#ff4d4f' : storageUsage.usage_percentage > 70 ? '#faad14' : '#52c41a'
+                    }}
+                  ></div>
+                </div>
+                <div className="sync-storage-text">
+                  <span>{storageUsage.current_usage_mb.toFixed(2)} MB / {storageUsage.total_limit_mb.toFixed(0)} MB</span>
+                  <span>{storageUsage.usage_percentage.toFixed(1)}%</span>
+                </div>
+                {storageUsage.usage_percentage > 90 && (
+                  <div className="sync-storage-warning">⚠️ 存储容量即将用完，请清理不需要的片段</div>
+                )}
+              </div>
             </div>
           )}
 

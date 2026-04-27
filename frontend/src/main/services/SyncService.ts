@@ -356,6 +356,26 @@ export class SyncService {
     }
   }
 
+  async getStorageUsage(): Promise<any> {
+    const token = getAuthService().getAccessToken();
+    if (!token) {
+      throw new Error('未登录，无法获取存储使用情况');
+    }
+
+    if (!this.isOnline) {
+      throw new Error('网络不可用');
+    }
+
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      const res = await this.http.get('/sync/storage', { headers });
+      return res.data;
+    } catch (e: any) {
+      console.error('[SyncService] Failed to get storage usage:', e);
+      throw e;
+    }
+  }
+
   private notifyRenderer(): void {
     try {
       const wins = BrowserWindow.getAllWindows();

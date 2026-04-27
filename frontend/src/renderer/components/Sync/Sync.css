@@ -431,6 +431,43 @@
   color: #92400e;
 }
 
+/* Storage Usage */
+.sync-storage-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sync-storage-bar-container {
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.sync-storage-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.sync-storage-text {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #555;
+}
+
+.sync-storage-warning {
+  padding: 8px 12px;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #b91c1c;
+  margin-top: 4px;
+}
+
 .sync-empty {
   text-align: center;
   color: #888;

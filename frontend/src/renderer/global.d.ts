@@ -80,6 +80,7 @@ declare global {
         getConflictHistory: () => Promise<ConflictHistoryEntry[]>;
         getQueueStatus: () => Promise<QueueStatus>;
         clearFailedQueue: () => Promise<{ success: boolean }>;
+        getStorageUsage: () => Promise<{ success: boolean; data?: any; error?: string }>;
         onStatusChanged: (callback: (status: SyncStatus) => void) => () => void;
       };
     };

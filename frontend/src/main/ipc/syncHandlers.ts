@@ -140,5 +140,14 @@ export function registerSyncHandlers() {
     }
   });
 
+  ipcMain.handle('sync:getStorageUsage', async () => {
+    try {
+      const usage = await sync.getStorageUsage();
+      return { success: true, data: usage };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  });
+
   console.log('[SyncHandlers] Registered');
 }

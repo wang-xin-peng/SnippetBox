@@ -15,6 +15,42 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# 存储限制（1GB）
+STORAGE_LIMIT = 1024 * 1024 * 1024  # 1GB
+
+async def calculate_storage_usage(conn: asyncpg.Connection, user_id: str) -> int:
+    """
+    计算用户的存储使用量
+    返回字节数
+    """
+    # 计算所有非删除片段的大小
+    result = await conn.fetchrow("""
+        SELECT COALESCE(SUM(
+            LENGTH(title) + 
+            LENGTH(language) + 
+            LENGTH(code) + 
+            COALESCE(LENGTH(description), 0) + 
+            COALESCE(LENGTH(category), 0) + 
+            COALESCE(ARRAY_LENGTH(tags, 1) * 50, 0)
+        ), 0) as total_size
+        FROM cloud_snippets
+        WHERE user_id = $1::uuid AND deleted_at IS NULL
+    """, user_id)
+    
+    return result['total_size']
+
+async def check_storage_limit(conn: asyncpg.Connection, user_id: str, new_data_size: int = 0) -> None:
+    """
+    检查用户是否超过存储限制
+    如果超过限制，抛出 HTTP 异常
+    """
+    current_usage = await calculate_storage_usage(conn, user_id)
+    if current_usage + new_data_size > STORAGE_LIMIT:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"存储容量超出限制（1GB）。当前使用：{current_usage / (1024 * 1024):.2f}MB，尝试添加：{new_data_size / (1024 * 1024):.2f}MB"
+        )
+
 
 @router.post("/sync", response_model=SyncResponse)
 async def sync_snippets(
@@ -66,8 +102,20 @@ async def sync_snippets(
                         conflict_type="update"
                     ))
                 else:
-                    # 创建片段
+                    # 计算新数据的大小
                     data = change.data
+                    new_data_size = len(data['title']) + len(data['language']) + len(data['code'])
+                    if data.get('description'):
+                        new_data_size += len(data['description'])
+                    if data.get('category'):
+                        new_data_size += len(data['category'])
+                    if data.get('tags'):
+                        new_data_size += len(data['tags']) * 50
+                    
+                    # 检查存储限制
+                    await check_storage_limit(conn, user_id, new_data_size)
+                    
+                    # 创建片段
                     await conn.execute("""
                         INSERT INTO cloud_snippets 
                         (id, user_id, title, language, code, description, category, tags, created_at, updated_at)
@@ -80,6 +128,17 @@ async def sync_snippets(
                 if not server_snippet:
                     # 服务器不存在，当作创建处理
                     data = change.data
+                    new_data_size = len(data['title']) + len(data['language']) + len(data['code'])
+                    if data.get('description'):
+                        new_data_size += len(data['description'])
+                    if data.get('category'):
+                        new_data_size += len(data['category'])
+                    if data.get('tags'):
+                        new_data_size += len(data['tags']) * 50
+                    
+                    # 检查存储限制
+                    await check_storage_limit(conn, user_id, new_data_size)
+                    
                     await conn.execute("""
                         INSERT INTO cloud_snippets 
                         (id, user_id, title, language, code, description, category, tags, created_at, updated_at)
@@ -106,8 +165,32 @@ async def sync_snippets(
                             conflict_type="update"
                         ))
                     else:
-                        # 更新片段
+                        # 计算新旧数据的大小差异
                         data = change.data
+                        old_size = len(server_snippet['title']) + len(server_snippet['language']) + len(server_snippet['code'])
+                        if server_snippet['description']:
+                            old_size += len(server_snippet['description'])
+                        if server_snippet['category']:
+                            old_size += len(server_snippet['category'])
+                        if server_snippet['tags']:
+                            old_size += len(server_snippet['tags']) * 50
+                        
+                        new_size = len(data['title']) + len(data['language']) + len(data['code'])
+                        if data.get('description'):
+                            new_size += len(data['description'])
+                        if data.get('category'):
+                            new_size += len(data['category'])
+                        if data.get('tags'):
+                            new_size += len(data['tags']) * 50
+                        
+                        # 计算大小差异
+                        size_diff = new_size - old_size
+                        
+                        # 检查存储限制
+                        if size_diff > 0:
+                            await check_storage_limit(conn, user_id, size_diff)
+                        
+                        # 更新片段
                         await conn.execute("""
                             UPDATE cloud_snippets
                             SET title = $1, language = $2, code = $3, description = $4,
@@ -346,3 +429,29 @@ async def sync_metadata(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Metadata sync failed"
         )
+
+
+@router.get("/storage")
+async def get_storage_usage(
+    current_user: dict = Depends(get_current_user),
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    """
+    获取用户的存储使用情况
+    需要认证
+    """
+    user_id = current_user["user_id"]
+    
+    # 计算当前使用量
+    current_usage = await calculate_storage_usage(conn, user_id)
+    
+    # 计算百分比
+    usage_percentage = (current_usage / STORAGE_LIMIT) * 100
+    
+    return {
+        "current_usage": current_usage,
+        "total_limit": STORAGE_LIMIT,
+        "usage_percentage": round(usage_percentage, 2),
+        "current_usage_mb": round(current_usage / (1024 * 1024), 2),
+        "total_limit_mb": round(STORAGE_LIMIT / (1024 * 1024), 2)
+    }
