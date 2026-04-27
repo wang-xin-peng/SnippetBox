@@ -7,7 +7,7 @@ import asyncpg
 from datetime import datetime
 import logging
 
-from models.user import UserCreate, UserLogin, UserResponse, TokenResponse, TokenRefresh, UpdateUsernameRequest, ChangePasswordRequest
+from models.user import UserCreate, UserLogin, UserResponse, TokenResponse, TokenRefresh, UpdateUsernameRequest, ChangePasswordRequest, ChangePasswordWithCodeRequest
 from models.email_code import EmailCodeRequest, EmailCodeVerify, EmailCodeResponse, RegisterWithCodeRequest, ResetPasswordRequest, DeleteAccountVerifyRequest
 from services.auth import AuthService
 from services.email_code import email_code_service
@@ -303,36 +303,45 @@ async def send_register_code(
     - **email**: 邮箱地址（必须未注册）
     返回验证码发送结果
     """
-    email = request.email
+    try:
+        email = request.email
 
-    existing = await conn.fetchrow("SELECT id FROM users WHERE email = $1", email)
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="该邮箱已注册，请直接登录"
+        existing = await conn.fetchrow("SELECT id FROM users WHERE email = $1", email)
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="该邮箱已注册，请直接登录"
+            )
+
+        allowed, wait_seconds = email_code_service.check_register_rate_limit(email)
+        if not allowed:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"请求过于频繁，请在 {wait_seconds} 秒后重试"
+            )
+
+        count = email_code_service.increment_register_rate_limit(email)
+        if count > email_code_service.MAX_REQUESTS_PER_MINUTE:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="请求过于频繁，请稍后再试"
+            )
+
+        code = email_code_service.generate_and_store_register_code(email)
+        email_service.send_verification_code(email, code)
+
+        return EmailCodeResponse(
+            message="验证码已发送",
+            expires_in=300
         )
-
-    allowed, wait_seconds = email_code_service.check_register_rate_limit(email)
-    if not allowed:
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Send register code error: {e}")
         raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"请求过于频繁，请在 {wait_seconds} 秒后重试"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="发送验证码失败"
         )
-
-    count = email_code_service.increment_register_rate_limit(email)
-    if count > email_code_service.MAX_REQUESTS_PER_MINUTE:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="请求过于频繁，请稍后再试"
-        )
-
-    code = email_code_service.generate_and_store_register_code(email)
-    email_service.send_verification_code(email, code)
-
-    return EmailCodeResponse(
-        message="验证码已发送",
-        expires_in=300
-    )
 
 
 @router.post("/auth/register-with-code", response_model=TokenResponse)
@@ -503,6 +512,62 @@ async def change_password(
     """修改密码"""
     try:
         await AuthService.change_password(conn, current_user["user_id"], request.current_password, request.new_password)
+        return {"message": "密码修改成功"}
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"Change password error: {e}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="修改密码失败")
+
+
+@router.post("/auth/change-password/send-code", response_model=EmailCodeResponse)
+async def send_change_password_code(
+    current_user: dict = Depends(get_current_user)
+):
+    """发送修改密码验证码（需已登录）"""
+    email = current_user["email"]
+
+    allowed, wait_seconds = email_code_service.check_reset_rate_limit(email)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"请求过于频繁，请在 {wait_seconds} 秒后重试"
+        )
+
+    count = email_code_service.increment_reset_rate_limit(email)
+    if count > email_code_service.MAX_REQUESTS_PER_MINUTE:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="请求过于频繁，请稍后再试"
+        )
+
+    code = email_code_service.generate_and_store_reset_code(email)
+    email_service.send_reset_code(email, code)
+
+    return EmailCodeResponse(
+        message="验证码已发送",
+        expires_in=300
+    )
+
+
+@router.post("/auth/change-password/verify", status_code=status.HTTP_200_OK)
+async def verify_change_password_code(
+    change_data: ChangePasswordWithCodeRequest,
+    current_user: dict = Depends(get_current_user),
+    conn: asyncpg.Connection = Depends(get_db_connection)
+):
+    """验证修改密码验证码（需已登录）"""
+    email = current_user["email"]
+
+    if change_data.email != email:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="邮箱不匹配")
+
+    success, error_msg = email_code_service.verify_reset_code(email, change_data.code)
+    if not success:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
+
+    try:
+        await AuthService.reset_password(conn, email, change_data.new_password)
         return {"message": "密码修改成功"}
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

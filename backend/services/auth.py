@@ -224,11 +224,67 @@ class AuthService:
     @staticmethod
     async def delete_account(conn: asyncpg.Connection, user_id: str) -> None:
         """注销账号"""
-        row = await conn.fetchrow("SELECT id FROM users WHERE id = $1::uuid", user_id)
-        if not row:
-            raise ValueError("用户不存在")
-        await conn.execute("DELETE FROM cloud_snippets WHERE user_id = $1::uuid", user_id)
-        await conn.execute("DELETE FROM users WHERE id = $1::uuid", user_id)
+        logger.info(f"[DeleteAccount] Starting deletion for user_id={user_id}")
+        
+        try:
+            # 检查 cloud_snippets 表是否存在
+            table_exists = await conn.fetchrow(
+                "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'cloud_snippets')"
+            )
+            
+            if table_exists and table_exists[0]:
+                # 硬删除用户的所有代码片段
+                result = await conn.execute("DELETE FROM cloud_snippets WHERE user_id = $1::uuid", user_id)
+                logger.info(f"[DeleteAccount] Deleted cloud_snippets: {result}")
+        except Exception as e:
+            logger.error(f"[DeleteAccount] Failed to delete cloud snippets for user {user_id}: {e}")
+        
+        try:
+            # 检查 cloud_categories 表是否存在
+            table_exists = await conn.fetchrow(
+                "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'cloud_categories')"
+            )
+            
+            if table_exists and table_exists[0]:
+                # 硬删除用户的所有分类
+                result = await conn.execute("DELETE FROM cloud_categories WHERE user_id = $1::uuid", user_id)
+                logger.info(f"[DeleteAccount] Deleted cloud_categories: {result}")
+        except Exception as e:
+            logger.error(f"[DeleteAccount] Failed to delete cloud categories for user {user_id}: {e}")
+        
+        try:
+            # 检查 cloud_tags 表是否存在
+            table_exists = await conn.fetchrow(
+                "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'cloud_tags')"
+            )
+            
+            if table_exists and table_exists[0]:
+                # 硬删除用户的所有标签
+                result = await conn.execute("DELETE FROM cloud_tags WHERE user_id = $1::uuid", user_id)
+                logger.info(f"[DeleteAccount] Deleted cloud_tags: {result}")
+        except Exception as e:
+            logger.error(f"[DeleteAccount] Failed to delete cloud tags for user {user_id}: {e}")
+        
+        try:
+            # 检查 shared_snippets 表是否存在
+            table_exists = await conn.fetchrow(
+                "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'shared_snippets')"
+            )
+            
+            if table_exists and table_exists[0]:
+                # 硬删除用户的所有分享
+                result = await conn.execute("DELETE FROM shared_snippets WHERE user_id = $1::uuid", user_id)
+                logger.info(f"[DeleteAccount] Deleted shared_snippets: {result}")
+        except Exception as e:
+            logger.error(f"[DeleteAccount] Failed to delete shared snippets for user {user_id}: {e}")
+        
+        # 最后删除用户
+        try:
+            result = await conn.execute("DELETE FROM users WHERE id = $1::uuid", user_id)
+            logger.info(f"[DeleteAccount] Deleted user: {result}")
+        except Exception as e:
+            logger.error(f"[DeleteAccount] Failed to delete user {user_id}: {e}")
+            raise
 
     @staticmethod
     async def reset_password(conn: asyncpg.Connection, email: str, new_password: str) -> None:
@@ -280,17 +336,25 @@ class AuthService:
     async def blacklist_all_tokens(conn: asyncpg.Connection, user_id: str):
         """将用户所有令牌加入黑名单"""
         try:
-            rows = await conn.fetch(
-                "SELECT token FROM refresh_tokens WHERE user_id = $1::uuid", user_id
+            # 检查 refresh_tokens 表是否存在
+            table_exists = await conn.fetchrow(
+                "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'refresh_tokens')"
             )
-            now = datetime.utcnow()
-            for row in rows:
-                await conn.execute(
-                    "INSERT INTO token_blacklist (token, expires_at) VALUES ($1, $2) ON CONFLICT DO NOTHING",
-                    row["token"], now
+            
+            if table_exists and table_exists[0]:
+                rows = await conn.fetch(
+                    "SELECT token FROM refresh_tokens WHERE user_id = $1::uuid", user_id
                 )
-            await conn.execute("DELETE FROM refresh_tokens WHERE user_id = $1::uuid", user_id)
-            logger.info(f"All tokens blacklisted for user {user_id}")
+                now = datetime.utcnow()
+                for row in rows:
+                    await conn.execute(
+                        "INSERT INTO token_blacklist (token, expires_at) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+                        row["token"], now
+                    )
+                await conn.execute("DELETE FROM refresh_tokens WHERE user_id = $1::uuid", user_id)
+                logger.info(f"All tokens blacklisted for user {user_id}")
+            else:
+                logger.info(f"No refresh_tokens table found, skipping token blacklisting for user {user_id}")
         except Exception as e:
             logger.warning(f"Failed to blacklist all tokens for user {user_id}: {e}")
 

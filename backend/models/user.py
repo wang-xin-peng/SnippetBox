@@ -34,6 +34,13 @@ class ChangePasswordRequest(BaseModel):
     new_password: str = Field(..., min_length=8, max_length=100)
 
 
+class ChangePasswordWithCodeRequest(BaseModel):
+    """使用验证码修改密码模型"""
+    email: EmailStr
+    code: str = Field(..., min_length=6, max_length=6, pattern=r'^\d{6}$')
+    new_password: str = Field(..., min_length=8, max_length=100)
+
+
 class UserResponse(UserBase):
     """用户响应模型"""
     id: str

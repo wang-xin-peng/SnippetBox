@@ -32,11 +32,45 @@ class EmailCodeService:
     def redis_client(self) -> redis.Redis:
         """获取Redis客户端（延迟初始化）"""
         if self._redis_client is None:
-            self._redis_client = redis.from_url(
-                settings.REDIS_URL,
-                encoding="utf-8",
-                decode_responses=True
-            )
+            try:
+                self._redis_client = redis.from_url(
+                    settings.REDIS_URL,
+                    encoding="utf-8",
+                    decode_responses=True,
+                    socket_connect_timeout=5,
+                    socket_timeout=5
+                )
+                # 测试连接
+                self._redis_client.ping()
+                logger.info(f"Connected to Redis at {settings.REDIS_URL}")
+            except Exception as e:
+                logger.error(f"Failed to connect to Redis: {e}")
+                # 模拟Redis客户端，避免应用崩溃
+                class MockRedis:
+                    def get(self, key):
+                        return None
+                    def setex(self, key, expire, value):
+                        pass
+                    def incr(self, key):
+                        return 1
+                    def expire(self, key, seconds):
+                        pass
+                    def delete(self, *keys):
+                        pass
+                    def ttl(self, key):
+                        return 0
+                    def pipeline(self):
+                        class MockPipeline:
+                            def incr(self, key):
+                                return self
+                            def expire(self, key, seconds):
+                                return self
+                            def setex(self, key, expire, value):
+                                return self
+                            def execute(self):
+                                return [1]
+                        return MockPipeline()
+                self._redis_client = MockRedis()
         return self._redis_client
 
     def _generate_code(self) -> str:

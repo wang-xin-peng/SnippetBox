@@ -154,14 +154,8 @@ async def sync_snippets(
                 ORDER BY updated_at ASC
             """, user_id, sync_request.last_sync_time)
         else:
-            # 首次同步，获取所有片段
-            rows = await conn.fetch("""
-                SELECT id, title, language, code, description, category, tags,
-                       created_at, updated_at, deleted_at
-                FROM cloud_snippets
-                WHERE user_id = $1::uuid
-                ORDER BY updated_at ASC
-            """, user_id)
+            # 首次同步，返回空列表，避免客户端恢复旧数据
+            rows = []
         
         for row in rows:
             if row['deleted_at']:
@@ -295,20 +289,34 @@ async def sync_metadata(
                 ON CONFLICT (user_id, name) DO NOTHING
             """, user_id, tag['name'], tag.get('created_at', datetime.utcnow()))
         
-        # 获取所有分类和标签
-        categories_rows = await conn.fetch("""
-            SELECT id, name, color, created_at, updated_at
-            FROM cloud_categories
-            WHERE user_id = $1::uuid
-            ORDER BY name
+        # 检查用户是否有任何分类和标签
+        categories_count = await conn.fetchrow("""
+            SELECT COUNT(*) FROM cloud_categories WHERE user_id = $1::uuid
         """, user_id)
         
-        tags_rows = await conn.fetch("""
-            SELECT id, name, created_at
-            FROM cloud_tags
-            WHERE user_id = $1::uuid
-            ORDER BY name
+        tags_count = await conn.fetchrow("""
+            SELECT COUNT(*) FROM cloud_tags WHERE user_id = $1::uuid
         """, user_id)
+        
+        # 如果用户没有分类和标签，返回空列表
+        if categories_count[0] == 0 and tags_count[0] == 0:
+            categories_rows = []
+            tags_rows = []
+        else:
+            # 获取所有分类和标签
+            categories_rows = await conn.fetch("""
+                SELECT id, name, color, created_at, updated_at
+                FROM cloud_categories
+                WHERE user_id = $1::uuid
+                ORDER BY name
+            """, user_id)
+            
+            tags_rows = await conn.fetch("""
+                SELECT id, name, created_at
+                FROM cloud_tags
+                WHERE user_id = $1::uuid
+                ORDER BY name
+            """, user_id)
         
         return MetadataSyncResponse(
             categories=[

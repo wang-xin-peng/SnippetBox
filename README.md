@@ -67,8 +67,7 @@ uvicorn main:app --reload
 
 - Python 3.10+
 - FastAPI
-- sentence-transformers
-- PostgreSQL + pgvector
+- PostgreSQL
 - Redis
 
 ## 开发团队
