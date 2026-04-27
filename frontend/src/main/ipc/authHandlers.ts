@@ -148,6 +148,22 @@ export function registerAuthHandlers() {
     }
   });
 
+  ipcMain.handle('auth:sendChangePasswordCode', async () => {
+    try {
+      return await auth.sendChangePasswordCode();
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  });
+
+  ipcMain.handle('auth:verifyChangePasswordCode', async (_e, email: string, code: string, currentPassword: string, newPassword: string) => {
+    try {
+      return await auth.verifyChangePasswordCode(email, code, currentPassword, newPassword);
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  });
+
   ipcMain.handle('auth:deleteAccount', async () => {
     try {
       return await auth.deleteAccount();

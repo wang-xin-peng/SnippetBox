@@ -188,6 +188,30 @@ export class AuthService {
     }
   }
 
+  // ── 发送修改密码验证码 ──────────────────────────────────────
+  async sendChangePasswordCode(): Promise<{ success: boolean; error?: string }> {
+    try {
+      await this.http.post('/auth/change-password/send-code', {}, {
+        headers: { Authorization: `Bearer ${this.tokens?.accessToken}` }
+      });
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  }
+
+  // ── 验证修改密码验证码并修改密码 ──────────────────────────────────────
+  async verifyChangePasswordCode(email: string, code: string, currentPassword: string, newPassword: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      await this.http.post('/auth/change-password/verify', { email, code, current_password: currentPassword, new_password: newPassword }, {
+        headers: { Authorization: `Bearer ${this.tokens?.accessToken}` }
+      });
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: extractError(err) };
+    }
+  }
+
   // ── 注销账号 ──────────────────────────────────────
   async deleteAccount(): Promise<{ success: boolean; error?: string }> {
     try {

@@ -69,6 +69,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('auth:deleteAccountSendCode', email),
     deleteAccountVerify: (email: string, code: string): Promise<{ success: boolean; error?: string }> =>
       ipcRenderer.invoke('auth:deleteAccountVerify', email, code),
+    sendChangePasswordCode: (): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('auth:sendChangePasswordCode'),
+    verifyChangePasswordCode: (email: string, code: string, currentPassword: string, newPassword: string): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('auth:verifyChangePasswordCode', email, code, currentPassword, newPassword),
   },
   sync: {
     push: () => ipcRenderer.invoke('sync:push'),
@@ -175,6 +179,10 @@ contextBridge.exposeInMainWorld('electron', {
       ipcRenderer.invoke('auth:deleteAccountSendCode', email),
     deleteAccountVerify: (email: string, code: string): Promise<{ success: boolean; error?: string }> =>
       ipcRenderer.invoke('auth:deleteAccountVerify', email, code),
+    sendChangePasswordCode: (): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('auth:sendChangePasswordCode'),
+    verifyChangePasswordCode: (email: string, code: string, currentPassword: string, newPassword: string): Promise<{ success: boolean; error?: string }> =>
+      ipcRenderer.invoke('auth:verifyChangePasswordCode', email, code, currentPassword, newPassword),
   },
   sync: {
     push: () => ipcRenderer.invoke('sync:push'),

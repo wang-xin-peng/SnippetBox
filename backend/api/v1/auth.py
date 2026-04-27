@@ -567,10 +567,15 @@ async def verify_change_password_code(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=error_msg)
 
     try:
+        user = await AuthService.authenticate_user(conn, email, change_data.current_password)
+        if not user:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="原密码错误")
         await AuthService.reset_password(conn, email, change_data.new_password)
         return {"message": "密码修改成功"}
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Change password error: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="修改密码失败")

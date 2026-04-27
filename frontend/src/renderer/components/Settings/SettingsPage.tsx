@@ -18,6 +18,10 @@ export const SettingsPage: React.FC = () => {
   const [savingUsername, setSavingUsername] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
+  const [passwordCode, setPasswordCode] = useState('');
+  const [passwordCountdown, setPasswordCountdown] = useState(0);
+  const [passwordSending, setPasswordSending] = useState(false);
+  const [passwordVerifying, setPasswordVerifying] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [showDeleteVerifyDialog, setShowDeleteVerifyDialog] = useState(false);
   const [deleteEmail, setDeleteEmail] = useState('');
@@ -54,6 +58,15 @@ export const SettingsPage: React.FC = () => {
       console.error('加载设置失败:', error);
     }
   };
+
+  // 密码验证码倒计时
+  useEffect(() => {
+    if (passwordCountdown <= 0) return;
+    const timer = window.setInterval(() => {
+      setPasswordCountdown((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [passwordCountdown]);
 
   const handleDownloadModel = () => {
     console.log('[Settings] Opening download dialog');
@@ -342,6 +355,14 @@ export const SettingsPage: React.FC = () => {
                       />
                       <input
                         className="setting-input"
+                        type="text"
+                        value={passwordCode}
+                        onChange={(e) => setPasswordCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        placeholder="输入6位验证码"
+                        maxLength={6}
+                      />
+                      <input
+                        className="setting-input"
                         type="password"
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
@@ -357,33 +378,59 @@ export const SettingsPage: React.FC = () => {
                       <div className="inline-edit">
                         <button
                           className="btn-primary btn-sm"
-                          disabled={savingPassword || !currentPassword || newPassword.length < 8 || newPassword !== confirmNewPassword}
+                          disabled={passwordCountdown > 0 || passwordSending}
                           onClick={async () => {
-                            setSavingPassword(true);
+                            setPasswordSending(true);
                             try {
-                              const res = await window.electron.ipcRenderer.invoke('auth:changePassword', currentPassword, newPassword);
-                              if (res.success) {
-                                setChangingPassword(false);
-                                setCurrentPassword('');
-                                setNewPassword('');
-                                setConfirmNewPassword('');
-                                setNotification({ message: '密码修改成功', type: 'success' });
+                              const res = await window.electron.ipcRenderer.invoke('auth:sendChangePasswordCode');
+                              if (res?.success) {
+                                setPasswordCountdown(60);
                               } else {
-                                setNotification({ message: res.error || '修改失败', type: 'error' });
+                                setNotification({ message: res?.error || '发送验证码失败', type: 'error' });
+                                setTimeout(() => setNotification(null), 3000);
                               }
                             } catch (err: any) {
-                              setNotification({ message: err.message || '修改失败', type: 'error' });
-                            } finally {
-                              setSavingPassword(false);
+                              setNotification({ message: err.message || '发送验证码失败', type: 'error' });
                               setTimeout(() => setNotification(null), 3000);
+                            } finally {
+                              setPasswordSending(false);
                             }
                           }}
                         >
-                          {savingPassword ? '保存中...' : '保存'}
+                          {passwordCountdown > 0 ? `${passwordCountdown}s` : passwordSending ? '发送中...' : '发送验证码'}
+                        </button>
+                        <button
+                          className="btn-primary btn-sm"
+                          disabled={passwordVerifying || !currentPassword || passwordCode.length !== 6 || newPassword.length < 8 || newPassword !== confirmNewPassword}
+                          onClick={async () => {
+                            setPasswordVerifying(true);
+                            try {
+                              const res = await window.electron.ipcRenderer.invoke('auth:verifyChangePasswordCode', user?.email, passwordCode, currentPassword, newPassword);
+                              if (res.success) {
+                                setChangingPassword(false);
+                                setCurrentPassword('');
+                                setPasswordCode('');
+                                setNewPassword('');
+                                setConfirmNewPassword('');
+                                setNotification({ message: '密码修改成功', type: 'success' });
+                                setTimeout(() => setNotification(null), 3000);
+                              } else {
+                                setNotification({ message: res.error || '修改失败', type: 'error' });
+                                setTimeout(() => setNotification(null), 3000);
+                              }
+                            } catch (err: any) {
+                              setNotification({ message: err.message || '修改失败', type: 'error' });
+                              setTimeout(() => setNotification(null), 3000);
+                            } finally {
+                              setPasswordVerifying(false);
+                            }
+                          }}
+                        >
+                          {passwordVerifying ? '验证中...' : '验证并修改'}
                         </button>
                         <button
                           className="btn-secondary btn-sm"
-                          onClick={() => { setChangingPassword(false); setCurrentPassword(''); setNewPassword(''); setConfirmNewPassword(''); }}
+                          onClick={() => { setChangingPassword(false); setCurrentPassword(''); setPasswordCode(''); setNewPassword(''); setConfirmNewPassword(''); }}
                         >
                           取消
                         </button>
