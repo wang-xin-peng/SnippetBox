@@ -24,6 +24,7 @@ export const SettingsPage: React.FC = () => {
   const [deleteCode, setDeleteCode] = useState('');
   const [deleteCountdown, setDeleteCountdown] = useState(0);
   const [deleteSending, setDeleteSending] = useState(false);
+  const [deleteVerifying, setDeleteVerifying] = useState(false);
   const [showDeleteModelConfirm, setShowDeleteModelConfirm] = useState(false);
   const [deleteModelMsg, setDeleteModelMsg] = useState<string | null>(null);
   const [confirmNewPassword, setConfirmNewPassword] = useState('');
