@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSync } from '../../store/syncStore';
+import { useAuth } from '../../store/authStore';
 import './Sync.css';
 
 interface Props {
@@ -8,6 +9,32 @@ interface Props {
 
 export const SyncProgress: React.FC<Props> = ({ onClose }) => {
   const { status, isSyncing, triggerSync } = useSync();
+  const { isLoggedIn } = useAuth();
+  const [storageUsage, setStorageUsage] = useState<any>(null);
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      loadStorageUsage();
+    }
+  }, [isLoggedIn]);
+
+  // 每次组件挂载时更新存储使用情况
+  useEffect(() => {
+    if (isLoggedIn) {
+      loadStorageUsage();
+    }
+  }, []);
+
+  const loadStorageUsage = async () => {
+    try {
+      const result = await window.electron.sync.getStorageUsage();
+      if (result.success) {
+        setStorageUsage(result.data);
+      }
+    } catch (error) {
+      console.error('Failed to load storage usage:', error);
+    }
+  };
 
   return (
     <div className="sync-overlay" role="dialog" aria-modal="true" aria-label="同步进度">
@@ -47,6 +74,25 @@ export const SyncProgress: React.FC<Props> = ({ onClose }) => {
               <span className="sync-stat-label">网络</span>
             </div>
           </div>
+
+          {isLoggedIn && storageUsage && (
+            <div className="sync-storage-display">
+              <div className="sync-storage-title">存储使用情况</div>
+              <div className="sync-storage-bar-container">
+                <div
+                  className="sync-storage-bar"
+                  style={{
+                    width: `${Math.min(storageUsage.usage_percentage, 100)}%`,
+                    backgroundColor: storageUsage.usage_percentage > 90 ? '#ff4d4f' : storageUsage.usage_percentage > 70 ? '#faad14' : '#52c41a'
+                  }}
+                ></div>
+              </div>
+              <div className="sync-storage-text">
+                <span>{storageUsage.current_usage_mb < 0.01 ? '< 0.01' : storageUsage.current_usage_mb.toFixed(2)} MB / {storageUsage.total_limit_mb.toFixed(0)} MB</span>
+                <span>{storageUsage.usage_percentage.toFixed(1)}%</span>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="sync-dialog-footer">

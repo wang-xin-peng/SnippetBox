@@ -89,6 +89,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getConflictHistory: () => ipcRenderer.invoke('sync:getConflictHistory'),
     getQueueStatus: () => ipcRenderer.invoke('sync:getQueueStatus'),
     clearFailedQueue: () => ipcRenderer.invoke('sync:clearFailedQueue'),
+    getStorageUsage: () => ipcRenderer.invoke('sync:getStorageUsage'),
     onStatusChanged: (callback: (status: any) => void) => {
       const listener = (_event: any, status: any) => callback(status);
       ipcRenderer.on('sync:statusChanged', listener);
@@ -199,6 +200,7 @@ contextBridge.exposeInMainWorld('electron', {
     getConflictHistory: () => ipcRenderer.invoke('sync:getConflictHistory'),
     getQueueStatus: () => ipcRenderer.invoke('sync:getQueueStatus'),
     clearFailedQueue: () => ipcRenderer.invoke('sync:clearFailedQueue'),
+    getStorageUsage: () => ipcRenderer.invoke('sync:getStorageUsage'),
     onStatusChanged: (callback: (status: any) => void) => {
       const listener = (_event: any, status: any) => callback(status);
       ipcRenderer.on('sync:statusChanged', listener);

@@ -438,6 +438,22 @@
   gap: 8px;
 }
 
+.sync-storage-display {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: #161b22;
+  border-radius: 8px;
+  border: 1px solid #30363d;
+}
+
+.sync-storage-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e1e4e8;
+}
+
 .sync-storage-bar-container {
   height: 8px;
   background: #e5e7eb;

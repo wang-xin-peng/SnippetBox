@@ -368,7 +368,7 @@ export class SyncService {
 
     try {
       const headers = { Authorization: `Bearer ${token}` };
-      const res = await this.http.get('/sync/storage', { headers });
+      const res = await this.http.get('/storage', { headers });
       return res.data;
     } catch (e: any) {
       console.error('[SyncService] Failed to get storage usage:', e);

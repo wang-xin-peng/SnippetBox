@@ -296,12 +296,13 @@ export class ExportService {
 
       doc.end();
 
-      return new Promise((resolve, reject) => {
+      return new Promise((resolve) => {
         writeStream.on('finish', () => {
           resolve({ success: true, filePath });
         });
         writeStream.on('error', (error) => {
-          reject({ success: false, error: error.message });
+          console.error('[ExportService] Write stream error:', error);
+          resolve({ success: false, error: error.message });
         });
       });
     } catch (error) {

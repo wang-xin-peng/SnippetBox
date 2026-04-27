@@ -24,6 +24,13 @@ export const SyncSettings: React.FC<Props> = ({ onClose }) => {
     }
   }, [isLoggedIn]);
 
+  // 每次组件挂载时更新存储使用情况
+  useEffect(() => {
+    if (isLoggedIn) {
+      loadStorageUsage();
+    }
+  }, []);
+
   const loadQueueStatus = async () => {
     try {
       const q = await window.electron.sync.getQueueStatus();
@@ -139,7 +146,7 @@ export const SyncSettings: React.FC<Props> = ({ onClose }) => {
                   ></div>
                 </div>
                 <div className="sync-storage-text">
-                  <span>{storageUsage.current_usage_mb.toFixed(2)} MB / {storageUsage.total_limit_mb.toFixed(0)} MB</span>
+                  <span>{storageUsage.current_usage_mb < 0.01 ? '< 0.01' : storageUsage.current_usage_mb.toFixed(2)} MB / {storageUsage.total_limit_mb.toFixed(0)} MB</span>
                   <span>{storageUsage.usage_percentage.toFixed(1)}%</span>
                 </div>
                 {storageUsage.usage_percentage > 90 && (
