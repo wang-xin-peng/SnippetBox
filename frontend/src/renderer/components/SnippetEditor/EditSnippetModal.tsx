@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { CodeEditor } from '../CodeEditor';
 import { Snippet, UpdateSnippetDTO } from '../../../shared/types';
 import { ShareButton } from '../Share/ShareButton';
@@ -84,7 +84,7 @@ export const EditSnippetModal: React.FC<Props> = ({ snippet, onClose, onSaved })
     setTagInput('');
   };
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (!title.trim()) { setTitleError('标题不能为空'); return; }
     if (!isEditing && !code.trim()) { alert('代码不能为空'); return; }
     setIsSaving(true);
@@ -114,7 +114,16 @@ export const EditSnippetModal: React.FC<Props> = ({ snippet, onClose, onSaved })
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [title, code, language, category, tags, description, isEditing, snippet, onSaved, categories]);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      handleSave();
+    };
+    window.addEventListener('editor:save', handler);
+    return () => window.removeEventListener('editor:save', handler);
+  }, [handleSave]);
 
   return (
     <div className="nsm-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -202,6 +211,7 @@ export const EditSnippetModal: React.FC<Props> = ({ snippet, onClose, onSaved })
                   value={code}
                   language={getMonacoLanguage(language)}
                   onChange={setCode}
+                  onSave={handleSave}
                   height="240px"
                   theme="vs-dark"
                 />

@@ -1238,6 +1238,7 @@ function PreviewPanel({ snippet, onEdit, onCopy, onDelete, onToggleStar, onSaved
           value={code}
           onChange={handleCodeChange}
           language={getMonacoLanguage(snippet.language)}
+          onSave={handleSave}
           readOnly={false}
           height="100%"
           theme="custom-dark"

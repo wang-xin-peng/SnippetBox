@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Snippet, CreateSnippetDTO, UpdateSnippetDTO } from '../../../shared/types';
 import { CodeEditor } from '../CodeEditor';
 import './SnippetEditor.css';
@@ -57,7 +57,7 @@ export const SnippetEditor: React.FC<SnippetEditorProps> = ({ snippet, onSave, o
     (window as any).electronAPI?.category?.list().then((cats: any[]) => setCategories(cats)).catch(() => {});
   }, []);
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (!title.trim()) { setTitleError('标题不能为空'); return; }
     setTitleError('');
     setIsSaving(true);
@@ -76,7 +76,16 @@ export const SnippetEditor: React.FC<SnippetEditorProps> = ({ snippet, onSave, o
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [title, code, language, category, tags, snippet, onSave]);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      handleSave();
+    };
+    window.addEventListener('editor:save', handler);
+    return () => window.removeEventListener('editor:save', handler);
+  }, [handleSave]);
 
   const addTag = () => {
     const t = tagInput.trim();
@@ -171,6 +180,7 @@ export const SnippetEditor: React.FC<SnippetEditorProps> = ({ snippet, onSave, o
             value={code}
             language={getMonacoLanguage(language)}
             onChange={setCode}
+            onSave={handleSave}
             height="calc(100vh - 104px)"
             theme="vs-dark"
           />

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { CodeEditor } from '../CodeEditor';
 import { CreateSnippetDTO } from '../../../shared/types';
 import { useAuth } from '../../store/authStore';
@@ -87,7 +87,7 @@ export const NewSnippetModal: React.FC<Props> = ({ onClose, onSaved }) => {
     setTagInput('');
   };
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (!title.trim()) { setTitleError('标题不能为空'); return; }
     setIsSaving(true);
     try {
@@ -108,7 +108,16 @@ export const NewSnippetModal: React.FC<Props> = ({ onClose, onSaved }) => {
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [title, code, language, category, tags, description, onSaved, categories]);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      handleSave();
+    };
+    window.addEventListener('editor:save', handler);
+    return () => window.removeEventListener('editor:save', handler);
+  }, [handleSave]);
 
   return (
     <div className="nsm-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -199,6 +208,7 @@ export const NewSnippetModal: React.FC<Props> = ({ onClose, onSaved }) => {
                 value={code}
                 language={getMonacoLanguage(language)}
                 onChange={setCode}
+                onSave={handleSave}
                 height="240px"
                 theme="vs-dark"
               />
