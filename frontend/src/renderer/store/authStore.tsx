@@ -187,11 +187,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     window.dispatchEvent(new Event('snippets-refresh'));
     
     await window.electron.ipcRenderer.invoke('auth:logout');
-    await window.electron.ipcRenderer.invoke('sync:clearCloudOnlySnippets');
-    await window.electron.ipcRenderer.invoke('sync:clearSkipSync');
+    // 注销时清除所有片段（包括本地片段），避免重新登录时数据恢复
+    await window.electron.ipcRenderer.invoke('snippet:clearAll');
     dispatch({ type: 'LOGOUT' });
     
-    // 再次刷新确保显示本地片段
+    // 刷新确保显示空白状态
     setTimeout(() => {
       console.log('[Auth] Triggering snippets refresh after logout...');
       window.dispatchEvent(new Event('snippets-refresh'));

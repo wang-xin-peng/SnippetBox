@@ -98,9 +98,12 @@ export function registerAuthHandlers() {
 
   ipcMain.handle('auth:sendRegisterCode', async (_e, email: string) => {
     try {
-      return await auth.sendRegisterCode(email);
+      const result = await auth.sendRegisterCode(email);
+      console.log('[AuthHandlers] sendRegisterCode result:', JSON.stringify(result));
+      return result;
     } catch (err: any) {
-      return { success: false, error: extractError(err) };
+      console.error('[AuthHandlers] sendRegisterCode error:', err);
+      return { success: false, error: extractError(err) || '发送验证码失败' };
     }
   });
 

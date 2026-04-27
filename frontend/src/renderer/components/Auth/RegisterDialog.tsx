@@ -227,6 +227,7 @@ export const RegisterDialog: React.FC<RegisterDialogProps> = ({ onClose, onSwitc
                 <span>我已阅读并同意本地使用条款与云同步协议</span>
               </label>
               {fieldErrors.terms && <span className="auth-field-error">{fieldErrors.terms}</span>}
+              {codeError && <span className="auth-field-error">{codeError}</span>}
             </>
           ) : (
             <>

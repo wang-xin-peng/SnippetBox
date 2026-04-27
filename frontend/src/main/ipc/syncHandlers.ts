@@ -99,6 +99,25 @@ export function registerSyncHandlers() {
     }
   });
 
+  ipcMain.handle('snippet:clearAll', () => {
+    try {
+      const db = getDatabaseManager().getDb();
+      // 清除所有片段
+      db.prepare('DELETE FROM snippets').run();
+      // 清除所有分类
+      db.prepare('DELETE FROM categories').run();
+      // 清除所有标签
+      db.prepare('DELETE FROM tags').run();
+      // 清除永久删除黑名单
+      db.prepare('DELETE FROM deleted_cloud_ids').run();
+      console.log('[SyncHandlers] All snippets, categories, tags cleared');
+      return { success: true };
+    } catch (e: any) {
+      console.error('[SyncHandlers] clearAll error:', e);
+      return { success: false, error: e.message };
+    }
+  });
+
   ipcMain.handle('sync:markLocalSnippetsSkipSync', () => {
     try {
       const db = getDatabaseManager().getDb();

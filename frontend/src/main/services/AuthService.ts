@@ -122,9 +122,15 @@ export class AuthService {
   // ── 发送注册验证码 ─────────────────────────────────────
   async sendRegisterCode(email: string): Promise<{ success: boolean; error?: string }> {
     try {
-      await this.http.post('/auth/send-register-code', { email });
+      const response = await this.http.post('/auth/send-register-code', { email });
+      console.log('[AuthService] sendRegisterCode response:', JSON.stringify(response.data));
       return { success: true };
     } catch (err: any) {
+      console.error('[AuthService] sendRegisterCode error:', err?.response?.status, err?.response?.data);
+      // 即使是 4xx 错误，也应该返回错误信息
+      if (err?.response?.status === 409) {
+        return { success: false, error: err.response.data?.detail || '该邮箱已注册，请直接登录' };
+      }
       return { success: false, error: extractError(err) };
     }
   }
