@@ -7,9 +7,7 @@ export class FullTextSearch {
     this.db = db;
   }
 
-  /**
-   * 全文搜索
-   */
+  // 全文搜索
   search(query: string): Array<{ id: string; score: number }> {
     try {
       if (!query || query.trim() === '') {
@@ -34,9 +32,7 @@ export class FullTextSearch {
     }
   }
 
-  /**
-   * 重建 FTS 索引
-   */
+  // 重建 FTS 索引
   rebuildIndex(): void {
     try {
       this.db.exec('INSERT INTO snippets_fts(snippets_fts) VALUES(rebuild)');
@@ -45,9 +41,7 @@ export class FullTextSearch {
     }
   }
 
-  /**
-   * 优化 FTS 索引
-   */
+  // 优化 FTS 索引
   optimizeIndex(): void {
     try {
       this.db.exec('INSERT INTO snippets_fts(snippets_fts) VALUES(optimize)');
@@ -56,9 +50,7 @@ export class FullTextSearch {
     }
   }
 
-  /**
-   * 获取搜索建议
-   */
+  // 获取搜索建议
   getSuggestions(prefix: string): string[] {
     try {
       const stmt = this.db.prepare(`

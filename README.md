@@ -55,6 +55,7 @@ uvicorn main:app --reload
 ## 技术栈
 
 ### 前端
+
 - Electron 28
 - React 18
 - TypeScript 5
@@ -63,6 +64,7 @@ uvicorn main:app --reload
 - Better-SQLite3
 
 ### 后端
+
 - Python 3.10+
 - FastAPI
 - sentence-transformers
@@ -71,9 +73,9 @@ uvicorn main:app --reload
 
 ## 开发团队
 
-- 王欣鹏 - 后端开发
+- 王欣鹏 - 全栈开发
 - 付佳腾 - 前端开发
-- 赵祐晟 - 全栈/测试
+- 赵祐晟 - 前端/测试
 
 ## 许可证
 
@@ -102,7 +104,7 @@ npm run package:linux  # Linux
 
 ### 后端部署
 
-详见 [backend/DEPLOYMENT_GUIDE.md](./backend/DEPLOYMENT_GUIDE.md)
+详见 [backend/DEPLOYMENT\_GUIDE.md](./backend/DEPLOYMENT_GUIDE.md)
 
 ## 贡献
 
@@ -110,5 +112,6 @@ npm run package:linux  # Linux
 
 ## 联系方式
 
-- GitHub: https://github.com/wang-xin-peng/SnippetBox
-- 服务器 API: http://8.141.108.146:8000
+- GitHub: <https://github.com/wang-xin-peng/SnippetBox>
+- 服务器 API: <http://8.141.108.146:8000>
+
