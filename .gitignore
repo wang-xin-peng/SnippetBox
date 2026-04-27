@@ -21,6 +21,7 @@ release/
 *.swp
 *.swo
 *~
+frontend/.vscode
 .vscode/settings.json
 .vscode/*.log
 
@@ -55,6 +56,7 @@ coverage/
 *.tmp
 .cache/
 .temp/
+frontend/package-lock.json
 
 # Database files (本地开发数据库)
 *.db
