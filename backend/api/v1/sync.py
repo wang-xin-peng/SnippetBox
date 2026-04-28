@@ -4,7 +4,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 import asyncpg
 from typing import List
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from models.sync import SyncRequest, SyncResponse, SnippetChange, Conflict, MetadataSyncRequest, MetadataSyncResponse
@@ -352,25 +352,39 @@ async def sync_metadata(
     """
     user_id = current_user["user_id"]
     
+    def _parse_dt(val: str | None, fallback: datetime) -> datetime:
+        """将 ISO 8601 字符串解析为 naive UTC datetime，asyncpg 不接受字符串也不接受 aware datetime"""
+        if not val:
+            return fallback
+        try:
+            dt = datetime.fromisoformat(val.replace('Z', '+00:00'))
+            # 转为 UTC 并去掉时区信息（TIMESTAMP 列要求 naive datetime）
+            if dt.tzinfo is not None:
+                dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+            return dt
+        except (ValueError, AttributeError):
+            return fallback
+
     try:
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         # 同步分类
         for category in request.categories:
             await conn.execute("""
                 INSERT INTO cloud_categories (user_id, name, color, created_at, updated_at)
                 VALUES ($1::uuid, $2, $3, $4, $5)
-                ON CONFLICT (user_id, name) 
+                ON CONFLICT (user_id, name)
                 DO UPDATE SET color = EXCLUDED.color, updated_at = EXCLUDED.updated_at
-            """, user_id, category['name'], category.get('color'), 
-                category.get('created_at', datetime.utcnow()), 
-                category.get('updated_at', datetime.utcnow()))
-        
+            """, user_id, category['name'], category.get('color'),
+                _parse_dt(category.get('created_at'), now),
+                _parse_dt(category.get('updated_at'), now))
+
         # 同步标签
         for tag in request.tags:
             await conn.execute("""
                 INSERT INTO cloud_tags (user_id, name, created_at)
                 VALUES ($1::uuid, $2, $3)
                 ON CONFLICT (user_id, name) DO NOTHING
-            """, user_id, tag['name'], tag.get('created_at', datetime.utcnow()))
+            """, user_id, tag['name'], _parse_dt(tag.get('created_at'), now))
         
         # 检查用户是否有任何分类和标签
         categories_count = await conn.fetchrow("""
