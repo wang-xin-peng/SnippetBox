@@ -106,11 +106,13 @@ export function registerSyncHandlers() {
   ipcMain.handle('snippet:clearAll', () => {
     try {
       const db = getDatabaseManager().getDb();
-      // 登出时只清除云端同步的片段，保留本地片段和所有分类
-      db.prepare("DELETE FROM snippets WHERE storage_scope = 'cloud' OR sync_source = 'cloud'").run();
+      const auth = require('../services/AuthService').getAuthService();
+      const userId = auth.getCachedUser()?.id || 'local';
+      // 登出时只清除当前用户的云端同步片段，保留其他用户本地片段和所有分类
+      db.prepare("DELETE FROM snippets WHERE (storage_scope = 'cloud' OR sync_source = 'cloud') AND (user_id = ? OR user_id = 'local' OR user_id IS NULL)").run(userId);
       // 清除永久删除黑名单
       db.prepare('DELETE FROM deleted_cloud_ids').run();
-      console.log('[SyncHandlers] Cloud snippets cleared, local snippets and categories preserved');
+      console.log('[SyncHandlers] Cloud snippets cleared for user', userId);
       return { success: true };
     } catch (e: any) {
       console.error('[SyncHandlers] clearAll error:', e);
@@ -121,9 +123,11 @@ export function registerSyncHandlers() {
   ipcMain.handle('sync:markLocalSnippetsSkipSync', () => {
     try {
       const db = getDatabaseManager().getDb();
+      const auth = require('../services/AuthService').getAuthService();
+      const userId = auth.getCachedUser()?.id || 'local';
       const result = db
-        .prepare(`UPDATE snippets SET skip_sync = 1 WHERE COALESCE(storage_scope, 'local') = 'local' AND COALESCE(cloud_id, '') = ''`)
-        .run();
+        .prepare(`UPDATE snippets SET skip_sync = 1 WHERE COALESCE(storage_scope, 'local') = 'local' AND COALESCE(cloud_id, '') = '' AND (user_id = ? OR user_id = 'local' OR user_id IS NULL)`)
+        .run(userId);
       return { success: true, data: { marked: result.changes } };
     } catch (e: any) {
       return { success: false, error: e.message };
@@ -133,7 +137,9 @@ export function registerSyncHandlers() {
   ipcMain.handle('sync:clearSkipSync', () => {
     try {
       const db = getDatabaseManager().getDb();
-      db.prepare(`UPDATE snippets SET skip_sync = 0 WHERE skip_sync = 1`).run();
+      const auth = require('../services/AuthService').getAuthService();
+      const userId = auth.getCachedUser()?.id || 'local';
+      db.prepare(`UPDATE snippets SET skip_sync = 0 WHERE skip_sync = 1 AND (user_id = ? OR user_id = 'local' OR user_id IS NULL)`).run(userId);
       return { success: true };
     } catch (e: any) {
       return { success: false, error: e.message };
@@ -153,6 +159,20 @@ export function registerSyncHandlers() {
     try {
       const result = await sync.syncMetadata();
       return { success: true, data: result };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('sync:waitForPendingSync', async () => {
+    await sync.waitForPendingSync();
+    return { success: true };
+  });
+
+  ipcMain.handle('sync:reconcileCategories', async () => {
+    try {
+      const count = sync.reconcileCategoriesFromSnippets();
+      return { success: true, data: { reconciled: count } };
     } catch (e: any) {
       return { success: false, error: e.message };
     }

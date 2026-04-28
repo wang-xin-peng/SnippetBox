@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS snippets (
   skip_sync INTEGER DEFAULT 0,
   category_name TEXT,
   sync_source TEXT DEFAULT 'local',
+  user_id TEXT DEFAULT 'local',
   FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
 );
 `;

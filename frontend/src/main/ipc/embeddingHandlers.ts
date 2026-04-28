@@ -167,5 +167,21 @@ export function registerEmbeddingHandlers(): void {
     }
   });
 
+  /**
+   * 为缺失向量的片段自动补全向量（不删已有向量，fire-and-forget）
+   */
+  ipcMain.handle('embedding:generateMissingVectors', async () => {
+    setImmediate(async () => {
+      try {
+        const { generateVectorsForExistingSnippets } = await import('../scripts/generateVectors');
+        await generateVectorsForExistingSnippets();
+        console.log('[EmbeddingHandlers] Missing vector generation complete');
+      } catch (err: any) {
+        console.error('[EmbeddingHandlers] Missing vector generation failed:', err);
+      }
+    });
+    return { success: true };
+  });
+
   console.log('Embedding IPC handlers registered');
 }

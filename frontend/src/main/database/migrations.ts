@@ -17,6 +17,7 @@ function migrateSnippetsTable(db: Database.Database): void {
     { name: 'skip_sync', type: 'INTEGER DEFAULT 0' },
     { name: 'category_name', type: 'TEXT' },
     { name: 'sync_source', type: "TEXT DEFAULT 'local'" },
+    { name: 'user_id', type: "TEXT DEFAULT 'local'" },
   ];
 
   for (const col of columnsToAdd) {

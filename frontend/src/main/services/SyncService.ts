@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
+import crypto from 'crypto';
 import { BrowserWindow } from 'electron';
 import { getDatabaseManager } from '../database';
 import { getAuthService } from './AuthService';
@@ -24,10 +25,16 @@ export class SyncService {
   };
   private autoSyncTimer: ReturnType<typeof setInterval> | null = null;
   private isOnline = true;
+  private _pendingSyncMeta: Promise<any> | null = null;
 
   constructor() {
     this.http = axios.create({ baseURL: BASE_URL, timeout: 15000 });
     this.setupNetworkMonitor();
+  }
+
+  private getCurrentUserId(): string {
+    const user = getAuthService().getCachedUser();
+    return user?.id || 'local';
   }
 
   private setupNetworkMonitor(): void {
@@ -109,86 +116,191 @@ export class SyncService {
   }
 
   /**
-   * 同步分类和标签元数据（双向）
+   * 同步分类和标签元数据（双向，带重试）
    * 推送本地分类/标签到云端，并拉取云端新增的分类/标签到本地
+   * 调用方不要直接 await，应使用 waitForPendingSync() 确保登出前同步完成
    */
   async syncMetadata(): Promise<{ pushed: number; pulled: number; errors: string[] }> {
-    const result = { pushed: 0, pulled: 0, errors: [] as string[] };
+    this._pendingSyncMeta = this._syncMetadataImpl();
+    return this._pendingSyncMeta;
+  }
+
+  /** 等待当前进行中的元数据同步完成（登出前调用） */
+  async waitForPendingSync(): Promise<void> {
+    if (this._pendingSyncMeta) {
+      try { await this._pendingSyncMeta; } catch { /* 忽略错误 */ }
+      this._pendingSyncMeta = null;
+    }
+  }
+
+  /**
+   * 对账：扫描所有片段的 category_name，为缺失的分类自动创建本地记录。
+   * 解决 syncMetadata 失败导致分类未同步到云端、重新登录后分类丢失的问题。
+   * 片段本身存有 category_name 字符串，可据此重建分类。
+   */
+  reconcileCategoriesFromSnippets(): number {
+    const db = getDatabaseManager().getDb();
     const token = getAuthService().getAccessToken();
-    if (!token || !this.isOnline) return result;
+    if (!token) return 0;
 
-    try {
-      const db = getDatabaseManager().getDb();
-      const headers = { Authorization: `Bearer ${token}` };
-      const currentUser = await getAuthService().getCurrentUser();
-      const userId = currentUser?.id || 'local';
+    const currentUser = getAuthService().getCachedUser();
+    const userId = currentUser?.id || 'local';
+    if (userId === 'local') return 0;
 
-      // 收集本地分类（排除默认分类前缀 cat_local_ 和 cat_<userId>_）
-      const localCategories = db.prepare(
-        `SELECT id, name, color, icon, created_at, updated_at FROM categories
-         WHERE user_id IN ('local', ?) AND name NOT LIKE '#%'`
-      ).all(userId) as any[];
+    // 找出当前用户片段中携带的 category_name，过滤掉已有分类和空值
+    const orphanNames = db.prepare(`
+      SELECT DISTINCT s.category_name
+      FROM snippets s
+      WHERE s.category_name IS NOT NULL
+        AND s.category_name != ''
+        AND (s.user_id = ? OR s.user_id = 'local' OR s.user_id IS NULL)
+        AND NOT EXISTS (
+          SELECT 1 FROM categories c
+          WHERE c.name = s.category_name
+            AND (c.user_id = ? OR c.user_id = 'local')
+        )
+    `).all(userId, userId) as { category_name: string }[];
 
-      // 收集本地标签
-      const localTags = db.prepare(
-        `SELECT id, name, created_at FROM tags`
-      ).all() as any[];
+    if (orphanNames.length === 0) return 0;
 
-      const payload = {
-        categories: localCategories.map(c => ({
-          name: c.name,
-          color: c.color || '#6c757d',
-          icon: c.icon || 'fas fa-folder',
-          created_at: new Date(c.created_at).toISOString(),
-          updated_at: new Date(c.updated_at || c.created_at).toISOString(),
-        })),
-        tags: localTags.map(t => ({
-          name: t.name,
-          created_at: new Date(t.created_at).toISOString(),
-        })),
-      };
+    const insertCat = db.prepare(
+      `INSERT INTO categories (id, name, color, icon, created_at, updated_at, user_id)
+       VALUES (?, ?, '#6c757d', 'fas fa-folder', ?, ?, ?)`
+    );
+    const now = Date.now();
 
-      const res = await this.http.post('/sync/metadata', payload, { headers });
-      const { categories: cloudCats, tags: cloudTags } = res.data;
-
-      // 将云端返回的分类合并到本地（按名称去重）
-      const insertCat = db.prepare(
-        `INSERT OR IGNORE INTO categories (id, name, color, icon, created_at, updated_at, user_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
-      );
-      for (const cat of (cloudCats || [])) {
-        const existing = db.prepare('SELECT id FROM categories WHERE name = ? AND user_id IN (?, \'local\')')
-          .get(cat.name, userId) as any;
-        if (!existing) {
-          const { randomUUID } = await import('crypto');
-          insertCat.run(
-            randomUUID(), cat.name, cat.color || '#6c757d', cat.icon || 'fas fa-folder',
-            new Date(cat.created_at).getTime(), new Date(cat.updated_at).getTime(), userId
-          );
-          result.pulled++;
-        }
+    const transaction = db.transaction(() => {
+      for (const { category_name } of orphanNames) {
+        insertCat.run(crypto.randomUUID(), category_name, now, now, userId);
       }
+    });
+    transaction();
 
-      // 将云端返回的标签合并到本地（按名称去重）
-      const insertTag = db.prepare(
-        `INSERT OR IGNORE INTO tags (id, name, usage_count, created_at) VALUES (?, ?, 0, ?)`
-      );
-      for (const tag of (cloudTags || [])) {
-        const existing = db.prepare('SELECT id FROM tags WHERE name = ?').get(tag.name) as any;
-        if (!existing) {
-          const { randomUUID } = await import('crypto');
-          insertTag.run(randomUUID(), tag.name, new Date(tag.created_at).getTime());
-          result.pulled++;
-        }
+    console.log(
+      `[SyncService] Reconciled ${orphanNames.length} missing categories from snippets:`,
+      orphanNames.map(c => c.category_name)
+    );
+
+    // 回填 category_id：把已有 category_name 但 category_id 为空的片段关联到新建的分类
+    for (const { category_name } of orphanNames) {
+      const cat = db.prepare(
+        'SELECT id FROM categories WHERE name = ? AND user_id = ?'
+      ).get(category_name, userId) as { id: string } | undefined;
+      if (cat) {
+        db.prepare(
+          "UPDATE snippets SET category_id = ? WHERE category_name = ? AND category_id IS NULL AND (user_id = ? OR user_id = 'local' OR user_id IS NULL)"
+        ).run(cat.id, category_name, userId);
       }
-
-      result.pushed = payload.categories.length + payload.tags.length;
-    } catch (e: any) {
-      const msg = e?.response?.data?.detail ?? e.message;
-      result.errors.push(msg);
-      console.warn('[SyncService] Metadata sync failed:', msg);
     }
 
+    return orphanNames.length;
+  }
+
+  private async _syncMetadataImpl(): Promise<{ pushed: number; pulled: number; errors: string[] }> {
+    const result = { pushed: 0, pulled: 0, errors: [] as string[] };
+    const token = getAuthService().getAccessToken();
+    if (!token) {
+      result.errors.push('未登录，无法同步元数据');
+      return result;
+    }
+    if (!this.isOnline) {
+      result.errors.push('网络不可用，无法同步元数据');
+      return result;
+    }
+
+    const MAX_RETRIES = 3;
+    let lastError: any = null;
+
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        const db = getDatabaseManager().getDb();
+        const headers = { Authorization: `Bearer ${token}` };
+        const currentUser = await getAuthService().getCurrentUser();
+        const userId = currentUser?.id || 'local';
+
+        const localCategories = db.prepare(
+          `SELECT id, name, color, icon, created_at, updated_at FROM categories
+           WHERE user_id IN ('local', ?) AND name NOT LIKE '#%'`
+        ).all(userId) as any[];
+
+        const localTags = db.prepare(
+          `SELECT id, name, created_at FROM tags`
+        ).all() as any[];
+
+        const payload = {
+          categories: localCategories.map(c => ({
+            name: c.name,
+            color: c.color || '#6c757d',
+            icon: c.icon || 'fas fa-folder',
+            created_at: new Date(c.created_at).toISOString(),
+            updated_at: new Date(c.updated_at || c.created_at).toISOString(),
+          })),
+          tags: localTags.map(t => ({
+            name: t.name,
+            created_at: new Date(t.created_at).toISOString(),
+          })),
+        };
+
+        const res = await this.http.post('/sync/metadata', payload, { headers });
+        const { categories: cloudCats, tags: cloudTags } = res.data;
+
+        // 将云端返回的分类合并到本地（按名称去重）
+        const insertCat = db.prepare(
+          `INSERT OR IGNORE INTO categories (id, name, color, icon, created_at, updated_at, user_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`
+        );
+        for (const cat of (cloudCats || [])) {
+          const existing = db.prepare('SELECT id FROM categories WHERE name = ? AND user_id IN (?, \'local\')')
+            .get(cat.name, userId) as any;
+          if (!existing) {
+            const { randomUUID } = await import('crypto');
+            insertCat.run(
+              randomUUID(), cat.name, cat.color || '#6c757d', cat.icon || 'fas fa-folder',
+              new Date(cat.created_at).getTime(), new Date(cat.updated_at).getTime(), userId
+            );
+            result.pulled++;
+          }
+        }
+
+        // 将云端返回的标签合并到本地（按名称去重）
+        const insertTag = db.prepare(
+          `INSERT OR IGNORE INTO tags (id, name, usage_count, created_at) VALUES (?, ?, 0, ?)`
+        );
+        for (const tag of (cloudTags || [])) {
+          const existing = db.prepare('SELECT id FROM tags WHERE name = ?').get(tag.name) as any;
+          if (!existing) {
+            const { randomUUID } = await import('crypto');
+            insertTag.run(randomUUID(), tag.name, new Date(tag.created_at).getTime());
+            result.pulled++;
+          }
+        }
+
+        result.pushed = payload.categories.length + payload.tags.length;
+        console.log(`[SyncService] Metadata synced: pushed ${result.pushed}, pulled ${result.pulled}`);
+        return result;
+      } catch (e: any) {
+        lastError = e;
+        const msg = e?.response?.data?.detail ?? e.message;
+        const status = e?.response?.status;
+
+        // 4xx 客户端错误不重试（如 401 认证失败）
+        if (status && status >= 400 && status < 500) {
+          result.errors.push(msg);
+          console.warn('[SyncService] Metadata sync failed (client error):', msg);
+          return result;
+        }
+
+        if (attempt < MAX_RETRIES - 1) {
+          const delay = Math.pow(2, attempt) * 1000;
+          console.warn(`[SyncService] Metadata sync retry ${attempt + 1}/${MAX_RETRIES} in ${delay}ms:`, msg);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    const msg = lastError?.response?.data?.detail ?? lastError?.message ?? '未知错误';
+    result.errors.push(msg);
+    console.error('[SyncService] Metadata sync failed after all retries:', msg);
     return result;
   }
 
@@ -207,9 +319,10 @@ export class SyncService {
 
     try {
       const db = getDatabaseManager().getDb();
+      const uid = this.getCurrentUserId();
       const unsynced = db
-        .prepare(`SELECT * FROM snippets WHERE is_synced = 0 AND COALESCE(skip_sync, 0) = 0 AND COALESCE(storage_scope, 'local') = 'local'`)
-        .all() as any[];
+        .prepare(`SELECT * FROM snippets WHERE is_synced = 0 AND COALESCE(skip_sync, 0) = 0 AND COALESCE(storage_scope, 'local') = 'local' AND (user_id = ? OR user_id = 'local' OR user_id IS NULL)`)
+        .all(uid) as any[];
 
       const headers = { Authorization: `Bearer ${token}` };
 
@@ -314,10 +427,28 @@ export class SyncService {
 
           let categoryId: string | null = null;
           if (cloud.category) {
-            const cat = db.prepare(
+            // 先查当前用户专属分类，再查共享的 local 分类
+            let cat = db.prepare(
               'SELECT id FROM categories WHERE name = ? AND user_id = ?'
             ).get(cloud.category, cloudUserId) as { id: string } | undefined;
-            categoryId = cat?.id || null;
+            if (!cat) {
+              cat = db.prepare(
+                'SELECT id FROM categories WHERE name = ? AND user_id = \'local\''
+              ).get(cloud.category) as { id: string } | undefined;
+            }
+            // 如果分类不在本地（syncMetadata 可能之前失败了），自动创建，实现自愈
+            if (!cat) {
+              const { randomUUID: rid } = await import('crypto');
+              const now = Date.now();
+              const newId = rid();
+              db.prepare(
+                `INSERT OR IGNORE INTO categories (id, name, color, icon, created_at, updated_at, user_id)
+                 VALUES (?, ?, '#6c757d', 'fas fa-folder', ?, ?, ?)`
+              ).run(newId, cloud.category, now, now, cloudUserId);
+              categoryId = newId;
+            } else {
+              categoryId = cat.id;
+            }
           }
 
           if (existing) {
@@ -339,7 +470,7 @@ export class SyncService {
           } else {
             const { randomUUID } = await import('crypto');
             db.prepare(
-              `INSERT OR IGNORE INTO snippets (id, title, code, language, description, is_synced, cloud_id, created_at, updated_at, access_count, storage_scope, category_id, category_name, sync_source) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 0, 'cloud', ?, ?, 'cloud')`
+              `INSERT OR IGNORE INTO snippets (id, title, code, language, description, is_synced, cloud_id, created_at, updated_at, access_count, storage_scope, category_id, category_name, sync_source, user_id) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 0, 'cloud', ?, ?, 'cloud', ?)`
             ).run(
               randomUUID(),
               cloud.title,
@@ -350,7 +481,8 @@ export class SyncService {
               Date.now(),
               cloudUpdatedAt,
               categoryId,
-              cloud.category ?? null
+              cloud.category ?? null,
+              cloudUserId
             );
           }
           result.pulled++;
@@ -379,6 +511,9 @@ export class SyncService {
       const pushResult = await this.pushChanges();
       const pullResult = await this.pullChanges();
 
+      // 对账：从片段的 category_name 重建缺失的分类
+      this.reconcileCategoriesFromSnippets();
+
       const result: SyncResult = {
         pushed: pushResult.pushed,
         pulled: pullResult.pulled,
@@ -390,7 +525,8 @@ export class SyncService {
       this.setStatus(result.errors.length > 0 ? 'error' : 'success');
       this.status.error = result.errors.length > 0 ? result.errors[0].message : null;
       this.updatePendingCount();
-      const dbg = getDatabaseManager().getDb().prepare(`SELECT COUNT(*) as cnt FROM snippets WHERE is_synced = 0 AND COALESCE(skip_sync, 0) = 0 AND COALESCE(storage_scope, 'local') = 'local'`).get() as any;
+      const dbgUid = this.getCurrentUserId();
+      const dbg = getDatabaseManager().getDb().prepare(`SELECT COUNT(*) as cnt FROM snippets WHERE is_synced = 0 AND COALESCE(skip_sync, 0) = 0 AND COALESCE(storage_scope, 'local') = 'local' AND (user_id = ? OR user_id = 'local' OR user_id IS NULL)`).get(dbgUid) as any;
       console.log(`[SyncService] After sync: pendingCount=${this.status.pendingCount}, actual DB count=${dbg.cnt}`);
       this.notifyRenderer();
       return result;
@@ -410,9 +546,10 @@ export class SyncService {
 
   clearCloudOnlySnippets(): number {
     const db = getDatabaseManager().getDb();
+    const uid = this.getCurrentUserId();
     const result = db
-      .prepare(`DELETE FROM snippets WHERE sync_source = 'cloud'`)
-      .run();
+      .prepare(`DELETE FROM snippets WHERE sync_source = 'cloud' AND (user_id = ? OR user_id = 'local' OR user_id IS NULL)`)
+      .run(uid);
     this.updatePendingCount();
     this.notifyRenderer();
     return result.changes;
@@ -425,9 +562,10 @@ export class SyncService {
   private updatePendingCount(): void {
     try {
       const db = getDatabaseManager().getDb();
+      const uid = this.getCurrentUserId();
       const row = db
-        .prepare(`SELECT COUNT(*) as cnt FROM snippets WHERE is_synced = 0 AND COALESCE(skip_sync, 0) = 0 AND COALESCE(storage_scope, 'local') = 'local'`)
-        .get() as { cnt: number };
+        .prepare(`SELECT COUNT(*) as cnt FROM snippets WHERE is_synced = 0 AND COALESCE(skip_sync, 0) = 0 AND COALESCE(storage_scope, 'local') = 'local' AND (user_id = ? OR user_id = 'local' OR user_id IS NULL)`)
+        .get(uid) as { cnt: number };
       const queueStatus = getOfflineQueue().getQueueStatus();
       this.status.pendingCount = row.cnt + queueStatus.pending;
     } catch {

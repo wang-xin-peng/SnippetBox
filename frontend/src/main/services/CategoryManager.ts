@@ -72,6 +72,10 @@ export class CategoryManager {
       ? "(s.storage_scope IS NULL OR s.storage_scope = 'local')"
       : "(s.storage_scope IS NULL OR s.storage_scope = 'local' OR s.storage_scope = 'cloud')";
 
+    const userCondition = isLocalUser
+      ? "(s.user_id = 'local' OR s.user_id IS NULL)"
+      : "(s.user_id = ? OR s.user_id = 'local' OR s.user_id IS NULL)";
+
     // 查询属于该用户的分类，以及通用的 local 分类（默认分类）
     // 两者不会重名，因为 cleanupDuplicateDefaultCategories 迁移已清理历史重复数据
     const categories = this.db.prepare(`
@@ -80,12 +84,13 @@ export class CategoryManager {
         (SELECT COUNT(*) FROM snippets s
          WHERE (s.category_id = c.id OR (s.category_name = c.name AND s.category_id IS NULL))
            AND (s.is_deleted = 0 OR s.is_deleted IS NULL)
-           AND ${storageCondition}) as snippet_count
+           AND ${storageCondition}
+           AND ${userCondition}) as snippet_count
       FROM categories c
       WHERE (c.user_id = ? ${isLocalUser ? '' : "OR c.user_id = 'local'"})
         AND c.name NOT LIKE '#%'
       ORDER BY c.created_at DESC
-    `).all(userId) as any[];
+    `).all(...(isLocalUser ? [userId] : [userId, userId])) as any[];
 
     return categories.map((cat: any) => ({
       id: cat.id,

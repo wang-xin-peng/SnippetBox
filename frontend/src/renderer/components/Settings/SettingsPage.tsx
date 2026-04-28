@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DownloadDialog } from '../ModelDownload';
 import { useAuth } from '../../store/authStore';
@@ -13,6 +13,13 @@ export const SettingsPage: React.FC = () => {
   const [searchMode, setSearchMode] = useState<'local' | 'lightweight'>('lightweight');
   const [isGeneratingVectors, setIsGeneratingVectors] = useState(false);
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const notificationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const notify = useCallback((message: string, type: 'success' | 'error', duration = 4000) => {
+    if (notificationTimerRef.current) clearTimeout(notificationTimerRef.current);
+    setNotification({ message, type });
+    notificationTimerRef.current = setTimeout(() => setNotification(null), duration);
+  }, []);
   const [editingUsername, setEditingUsername] = useState(false);
   const [newUsername, setNewUsername] = useState('');
   const [savingUsername, setSavingUsername] = useState(false);
@@ -163,17 +170,17 @@ export const SettingsPage: React.FC = () => {
       
       if (!result.success) {
         console.error('保存设置失败:', result.error);
-        setNotification({ message: '保存设置失败，请重试', type: 'error' });
+        notify('保存设置失败，请重试', 'error');
       }
     } catch (error) {
       console.error('保存设置失败:', error);
-      setNotification({ message: '保存设置失败，请重试', type: 'error' });
+      notify('保存设置失败，请重试', 'error');
     }
   };
 
   const handleGenerateVectors = async () => {
     if (!isModelDownloaded) {
-      setNotification({ message: '请先下载模型', type: 'error' });
+      notify('请先下载模型', 'error');
       return;
     }
 
@@ -643,16 +650,16 @@ export const SettingsPage: React.FC = () => {
                         return;
                       }
                       if (result.imported > 0) {
-                        setNotification({ message: `成功导入 ${result.imported} 个片段${result.skipped > 0 ? `，跳过 ${result.skipped} 个重复` : ''}`, type: 'success' });
+                        notify(`成功导入 ${result.imported} 个片段${result.skipped > 0 ? `，跳过 ${result.skipped} 个重复` : ''}`, 'success');
                       } else if (result.skipped > 0) {
-                        setNotification({ message: `所有片段均已存在，共跳过 ${result.skipped} 个重复片段`, type: 'info' });
+                        notify(`所有片段均已存在，共跳过 ${result.skipped} 个重复片段`, 'error');
                       } else if (result.errors && result.errors.length > 0) {
-                        setNotification({ message: '导入失败: ' + result.errors[0].error, type: 'error' });
+                        notify('导入失败: ' + result.errors[0].error, 'error');
                       } else {
-                        setNotification({ message: '文件中没有可导入的代码片段', type: 'warning' });
+                        notify('文件中没有可导入的代码片段', 'error');
                       }
                     } catch (error: any) {
-                      setNotification({ message: '导入失败: ' + error.message, type: 'error' });
+                      notify('导入失败: ' + error.message, 'error');
                     }
                   }}
                 >
@@ -669,16 +676,16 @@ export const SettingsPage: React.FC = () => {
                         return;
                       }
                       if (result.imported > 0) {
-                        setNotification({ message: `成功导入 ${result.imported} 个片段${result.skipped > 0 ? `，跳过 ${result.skipped} 个重复` : ''}`, type: 'success' });
+                        notify(`成功导入 ${result.imported} 个片段${result.skipped > 0 ? `，跳过 ${result.skipped} 个重复` : ''}`, 'success');
                       } else if (result.skipped > 0) {
-                        setNotification({ message: `所有片段均已存在，共跳过 ${result.skipped} 个重复片段`, type: 'info' });
+                        notify(`所有片段均已存在，共跳过 ${result.skipped} 个重复片段`, 'error');
                       } else if (result.errors && result.errors.length > 0) {
-                        setNotification({ message: '导入失败: ' + result.errors[0].error, type: 'error' });
+                        notify('导入失败: ' + result.errors[0].error, 'error');
                       } else {
-                        setNotification({ message: '文件中没有可导入的代码片段', type: 'warning' });
+                        notify('文件中没有可导入的代码片段', 'error');
                       }
                     } catch (error: any) {
-                      setNotification({ message: '导入失败: ' + error.message, type: 'error' });
+                      notify('导入失败: ' + error.message, 'error');
                     }
                   }}
                 >
@@ -705,20 +712,20 @@ export const SettingsPage: React.FC = () => {
                       const snippetIds = snippets.map((s: any) => s.id);
 
                       if (snippetIds.length === 0) {
-                        setNotification({ message: '没有可导出的片段', type: 'error' });
+                        notify('没有可导出的片段', 'error');
                         return;
                       }
 
                       const result = await window.electron.ipcRenderer.invoke('export:json', snippetIds);
                       if (result.success) {
-                        setNotification({ message: `成功导出 ${result.count} 个片段到 ${result.filePath}`, type: 'success' });
+                        notify(`成功导出 ${result.count} 个片段到 ${result.filePath}`, 'success');
                       } else if (result.error === 'User canceled') {
-                        setNotification({ message: '已取消导出', type: 'success' });
+                        notify('已取消导出', 'success');
                       } else {
-                        setNotification({ message: '导出失败: ' + result.error, type: 'error' });
+                        notify('导出失败: ' + result.error, 'error');
                       }
                     } catch (error: any) {
-                      setNotification({ message: '导出失败: ' + error.message, type: 'error' });
+                      notify('导出失败: ' + error.message, 'error');
                     }
                   }}
                 >
@@ -732,22 +739,22 @@ export const SettingsPage: React.FC = () => {
                       const snippetIds = snippets.map((s: any) => s.id);
 
                       if (snippetIds.length === 0) {
-                        setNotification({ message: '没有可导出的片段', type: 'error' });
+                        notify('没有可导出的片段', 'error');
                         return;
                       }
 
                       const result = await window.electron.ipcRenderer.invoke('export:batch-markdown', snippetIds);
                       if (result.success > 0) {
-                        setNotification({ message: `成功导出 ${result.success} 个片段为 ZIP 压缩包`, type: 'success' });
+                        notify(`成功导出 ${result.success} 个片段为 ZIP 压缩包`, 'success');
                       } else if (result.errors?.[0]?.error === 'User canceled') {
-                        setNotification({ message: '已取消导出', type: 'success' });
+                        notify('已取消导出', 'success');
                       } else if (result.errors?.[0]?.error) {
-                        setNotification({ message: '导出失败: ' + result.errors[0].error, type: 'error' });
+                        notify('导出失败: ' + result.errors[0].error, 'error');
                       } else {
-                        setNotification({ message: '已取消导出', type: 'success' });
+                        notify('已取消导出', 'success');
                       }
                     } catch (error: any) {
-                      setNotification({ message: '导出失败: ' + error.message, type: 'error' });
+                      notify('导出失败: ' + error.message, 'error');
                     }
                   }}
                 >
@@ -761,20 +768,20 @@ export const SettingsPage: React.FC = () => {
                       const snippetIds = snippets.map((s: any) => s.id);
 
                       if (snippetIds.length === 0) {
-                        setNotification({ message: '没有可导出的片段', type: 'error' });
+                        notify('没有可导出的片段', 'error');
                         return;
                       }
 
                       const result = await window.electron.ipcRenderer.invoke('export:pdf', snippetIds);
                       if (result.success) {
-                        setNotification({ message: `成功导出 ${snippetIds.length} 个片段到 PDF 文件`, type: 'success' });
+                        notify(`成功导出 ${snippetIds.length} 个片段到 PDF 文件`, 'success');
                       } else if (result.error === 'User canceled') {
-                        setNotification({ message: '已取消导出', type: 'success' });
+                        notify('已取消导出', 'success');
                       } else {
-                        setNotification({ message: '导出失败: ' + result.error, type: 'error' });
+                        notify('导出失败: ' + result.error, 'error');
                       }
                     } catch (error: any) {
-                      setNotification({ message: '导出失败: ' + error.message, type: 'error' });
+                      notify('导出失败: ' + error.message, 'error');
                     }
                   }}
                 >

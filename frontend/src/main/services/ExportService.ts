@@ -2,7 +2,6 @@ import Database from 'better-sqlite3';
 import * as fs from 'fs';
 import * as path from 'path';
 import archiver = require('archiver');
-import PDFDocument = require('pdfkit');
 
 export interface ExportOptions {
   includeMetadata?: boolean;
@@ -14,6 +13,7 @@ export interface ExportResult {
   success: boolean;
   filePath?: string;
   error?: string;
+  count?: number;
 }
 
 export interface BatchExportResult {
@@ -186,7 +186,7 @@ export class ExportService {
       // 写入 JSON 文件
       fs.writeFileSync(filePath, JSON.stringify(snippets, null, 2), 'utf-8');
 
-      return { success: true, filePath };
+      return { success: true, filePath, count: snippets.length };
     } catch (error) {
       console.error('[ExportService] JSON export failed:', error);
       return { success: false, error: (error as Error).message };
@@ -198,37 +198,11 @@ export class ExportService {
    */
   async exportToPDF(snippetIds: string[], filePath: string): Promise<ExportResult> {
     try {
-      const doc = new PDFDocument({
-        size: 'A4',
-        margins: { top: 50, bottom: 50, left: 50, right: 50 },
-        info: {
-          Title: 'SnippetBox Export',
-          Author: 'SnippetBox',
-          CreationDate: new Date()
-        }
-      });
-
-      const writeStream = fs.createWriteStream(filePath);
-      doc.pipe(writeStream);
-
-      const chineseFont = this.findChineseFont();
-      if (chineseFont.path !== 'Helvetica') {
-        try {
-          const fontBuffer = fs.readFileSync(chineseFont.path);
-          doc.registerFont(chineseFont.name, fontBuffer);
-        } catch (err) {
-          console.error(`[ExportService] Failed to register font: ${err}`);
-        }
-      }
-
-      for (let i = 0; i < snippetIds.length; i++) {
-        const snippetId = snippetIds[i];
+      // 收集所有片段数据
+      const snippets: any[] = [];
+      for (const snippetId of snippetIds) {
         const snippet = this.db.prepare('SELECT * FROM snippets WHERE id = ?').get(snippetId) as any;
-
-        if (!snippet) {
-          console.warn(`[ExportService] Snippet not found: ${snippetId}`);
-          continue;
-        }
+        if (!snippet) continue;
 
         let category = null;
         if (snippet.category_id) {
@@ -236,131 +210,111 @@ export class ExportService {
         }
 
         const tags = this.db.prepare(`
-          SELECT t.name
-          FROM tags t
+          SELECT t.name FROM tags t
           JOIN snippet_tags st ON t.id = st.tag_id
           WHERE st.snippet_id = ?
         `).all(snippetId) as any[];
 
-        if (i > 0) {
-          doc.addPage();
-        }
-
-        doc.fontSize(20).font('Helvetica-Bold').text(snippet.title, { align: 'left' });
-        doc.moveDown(0.5);
-
-        if (snippet.description) {
-          doc.fontSize(12).font(chineseFont.name).fillColor('#666666');
-          doc.text(snippet.description, { align: 'left' });
-          doc.moveDown(0.5);
-        }
-
-        doc.fillColor('#333333');
-        doc.fontSize(10).font(chineseFont.name);
-
-        let metadataText = `语言: ${snippet.language}`;
-
-        if (category) {
-          metadataText += `  |  分类: ${category.name}`;
-        }
-
-        if (tags.length > 0) {
-          metadataText += `  |  标签: ${tags.map(t => t.name).join(', ')}`;
-        }
-
-        doc.text(metadataText, { align: 'left' });
-        doc.moveDown(0.3);
-
-        const timestampText = `创建: ${new Date(snippet.created_at).toLocaleString('zh-CN')}  |  更新: ${new Date(snippet.updated_at).toLocaleString('zh-CN')}`;
-        doc.fillColor('#888888').fontSize(9).font(chineseFont.name).text(timestampText, { align: 'left' });
-        doc.moveDown(1);
-
-        doc.strokeColor('#dddddd').lineWidth(1).moveTo(50, doc.y).lineTo(545, doc.y).stroke();
-        doc.moveDown(1);
-
-        const codeStartY = doc.y;
-        const codeBlockHeight = Math.max(100, Math.min(doc.heightOfString(snippet.code, { width: 495, align: 'left' }) + 40, 400));
-
-        doc.fillColor('#f5f5f5').rect(50, codeStartY, 495, codeBlockHeight).fill();
-        doc.fillColor('#333333');
-
-        doc.fontSize(10).font('Courier');
-        doc.text(snippet.code, 60, codeStartY + 15, {
-          width: 475,
-          align: 'left',
-          lineGap: 4
-        });
-
-        doc.y = codeStartY + codeBlockHeight + 20;
+        snippets.push({ ...snippet, category, tags });
       }
 
-      doc.end();
+      if (snippets.length === 0) {
+        return { success: false, error: 'No snippets found' };
+      }
 
-      return new Promise((resolve) => {
-        writeStream.on('finish', () => {
-          resolve({ success: true, filePath });
-        });
-        writeStream.on('error', (error) => {
-          console.error('[ExportService] Write stream error:', error);
-          resolve({ success: false, error: error.message });
-        });
+      // 生成 HTML
+      const html = this.buildPDFHtml(snippets);
+
+      // 用 Electron 内置的 printToPDF（Chromium 渲染，零字体依赖，CJK 完美）
+      const { BrowserWindow } = require('electron');
+      const win = new BrowserWindow({
+        width: 800,
+        height: 600,
+        show: false,
+        webPreferences: { sandbox: true, nodeIntegration: false },
       });
+
+      await win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+
+      const pdfBuffer = await win.webContents.printToPDF({
+        printBackground: true,
+        preferCSSPageSize: true,
+        landscape: false,
+        margins: { top: 0, bottom: 0, left: 0, right: 0 },
+      });
+
+      win.destroy();
+      fs.writeFileSync(filePath, pdfBuffer);
+
+      return { success: true, filePath };
     } catch (error) {
       console.error('[ExportService] PDF export failed:', error);
       return { success: false, error: (error as Error).message };
     }
   }
 
-  private findChineseFont(): { path: string; name: string } {
-    const ttfFonts = [
-      { path: 'C:/Windows/Fonts/simhei.ttf', name: 'SimHei' },
-      { path: 'C:/Windows/Fonts/simkai.ttf', name: 'KaiTi' },
-      { path: 'C:/Windows/Fonts/simfang.ttf', name: 'FangSong' },
-      { path: 'C:/Windows/Fonts/simli.ttf', name: 'LiSu' },
-      { path: 'C:/Windows/Fonts/simsun.ttc', name: 'SimSun' },
-      { path: 'C:/Windows/Fonts/msyh.ttc', name: 'MicrosoftYaHei' },
-      { path: 'C:/Windows/Fonts/msyhbd.ttc', name: 'MicrosoftYaHeiBold' },
-      { path: 'C:/Windows/Fonts/arialuni.ttf', name: 'ArialUnicodeMS' },
-      { path: 'C:/Windows/Fonts/NotoSansCJKsc-Regular.ttc', name: 'NotoSansCJK' },
-      { path: 'C:/Windows/Fonts/SourceHanSansSC-Regular.ttc', name: 'SourceHanSans' },
-      { path: 'C:/Windows/Fonts/SourceHanSansCN-Regular.ttc', name: 'SourceHanSansCN' },
-      { path: 'C:/Windows/Fonts/PingFang.ttf', name: 'PingFang' },
-      { path: 'C:/Windows/Fonts/Hiragino Sans GB.ttc', name: 'HiraginoSansGB' },
-    ];
+  private buildPDFHtml(snippets: any[]): string {
+    const snippetHtml = snippets.map((s, i) => {
+      const tagsHtml = s.tags?.length
+        ? `<span class="tag">标签: ${s.tags.map((t: any) => this.escapeHtml(t.name)).join(', ')}</span>`
+        : '';
 
-    for (const font of ttfFonts) {
-      if (fs.existsSync(font.path)) {
-        console.log(`[ExportService] Found Chinese TTF font: ${font.path}`);
-        return font;
-      }
-    }
+      return `
+        <div class="snippet">
+          <h1 class="title">${this.escapeHtml(s.title)}</h1>
+          ${s.description ? `<p class="desc">${this.escapeHtml(s.description)}</p>` : ''}
+          <div class="meta">
+            <span>语言: ${this.escapeHtml(s.language)}</span>
+            ${s.category ? `<span>分类: ${this.escapeHtml(s.category.name)}</span>` : ''}
+            ${tagsHtml}
+          </div>
+          <div class="time">
+            创建: ${new Date(s.created_at).toLocaleString('zh-CN')} | 更新: ${new Date(s.updated_at).toLocaleString('zh-CN')}
+          </div>
+          <hr>
+          <pre class="code"><code>${this.escapeHtml(s.code)}</code></pre>
+        </div>`;
+    }).join('');
 
-    const fontDirs = [
-      'C:/Windows/Fonts',
-      'C:/Program Files/Fonts',
-      'C:/Program Files (x86)/Fonts',
-      process.env.LOCALAPPDATA ? `${process.env.LOCALAPPDATA}/Microsoft/Windows/Fonts` : '',
-    ].filter(Boolean);
+    return `<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+  @page { size: A4; margin: 20mm; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB",
+                 "Noto Sans CJK SC", "Source Han Sans CN", sans-serif;
+    color: #333; line-height: 1.6;
+  }
+  .snippet {
+    page-break-after: always;
+    padding-bottom: 10mm;
+  }
+  .snippet:last-child { page-break-after: avoid; }
+  .title { font-size: 20pt; margin: 0 0 8px 0; }
+  .desc { font-size: 12pt; color: #666; margin: 0 0 8px 0; }
+  .meta { font-size: 9pt; color: #555; margin-bottom: 4px; }
+  .meta span { margin-right: 16px; }
+  .tag { margin-right: 0; }
+  .time { font-size: 8pt; color: #999; margin-bottom: 12px; }
+  hr { border: none; border-top: 1px solid #ddd; margin-bottom: 12px; }
+  .code {
+    background: #f5f5f5; border-radius: 4px; padding: 12px;
+    font-family: "Cascadia Code", "Fira Code", "Consolas",
+                 "Microsoft YaHei Mono", "Noto Sans Mono CJK SC",
+                 monospace;
+    font-size: 9pt; line-height: 1.5;
+    white-space: pre-wrap; word-break: break-all;
+    overflow-wrap: break-word;
+  }
+  .code code { font-family: inherit; }
+</style></head><body>${snippetHtml}</body></html>`;
+  }
 
-    for (const dir of fontDirs) {
-      if (!fs.existsSync(dir)) continue;
-      try {
-        const files = fs.readdirSync(dir);
-        for (const file of files) {
-          if (/^(simhei|simkai|simfang|simli|simsun|msyh|arialuni|noto|cjk|han|source.*sans|pingfang|hiragino).*\.(ttf|ttc|otf)$/i.test(file)) {
-            const fontPath = path.join(dir, file);
-            const fontName = file.replace(/\.(ttf|ttc|otf)$/i, '');
-            console.log(`[ExportService] Found Chinese font via directory scan: ${fontPath}`);
-            return { path: fontPath, name: fontName };
-          }
-        }
-      } catch (err) {
-        continue;
-      }
-    }
-
-    console.log('[ExportService] No Chinese TTF font found, using Helvetica');
-    return { path: 'Helvetica', name: 'Helvetica' };
+  private escapeHtml(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   }
 
   /**

@@ -8,6 +8,7 @@ import { randomUUID } from 'crypto';
 import { Snippet, CreateSnippetDTO, UpdateSnippetDTO, SnippetFilter } from '../../shared/types/index';
 import { FullTextSearch } from '../database/fts';
 import { VectorStore } from './VectorStore';
+import { getAuthService } from './AuthService';
 
 interface DbSnippet {
   id: string;
@@ -27,6 +28,14 @@ interface DbSnippet {
   is_deleted?: number;
   deleted_at?: number | null;
   category_name?: string | null;
+  user_id?: string | null;
+}
+
+function effectiveUserId(authService?: any): string {
+  if (authService?.isLoggedIn?.()) {
+    return authService.getCachedUser()?.id || 'local';
+  }
+  return 'local';
 }
 
 export class SnippetManager {
@@ -48,15 +57,16 @@ export class SnippetManager {
     const now = Date.now();
 
     try {
+      const userId = effectiveUserId(getAuthService());
       const transaction = this.db.transaction(() => {
         this.db
           .prepare(
             `
-          INSERT INTO snippets (id, title, code, language, category_id, description, created_at, updated_at, access_count, is_synced, storage_scope)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)
+          INSERT INTO snippets (id, title, code, language, category_id, description, created_at, updated_at, access_count, is_synced, storage_scope, user_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?)
         `
           )
-          .run(id, data.title, data.code, data.language, data.category || null, data.description || null, now, now, storageScope);
+          .run(id, data.title, data.code, data.language, data.category || null, data.description || null, now, now, storageScope, userId);
 
         // 处理标签
         if (data.tags && data.tags.length > 0) {
@@ -88,13 +98,15 @@ export class SnippetManager {
    */
   async listSnippets(filter?: SnippetFilter): Promise<Snippet[]> {
     try {
+      const userId = effectiveUserId(getAuthService());
       let sql = `
         SELECT DISTINCT s.*
         FROM snippets s
         LEFT JOIN snippet_tags st ON s.id = st.snippet_id
         WHERE (s.is_deleted = 0 OR s.is_deleted IS NULL)
+          AND (s.user_id = ? OR s.user_id = 'local' OR s.user_id IS NULL)
       `;
-      const params: any[] = [];
+      const params: any[] = [userId];
 
       // 应用过滤条件
       if (filter?.category) {
@@ -272,9 +284,10 @@ export class SnippetManager {
 
   async listTrash(): Promise<Snippet[]> {
     try {
+      const userId = effectiveUserId(getAuthService());
       const dbSnippets = this.db
-        .prepare('SELECT * FROM snippets WHERE is_deleted = 1 ORDER BY deleted_at DESC')
-        .all() as DbSnippet[];
+        .prepare("SELECT * FROM snippets WHERE is_deleted = 1 AND (user_id = ? OR user_id = 'local' OR user_id IS NULL) ORDER BY deleted_at DESC")
+        .all(userId) as DbSnippet[];
       return Promise.all(dbSnippets.map((s) => this.dbSnippetToSnippet(s)));
     } catch (error) {
       console.error('Failed to list trash:', error);
@@ -316,9 +329,10 @@ export class SnippetManager {
 
   async emptyTrash(): Promise<void> {
     try {
+      const userId = effectiveUserId(getAuthService());
       const trashSnippets = this.db
-        .prepare('SELECT id, cloud_id FROM snippets WHERE is_deleted = 1')
-        .all() as Array<{ id: string; cloud_id: string | null }>;
+        .prepare("SELECT id, cloud_id FROM snippets WHERE is_deleted = 1 AND (user_id = ? OR user_id = 'local' OR user_id IS NULL)")
+        .all(userId) as Array<{ id: string; cloud_id: string | null }>;
       const transaction = this.db.transaction(() => {
         // 记录所有有 cloudId 的片段到黑名单
         const insertBlacklist = this.db.prepare('INSERT OR REPLACE INTO deleted_cloud_ids (cloud_id, deleted_at) VALUES (?, ?)');

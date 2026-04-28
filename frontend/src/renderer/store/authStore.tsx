@@ -141,12 +141,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 detail: { count: localOnlySnippets.length } 
               }));
             } else {
-              // 没有本地片段，直接拉取云端
+              // 没有本地片段，清理可能残留的云端片段后拉取
+              console.log('[Auth] Clearing stale cloud snippets before pull...');
+              await window.electron.ipcRenderer.invoke('snippet:clearAll');
               console.log('[Auth] Pulling cloud snippets...');
               const pullResult = await window.electron.ipcRenderer.invoke('sync:pull');
               if (pullResult.success) {
                 console.log(`[Auth] Successfully pulled ${pullResult.data?.pulled ?? 0} snippets from cloud`);
+                // 对账：从片段的 category_name 重建缺失的分类
+                await window.electron.ipcRenderer.invoke('sync:reconcileCategories');
                 window.dispatchEvent(new Event('snippets-refresh'));
+                window.dispatchEvent(new Event('categories-refresh'));
+                // 异步为缺失向量的片段补全向量（不删已有，等模型就绪后执行）
+                window.electron.ipcRenderer.invoke('embedding:generateMissingVectors').catch(() => {});
               }
             }
           } catch (error) {
@@ -189,7 +196,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     // 先触发刷新事件，让 UI 立即清空片段列表
     window.dispatchEvent(new Event('snippets-refresh'));
-    
+
+    // 等待进行中的元数据同步完成，避免登出后 token 失效导致同步失败
+    window.electron.ipcRenderer.invoke('sync:waitForPendingSync').catch(() => {});
+
     await window.electron.ipcRenderer.invoke('auth:logout');
     // 注销时清除所有片段（包括本地片段），避免重新登录时数据恢复
     await window.electron.ipcRenderer.invoke('snippet:clearAll');
