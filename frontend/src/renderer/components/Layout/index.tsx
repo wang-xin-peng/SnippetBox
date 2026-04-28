@@ -5,6 +5,7 @@ import { NewSnippetModal } from '../SnippetEditor/NewSnippetModal';
 import { UserMenu } from '../Header/UserMenu';
 import { SyncIndicator } from '../Sync/SyncIndicator';
 import { useTheme } from '../../store/themeStore';
+import { useAuth } from '../../store/authStore';
 import './Layout.css';
 
 function Layout() {
@@ -88,6 +89,36 @@ function Layout() {
   };
 
   const triggerRefresh = () => setRefreshKey(k => k + 1);
+
+  // 监听全局刷新事件
+  useEffect(() => {
+    const handleSnippetsRefresh = () => {
+      console.log('[Layout] Received snippets-refresh event, triggering Sidebar refresh...');
+      setRefreshKey(k => k + 1);
+    };
+
+    const handleCategoriesRefresh = () => {
+      console.log('[Layout] Received categories-refresh event, triggering Sidebar refresh...');
+      setRefreshKey(k => k + 1);
+    };
+
+    window.addEventListener('snippets-refresh', handleSnippetsRefresh);
+    window.addEventListener('categories-refresh', handleCategoriesRefresh);
+
+    return () => {
+      window.removeEventListener('snippets-refresh', handleSnippetsRefresh);
+      window.removeEventListener('categories-refresh', handleCategoriesRefresh);
+    };
+  }, []);
+
+  // 监听登录状态变化，确保 Sidebar 刷新时使用正确的 userId
+  const { user } = useAuth();
+  useEffect(() => {
+    if (user) {
+      console.log('[Layout] User changed, triggering Sidebar refresh with userId:', user.id);
+      setRefreshKey(k => k + 1);
+    }
+  }, [user]);
 
   const startDragLeft = useCallback((e: React.MouseEvent) => {
     e.preventDefault();

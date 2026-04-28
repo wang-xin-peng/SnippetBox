@@ -435,7 +435,19 @@ export class SnippetManager {
     const category = this.db.prepare('SELECT name FROM categories WHERE id = ?').get(categoryId) as
       | { name: string }
       | undefined;
-    return category?.name || '';
+    
+    if (category?.name) {
+      return category.name;
+    }
+    
+    // 如果分类不存在，尝试从ID中提取名称（兼容旧数据）
+    // 格式: cat_<userId>_<categoryName>
+    const match = categoryId.match(/^cat_[^_]+_(.+)$/);
+    if (match && match[1]) {
+      return match[1];
+    }
+    
+    return '';
   }
 
   /**
@@ -447,6 +459,9 @@ export class SnippetManager {
     let categoryId: string | undefined;
     if (dbSnippet.cloud_id && dbSnippet.category_name) {
       category = dbSnippet.category_name;
+      // 尝试通过名称找到本地对应的分类 ID
+      const localCat = this.db.prepare('SELECT id FROM categories WHERE name = ?').get(dbSnippet.category_name) as { id: string } | undefined;
+      categoryId = localCat?.id || dbSnippet.category_id || undefined;
     } else if (dbSnippet.category_id) {
       category = this.getCategoryName(dbSnippet.category_id) || '';
       categoryId = dbSnippet.category_id;

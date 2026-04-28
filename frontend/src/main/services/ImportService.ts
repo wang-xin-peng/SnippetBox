@@ -206,7 +206,7 @@ export class ImportService {
       let category = this.db.prepare('SELECT id FROM categories WHERE name = ?').get(snippet.category) as any;
       if (!category) {
         const catId = randomUUID();
-        this.db.prepare('INSERT INTO categories (id, name, created_at) VALUES (?, ?, ?)').run(catId, snippet.category, now);
+        this.db.prepare('INSERT INTO categories (id, name, created_at, user_id) VALUES (?, ?, ?, ?)').run(catId, snippet.category, now, 'local');
         categoryId = catId;
       } else {
         categoryId = category.id;
@@ -250,14 +250,12 @@ export class ImportService {
       let category = this.db.prepare('SELECT id FROM categories WHERE name = ?').get(snippet.category) as any;
       if (!category) {
         const catId = randomUUID();
-        this.db.prepare('INSERT INTO categories (id, name, created_at) VALUES (?, ?, ?)').run(catId, snippet.category, now);
+        this.db.prepare('INSERT INTO categories (id, name, created_at, user_id) VALUES (?, ?, ?, ?)').run(catId, snippet.category, now, 'local');
         categoryId = catId;
       } else {
         categoryId = category.id;
       }
     }
-
-    // 更新片段
     this.db.prepare(`
       UPDATE snippets 
       SET title = ?, description = ?, code = ?, language = ?, category_id = ?, updated_at = ?

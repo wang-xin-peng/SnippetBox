@@ -1,8 +1,19 @@
 import { ipcMain } from 'electron';
 import { getDatabaseManager } from '../database';
 import { TagManager } from '../services/TagManager';
+import { getAuthService } from '../services/AuthService';
 
 let tagManager: TagManager | null = null;
+
+function getSyncServiceLazy() {
+  try {
+    const { getSyncService } = require('../services/SyncService');
+    if (!getAuthService().isLoggedIn()) return null;
+    return getSyncService();
+  } catch {
+    return null;
+  }
+}
 
 export function registerTagHandlers() {
   const dbManager = getDatabaseManager();
@@ -21,7 +32,9 @@ export function registerTagHandlers() {
 
   ipcMain.handle('tag:create', async (_event, dto: { name: string }) => {
     if (!tagManager) throw new Error('TagManager not initialized');
-    return tagManager.createTag(dto);
+    const result = await tagManager.createTag(dto);
+    getSyncServiceLazy()?.syncMetadata().catch(() => {});
+    return result;
   });
 
   ipcMain.handle('tag:findByName', async (_event, name: string) => {
@@ -36,7 +49,9 @@ export function registerTagHandlers() {
 
   ipcMain.handle('tag:merge', async (_event, sourceId: string, targetId: string) => {
     if (!tagManager) throw new Error('TagManager not initialized');
-    return tagManager.mergeTags(sourceId, targetId);
+    const result = await tagManager.mergeTags(sourceId, targetId);
+    getSyncServiceLazy()?.syncMetadata().catch(() => {});
+    return result;
   });
 
   console.log('Tag handlers registered');

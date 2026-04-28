@@ -108,6 +108,90 @@ export class SyncService {
     this.sync().catch((e) => console.error('[SyncService] Sync after reconnect failed:', e));
   }
 
+  /**
+   * 同步分类和标签元数据（双向）
+   * 推送本地分类/标签到云端，并拉取云端新增的分类/标签到本地
+   */
+  async syncMetadata(): Promise<{ pushed: number; pulled: number; errors: string[] }> {
+    const result = { pushed: 0, pulled: 0, errors: [] as string[] };
+    const token = getAuthService().getAccessToken();
+    if (!token || !this.isOnline) return result;
+
+    try {
+      const db = getDatabaseManager().getDb();
+      const headers = { Authorization: `Bearer ${token}` };
+      const currentUser = await getAuthService().getCurrentUser();
+      const userId = currentUser?.id || 'local';
+
+      // 收集本地分类（排除默认分类前缀 cat_local_ 和 cat_<userId>_）
+      const localCategories = db.prepare(
+        `SELECT id, name, color, icon, created_at, updated_at FROM categories
+         WHERE user_id IN ('local', ?) AND name NOT LIKE '#%'`
+      ).all(userId) as any[];
+
+      // 收集本地标签
+      const localTags = db.prepare(
+        `SELECT id, name, created_at FROM tags`
+      ).all() as any[];
+
+      const payload = {
+        categories: localCategories.map(c => ({
+          name: c.name,
+          color: c.color || '#6c757d',
+          icon: c.icon || 'fas fa-folder',
+          created_at: new Date(c.created_at).toISOString(),
+          updated_at: new Date(c.updated_at || c.created_at).toISOString(),
+        })),
+        tags: localTags.map(t => ({
+          name: t.name,
+          created_at: new Date(t.created_at).toISOString(),
+        })),
+      };
+
+      const res = await this.http.post('/sync/metadata', payload, { headers });
+      const { categories: cloudCats, tags: cloudTags } = res.data;
+
+      // 将云端返回的分类合并到本地（按名称去重）
+      const insertCat = db.prepare(
+        `INSERT OR IGNORE INTO categories (id, name, color, icon, created_at, updated_at, user_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
+      );
+      for (const cat of (cloudCats || [])) {
+        const existing = db.prepare('SELECT id FROM categories WHERE name = ? AND user_id IN (?, \'local\')')
+          .get(cat.name, userId) as any;
+        if (!existing) {
+          const { randomUUID } = await import('crypto');
+          insertCat.run(
+            randomUUID(), cat.name, cat.color || '#6c757d', cat.icon || 'fas fa-folder',
+            new Date(cat.created_at).getTime(), new Date(cat.updated_at).getTime(), userId
+          );
+          result.pulled++;
+        }
+      }
+
+      // 将云端返回的标签合并到本地（按名称去重）
+      const insertTag = db.prepare(
+        `INSERT OR IGNORE INTO tags (id, name, usage_count, created_at) VALUES (?, ?, 0, ?)`
+      );
+      for (const tag of (cloudTags || [])) {
+        const existing = db.prepare('SELECT id FROM tags WHERE name = ?').get(tag.name) as any;
+        if (!existing) {
+          const { randomUUID } = await import('crypto');
+          insertTag.run(randomUUID(), tag.name, new Date(tag.created_at).getTime());
+          result.pulled++;
+        }
+      }
+
+      result.pushed = payload.categories.length + payload.tags.length;
+    } catch (e: any) {
+      const msg = e?.response?.data?.detail ?? e.message;
+      result.errors.push(msg);
+      console.warn('[SyncService] Metadata sync failed:', msg);
+    }
+
+    return result;
+  }
+
   async pushChanges(): Promise<PushResult> {
     const result: PushResult = { pushed: 0, errors: [] };
     const token = getAuthService().getAccessToken();
@@ -131,12 +215,19 @@ export class SyncService {
 
       for (const row of unsynced) {
         try {
+          // 将 category_id 转换为分类名称推送给云端
+          let categoryName: string | null = null;
+          if (row.category_id) {
+            const cat = db.prepare('SELECT name FROM categories WHERE id = ?').get(row.category_id) as any;
+            categoryName = cat?.name ?? null;
+          }
+
           const payload = {
             title: row.title,
             code: row.code,
             language: row.language,
             description: row.description,
-            category: row.category_id,
+            category: categoryName,
           };
 
           let cloudId = row.cloud_id;
@@ -279,6 +370,12 @@ export class SyncService {
     this.notifyRenderer();
 
     try {
+      // 先同步分类/标签元数据，确保片段同步时分类名称已存在
+      const metaResult = await this.syncMetadata();
+      if (metaResult.errors.length > 0) {
+        console.warn('[SyncService] Metadata sync had errors:', metaResult.errors);
+      }
+
       const pushResult = await this.pushChanges();
       const pullResult = await this.pullChanges();
 

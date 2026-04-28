@@ -183,6 +183,47 @@ export function initializeDefaultCategories(db: Database.Database): void {
 }
 
 /**
+ * 清理因历史 bug 产生的用户专属默认分类（cat_<uuid>_* 格式）
+ * 将这些分类下的片段迁移到对应的 local 分类，然后删除重复分类
+ */
+function cleanupDuplicateDefaultCategories(db: Database.Database): void {
+  try {
+    // 找出所有非 local 的默认分类（id 格式为 cat_<uuid>_<suffix>，不是 cat_local_*）
+    const duplicates = db.prepare(`
+      SELECT id, name, user_id FROM categories
+      WHERE id LIKE 'cat_%'
+        AND id NOT LIKE 'cat_local_%'
+    `).all() as { id: string; name: string; user_id: string }[];
+
+    if (duplicates.length === 0) return;
+
+    console.log(`[Migration] Cleaning up ${duplicates.length} duplicate default categories...`);
+
+    const transaction = db.transaction(() => {
+      for (const dup of duplicates) {
+        // 找到对应的 local 分类（同名）
+        const localCat = db.prepare(
+          "SELECT id FROM categories WHERE name = ? AND user_id = 'local'"
+        ).get(dup.name) as { id: string } | undefined;
+
+        if (localCat) {
+          // 把引用重复分类的片段改指向 local 分类
+          db.prepare('UPDATE snippets SET category_id = ? WHERE category_id = ?')
+            .run(localCat.id, dup.id);
+        }
+        // 删除重复分类
+        db.prepare('DELETE FROM categories WHERE id = ?').run(dup.id);
+      }
+    });
+
+    transaction();
+    console.log('[Migration] Duplicate default categories cleaned up');
+  } catch (e) {
+    console.warn('[Migration] Failed to clean up duplicate categories:', e);
+  }
+}
+
+/**
  * 运行所有迁移
  */
 export function runMigrations(db: Database.Database): void {
@@ -196,6 +237,7 @@ export function runMigrations(db: Database.Database): void {
     deduplicateCloudSnippets(db);
     migrateCloudIdUniqueIndex(db);
     initializeDefaultCategories(db);
+    cleanupDuplicateDefaultCategories(db);
     console.log('[Migration] All migrations completed successfully');
   } catch (error) {
     console.error('[Migration] Migration failed:', error);

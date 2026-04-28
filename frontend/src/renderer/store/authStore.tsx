@@ -124,6 +124,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             
             // 延迟 2 秒后再处理同步逻辑，确保 UI 完全可用
             await new Promise(resolve => setTimeout(resolve, 2000));
+
+            // 先同步分类/标签元数据
+            await window.electron.ipcRenderer.invoke('sync:syncMetadata');
+            window.dispatchEvent(new Event('categories-refresh'));
             
             // 1. 检查是否有本地片段
             const localSnippets = await window.electron.ipcRenderer.invoke('snippet:list');

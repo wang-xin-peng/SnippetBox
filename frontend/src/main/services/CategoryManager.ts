@@ -67,13 +67,14 @@ export class CategoryManager {
 
   async getCategories(userId: string = 'local'): Promise<Category[]> {
     const isLocalUser = userId === 'local';
+
     const storageCondition = isLocalUser
       ? "(s.storage_scope IS NULL OR s.storage_scope = 'local')"
-      : "s.storage_scope = 'cloud'";
+      : "(s.storage_scope IS NULL OR s.storage_scope = 'local' OR s.storage_scope = 'cloud')";
 
-    const categories = this.db
-      .prepare(
-        `
+    // 查询属于该用户的分类，以及通用的 local 分类（默认分类）
+    // 两者不会重名，因为 cleanupDuplicateDefaultCategories 迁移已清理历史重复数据
+    const categories = this.db.prepare(`
       SELECT
         c.*,
         (SELECT COUNT(*) FROM snippets s
@@ -81,11 +82,10 @@ export class CategoryManager {
            AND (s.is_deleted = 0 OR s.is_deleted IS NULL)
            AND ${storageCondition}) as snippet_count
       FROM categories c
-      WHERE c.user_id = ? AND c.name NOT LIKE '#%'
+      WHERE (c.user_id = ? ${isLocalUser ? '' : "OR c.user_id = 'local'"})
+        AND c.name NOT LIKE '#%'
       ORDER BY c.created_at DESC
-    `
-      )
-      .all(userId) as any[];
+    `).all(userId) as any[];
 
     return categories.map((cat: any) => ({
       id: cat.id,
@@ -214,12 +214,18 @@ export class CategoryManager {
   }
 
   async ensureDefaultCategories(userId: string = 'local'): Promise<void> {
+    // 默认分类统一归属 local，所有用户共享，不再为每个登录用户单独创建一套
+    const count = this.db
+      .prepare("SELECT COUNT(*) as cnt FROM categories WHERE user_id = 'local'")
+      .get() as { cnt: number };
+    if (count.cnt > 0) return;
+
     const defaults = [
-      { id: `cat_${userId}_default`, name: '未分类', description: '未分类的代码片段', color: '#6B7280', icon: 'fas fa-folder' },
-      { id: `cat_${userId}_algorithm`, name: '算法', description: '排序、搜索、动态规划等', color: '#3B82F6', icon: 'fas fa-brain' },
-      { id: `cat_${userId}_ui`, name: 'UI组件', description: '可复用的界面组件和样式', color: '#8B5CF6', icon: 'fas fa-palette' },
-      { id: `cat_${userId}_utils`, name: '工具函数', description: '通用工具函数和辅助方法', color: '#F59E0B', icon: 'fas fa-wrench' },
-      { id: `cat_${userId}_api`, name: 'API接口', description: 'HTTP请求、接口调用', color: '#06B6D4', icon: 'fas fa-plug' },
+      { id: 'cat_local_default', name: '未分类', description: '未分类的代码片段', color: '#6B7280', icon: 'fas fa-folder' },
+      { id: 'cat_local_algorithm', name: '算法', description: '排序、搜索、动态规划等', color: '#3B82F6', icon: 'fas fa-brain' },
+      { id: 'cat_local_ui', name: 'UI组件', description: '可复用的界面组件和样式', color: '#8B5CF6', icon: 'fas fa-palette' },
+      { id: 'cat_local_utils', name: '工具函数', description: '通用工具函数和辅助方法', color: '#F59E0B', icon: 'fas fa-wrench' },
+      { id: 'cat_local_api', name: 'API接口', description: 'HTTP请求、接口调用', color: '#06B6D4', icon: 'fas fa-plug' },
     ];
 
     const insertStmt = this.db.prepare(`
@@ -230,10 +236,9 @@ export class CategoryManager {
     const now = Date.now();
     const transaction = this.db.transaction(() => {
       for (const cat of defaults) {
-        insertStmt.run(cat.id, cat.name, cat.description, cat.color, cat.icon, now, now, userId);
+        insertStmt.run(cat.id, cat.name, cat.description, cat.color, cat.icon, now, now, 'local');
       }
     });
-
     transaction();
   }
 }

@@ -89,11 +89,11 @@ export const EditSnippetModal: React.FC<Props> = ({ snippet, onClose, onSaved })
     if (!isEditing && !code.trim()) { alert('代码不能为空'); return; }
     setIsSaving(true);
     try {
-      const uncatId = categories.find(c => c.name === '未分类')?.id;
       const data: UpdateSnippetDTO = {
         title: title.trim(),
         language,
-        category: category || uncatId || undefined,
+        // 直接传 category ID（空字符串表示清空分类，传 null 给后端）
+        category: category || null,
         tags,
         description: description.trim() || undefined,
       } as any;

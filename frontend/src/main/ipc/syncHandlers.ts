@@ -102,15 +102,11 @@ export function registerSyncHandlers() {
   ipcMain.handle('snippet:clearAll', () => {
     try {
       const db = getDatabaseManager().getDb();
-      // 清除所有片段
-      db.prepare('DELETE FROM snippets').run();
-      // 清除所有分类
-      db.prepare('DELETE FROM categories').run();
-      // 清除所有标签
-      db.prepare('DELETE FROM tags').run();
+      // 登出时只清除云端同步的片段，保留本地片段和所有分类
+      db.prepare("DELETE FROM snippets WHERE storage_scope = 'cloud' OR sync_source = 'cloud'").run();
       // 清除永久删除黑名单
       db.prepare('DELETE FROM deleted_cloud_ids').run();
-      console.log('[SyncHandlers] All snippets, categories, tags cleared');
+      console.log('[SyncHandlers] Cloud snippets cleared, local snippets and categories preserved');
       return { success: true };
     } catch (e: any) {
       console.error('[SyncHandlers] clearAll error:', e);
@@ -144,6 +140,15 @@ export function registerSyncHandlers() {
     try {
       const usage = await sync.getStorageUsage();
       return { success: true, data: usage };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  });
+
+  ipcMain.handle('sync:syncMetadata', async () => {
+    try {
+      const result = await sync.syncMetadata();
+      return { success: true, data: result };
     } catch (e: any) {
       return { success: false, error: e.message };
     }
