@@ -21,19 +21,17 @@ function createWindow() {
     },
   });
 
-  // 开发环境加载 Vite 开发服务器
+  // 开发环境加载 Vite 开发服务器，仅开发环境打开开发者工具
   if (isDev) {
     mainWindow.loadURL('http://localhost:3000');
+    mainWindow.webContents.on('did-finish-load', () => {
+      mainWindow?.webContents.openDevTools();
+    });
+
   } else {
-    // 生产环境加载打包后的文件
-    mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+    // 生产环境
+    mainWindow.loadFile(path.join(__dirname, '../../renderer/index.html'));
   }
-
-  // 始终打开开发者工具 - 等待页面加载完成后打开
-  mainWindow.webContents.on('did-finish-load', () => {
-    mainWindow?.webContents.openDevTools();
-  });
-
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
