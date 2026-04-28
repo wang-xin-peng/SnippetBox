@@ -80,6 +80,7 @@ yarn-error.log*
 !.vscode/launch.json
 !.vscode/tasks.json
 !.vscode/settings.json.example
+.claude
 *.suo
 *.ntvs*
 *.njsproj
