@@ -13,6 +13,8 @@ export function registerSyncHandlers() {
   ipcMain.handle('sync:push', async () => {
     try {
       const result = await sync.pushChanges();
+      (sync as any).updatePendingCount();
+      (sync as any).notifyRenderer();
       return { success: true, data: result };
     } catch (e: any) {
       return { success: false, error: e.message };
@@ -22,6 +24,8 @@ export function registerSyncHandlers() {
   ipcMain.handle('sync:pull', async () => {
     try {
       const result = await sync.pullChanges();
+      (sync as any).updatePendingCount();
+      (sync as any).notifyRenderer();
       return { success: true, data: result };
     } catch (e: any) {
       return { success: false, error: e.message };

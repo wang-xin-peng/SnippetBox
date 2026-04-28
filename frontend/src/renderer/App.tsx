@@ -38,11 +38,13 @@ function AppContent() {
     setSyncDialogCount(null);
     try {
       console.log('[App] Merging local snippets to cloud...');
+      // 先清除 skip_sync 标记，确保之前取消过的片段也能同步
+      await window.electron.ipcRenderer.invoke('sync:clearSkipSync');
       const pushResult = await window.electron.ipcRenderer.invoke('sync:push');
       if (pushResult.success && pushResult.data.pushed > 0) {
         console.log(`[App] Successfully merged ${pushResult.data.pushed} snippets`);
       }
-      // 拉取云端片段
+
       const pullResult = await window.electron.ipcRenderer.invoke('sync:pull');
       if (pullResult.success) {
         console.log(`[App] Successfully pulled ${pullResult.data?.pulled ?? 0} snippets from cloud`);
