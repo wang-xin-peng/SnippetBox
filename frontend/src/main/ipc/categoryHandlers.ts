@@ -67,5 +67,10 @@ export function registerCategoryHandlers() {
     return true;
   });
 
+  ipcMain.handle('category:reassignLocalToUser', (_event, userId: string) => {
+    if (!categoryManager) throw new Error('CategoryManager not initialized');
+    return categoryManager.reassignLocalCategoriesToUser(userId);
+  });
+
   console.log('Category handlers registered');
 }

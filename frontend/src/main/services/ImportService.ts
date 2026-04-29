@@ -183,8 +183,9 @@ export class ImportService {
   private findDuplicate(title: string, code: string): any | null {
     try {
       const snippet = this.db.prepare(`
-        SELECT * FROM snippets 
+        SELECT * FROM snippets
         WHERE title = ? AND code = ?
+          AND (is_deleted = 0 OR is_deleted IS NULL)
         LIMIT 1
       `).get(title, code);
       return snippet || null;
@@ -194,30 +195,48 @@ export class ImportService {
   }
 
   /**
+   * 获取或创建"未分类"分类
+   */
+  private getOrCreateUncategorizedCategory(now: number): string {
+    const existing = this.db.prepare("SELECT id FROM categories WHERE name = '未分类' AND user_id = 'local'").get() as { id: string } | undefined;
+    if (existing) return existing.id;
+    const id = 'cat_local_default';
+    this.db.prepare('INSERT OR IGNORE INTO categories (id, name, description, color, icon, created_at, updated_at, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(id, '未分类', '未分类的代码片段', '#6B7280', 'fas fa-folder', now, now, 'local');
+    return id;
+  }
+
+  /**
    * 创建片段
    */
   private createSnippet(snippet: any): void {
     const id = randomUUID();
-    const now = new Date().toISOString();
+    const now = Date.now();
 
-    // 获取或创建分类
-    let categoryId = null;
+    // 获取或创建分类（未指定时归入"未分类"）
+    let categoryId: string;
+    let categoryName: string;
     if (snippet.category) {
-      let category = this.db.prepare('SELECT id FROM categories WHERE name = ?').get(snippet.category) as any;
+      categoryName = snippet.category;
+      let category = this.db.prepare('SELECT id FROM categories WHERE name = ? AND user_id = \'local\'').get(categoryName) as any;
       if (!category) {
         const catId = randomUUID();
-        this.db.prepare('INSERT INTO categories (id, name, created_at, user_id) VALUES (?, ?, ?, ?)').run(catId, snippet.category, now, 'local');
+        this.db.prepare('INSERT INTO categories (id, name, description, color, icon, created_at, updated_at, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+          .run(catId, categoryName, null, '#6c757d', 'fas fa-folder', now, now, 'local');
         categoryId = catId;
       } else {
         categoryId = category.id;
       }
+    } else {
+      categoryId = this.getOrCreateUncategorizedCategory(now);
+      categoryName = '未分类';
     }
 
     // 创建片段
     this.db.prepare(`
-      INSERT INTO snippets (id, title, description, code, language, category_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, snippet.title, snippet.description || '', snippet.code, snippet.language, categoryId, now, now);
+      INSERT INTO snippets (id, title, description, code, language, category_id, category_name, created_at, updated_at, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, snippet.title, snippet.description || '', snippet.code, snippet.language, categoryId, categoryName, now, now, 'local');
 
     // 添加标签
     if (snippet.tags && snippet.tags.length > 0) {
@@ -230,8 +249,8 @@ export class ImportService {
         }
 
         // 关联标签
-        this.db.prepare('INSERT INTO snippet_tags (snippet_id, tag_id) VALUES (?, ?)').run(id, tag.id);
-        
+        this.db.prepare('INSERT INTO snippet_tags (snippet_id, tag_id, created_at) VALUES (?, ?, ?)').run(id, tag.id, now);
+
         // 更新标签使用次数
         this.db.prepare('UPDATE tags SET usage_count = usage_count + 1 WHERE id = ?').run(tag.id);
       }
@@ -242,25 +261,32 @@ export class ImportService {
    * 更新片段
    */
   private updateSnippet(id: string, snippet: any): void {
-    const now = new Date().toISOString();
+    const now = Date.now();
 
-    // 获取或创建分类
-    let categoryId = null;
+    // 获取或创建分类（未指定时归入"未分类"）
+    let categoryId: string;
+    let categoryName: string;
     if (snippet.category) {
-      let category = this.db.prepare('SELECT id FROM categories WHERE name = ?').get(snippet.category) as any;
+      categoryName = snippet.category;
+      let category = this.db.prepare('SELECT id FROM categories WHERE name = ? AND user_id = \'local\'').get(categoryName) as any;
       if (!category) {
         const catId = randomUUID();
-        this.db.prepare('INSERT INTO categories (id, name, created_at, user_id) VALUES (?, ?, ?, ?)').run(catId, snippet.category, now, 'local');
+        this.db.prepare('INSERT INTO categories (id, name, description, color, icon, created_at, updated_at, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+          .run(catId, categoryName, null, '#6c757d', 'fas fa-folder', now, now, 'local');
         categoryId = catId;
       } else {
         categoryId = category.id;
       }
+    } else {
+      categoryId = this.getOrCreateUncategorizedCategory(now);
+      categoryName = '未分类';
     }
+
     this.db.prepare(`
-      UPDATE snippets 
-      SET title = ?, description = ?, code = ?, language = ?, category_id = ?, updated_at = ?
+      UPDATE snippets
+      SET title = ?, description = ?, code = ?, language = ?, category_id = ?, category_name = ?, updated_at = ?
       WHERE id = ?
-    `).run(snippet.title, snippet.description || '', snippet.code, snippet.language, categoryId, now, id);
+    `).run(snippet.title, snippet.description || '', snippet.code, snippet.language, categoryId, categoryName, now, id);
 
     // 删除旧标签关联
     this.db.prepare('DELETE FROM snippet_tags WHERE snippet_id = ?').run(id);
@@ -276,8 +302,8 @@ export class ImportService {
         }
 
         // 关联标签
-        this.db.prepare('INSERT INTO snippet_tags (snippet_id, tag_id) VALUES (?, ?)').run(id, tag.id);
-        
+        this.db.prepare('INSERT INTO snippet_tags (snippet_id, tag_id, created_at) VALUES (?, ?, ?)').run(id, tag.id, now);
+
         // 更新标签使用次数
         this.db.prepare('UPDATE tags SET usage_count = usage_count + 1 WHERE id = ?').run(tag.id);
       }

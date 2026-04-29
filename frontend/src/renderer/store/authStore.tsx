@@ -127,8 +127,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             // 先同步分类/标签元数据
             await window.electron.ipcRenderer.invoke('sync:syncMetadata');
+            // 将本地未登录时创建的非默认分类重新分配给当前用户，防止分类泄露
+            await window.electron.ipcRenderer.invoke('category:reassignLocalToUser', res.data.user.id);
             window.dispatchEvent(new Event('categories-refresh'));
-            
+
             // 1. 检查是否有本地片段
             const localSnippets = await window.electron.ipcRenderer.invoke('snippet:list');
             const localOnlySnippets = localSnippets.filter(

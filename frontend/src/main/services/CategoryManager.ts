@@ -218,6 +218,22 @@ export class CategoryManager {
     return this.getCategories(userId);
   }
 
+  /**
+   * 将非默认的 local 分类重新分配给指定用户。
+   * 解决本地未登录时创建的分类在登录后仍然可见的问题。
+   * 默认分类（id 以 cat_local_ 开头）保持不变，所有用户共享。
+   */
+  reassignLocalCategoriesToUser(userId: string): number {
+    if (userId === 'local') return 0;
+    const result = this.db
+      .prepare("UPDATE categories SET user_id = ? WHERE user_id = 'local' AND id NOT LIKE 'cat_local_%'")
+      .run(userId);
+    if (result.changes > 0) {
+      console.log(`[CategoryManager] Reassigned ${result.changes} local categories to user ${userId}`);
+    }
+    return result.changes;
+  }
+
   async ensureDefaultCategories(userId: string = 'local'): Promise<void> {
     // 默认分类统一归属 local，所有用户共享，不再为每个登录用户单独创建一套
     const count = this.db
