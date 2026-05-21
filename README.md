@@ -44,13 +44,13 @@ uvicorn main:app --reload
 
 ## 功能特性
 
-- 📝 代码片段管理（创建、编辑、删除）
-- 🔍 全文搜索（FTS5）
-- 🏷️ 标签和分类管理
-- 🎨 语法高亮（Monaco Editor）
-- 🔐 本地存储（SQLite）
-- 🤖 语义搜索（AI 向量化）
-- 🌐 云端同步（可选）
+- 代码片段管理（创建、编辑、删除）
+- 全文搜索（FTS5）
+- 标签和分类管理
+- 语法高亮（Monaco Editor）
+- 本地存储（SQLite）
+- 语义搜索（AI 向量化）
+- 云端同步（可选）
 
 ## 技术栈
 
@@ -87,7 +87,7 @@ MIT License
 - [需求文档](./docs/requirements.md)
 - [设计文档](./docs/design.md)
 - [开发指南](./docs/development.md)
-- [API 文档](./docs/API_USAGE.md)
+- [任务文档](./docs/tasks.md)
 
 ## 部署
 
@@ -103,14 +103,4 @@ npm run package:linux  # Linux
 
 ### 后端部署
 
-详见 [backend/DEPLOYMENT\_GUIDE.md](./backend/DEPLOYMENT_GUIDE.md)
-
-## 贡献
-
-欢迎提交 Issue 和 Pull Request！
-
-## 联系方式
-
-- GitHub: <https://github.com/wang-xin-peng/SnippetBox>
-- 服务器 API: <http://8.141.108.146:8000>
-
+详见 [docs/deployment.md](./docs/deployment.md)

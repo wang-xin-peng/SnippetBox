@@ -4,6 +4,7 @@ import { BrowserWindow } from 'electron';
 import { getDatabaseManager } from '../database';
 import { getAuthService } from './AuthService';
 import { getOfflineQueue } from './OfflineQueue';
+import { getApiV1Url, getHealthUrl } from '../config/apiConfig';
 import {
   SyncResult,
   PushResult,
@@ -12,7 +13,7 @@ import {
   SyncStatusType,
 } from '../../shared/types/sync';
 
-const BASE_URL = 'http://8.141.108.146:8000/api/v1';
+const BASE_URL = getApiV1Url();
 
 export class SyncService {
   private http: AxiosInstance;
@@ -45,7 +46,7 @@ export class SyncService {
 
   private async checkOnlineStatus(): Promise<boolean> {
     try {
-      await axios.get(`http://8.141.108.146:8000/health`, { timeout: 2000 });
+      await axios.get(getHealthUrl(), { timeout: 2000 });
       const wasOffline = !this.isOnline;
       this.isOnline = true;
       this.status.isOnline = true;
@@ -64,7 +65,7 @@ export class SyncService {
 
   private async quickCheckOnlineStatus(): Promise<boolean> {
     try {
-      await axios.get(`http://8.141.108.146:8000/health`, { timeout: 2000 });
+      await axios.get(getHealthUrl(), { timeout: 2000 });
       this.isOnline = true;
       this.status.isOnline = true;
       return true;

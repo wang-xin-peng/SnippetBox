@@ -2,8 +2,9 @@ import { safeStorage, app } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 import axios, { AxiosInstance } from 'axios';
+import { getApiBaseUrl, getApiV1Url } from '../config/apiConfig';
 
-const BASE_URL = 'http://8.141.108.146:8000/api/v1';
+const BASE_URL = getApiV1Url();
 const TOKEN_KEY = 'auth_tokens';
 
 function extractError(err: any): string {
@@ -369,7 +370,7 @@ export class AuthService {
     };
 
     try {
-      const res = await axios.get(`${BASE_URL.replace(/\/api\/v1$/, '')}/openapi.json`, { timeout: 5000 });
+      const res = await axios.get(`${getApiBaseUrl()}/openapi.json`, { timeout: 5000 });
       const paths = res.data?.paths ?? {};
 
       const value: AuthCapabilities = {

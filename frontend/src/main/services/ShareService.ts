@@ -1,7 +1,8 @@
 import { getAuthService } from './AuthService';
+import { getApiBaseUrl } from '../config/apiConfig';
 import { CreateShareRequest, ShareInfo, ShareListItem } from '../../shared/types/share';
 
-const API_BASE = process.env.API_BASE_URL ?? 'http://8.141.108.146:8000';
+const API_BASE = getApiBaseUrl();
 
 function extractError(err: any): string {
   const detail = err?.detail;
