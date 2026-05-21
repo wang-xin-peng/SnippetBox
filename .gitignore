@@ -109,7 +109,3 @@ $RECYCLE.BIN/
 .directory
 .Trash-*
 .nfs*
-
-
-tmp/
-.claude/

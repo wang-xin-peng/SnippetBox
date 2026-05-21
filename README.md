@@ -44,13 +44,14 @@ uvicorn main:app --reload
 
 ## 功能特性
 
-- 代码片段管理（创建、编辑、删除）
-- 全文搜索（FTS5）
+- 代码片段管理
+- 全文搜索
+- 智能搜索
 - 标签和分类管理
+- 导入、导出、打印、分享
 - 语法高亮（Monaco Editor）
 - 本地存储（SQLite）
-- 语义搜索（AI 向量化）
-- 云端同步（可选）
+- 云端同步
 
 ## 技术栈
 
@@ -86,12 +87,23 @@ MIT License
 
 - [需求文档](./docs/requirements.md)
 - [设计文档](./docs/design.md)
-- [开发指南](./docs/development.md)
+- [开发文档](./docs/development.md)
 - [任务文档](./docs/tasks.md)
+- [后端部署](./docs/deployment.md)
 
 ## 部署
 
-### 前端打包
+### 前端
+
+##### 启动
+
+```
+cd frontend
+npm install
+npm run dev
+```
+
+##### 打包
 
 ```bash
 cd frontend
@@ -104,3 +116,11 @@ npm run package:linux  # Linux
 ### 后端部署
 
 详见 [docs/deployment.md](./docs/deployment.md)
+
+### 启动后：
+
+默认情况下（未自行配置后端地址）：
+
+- 前端 : http://localhost:3000
+- 后端 API : http://localhost:8000
+- 后端文档 : http://localhost:8000/docs
